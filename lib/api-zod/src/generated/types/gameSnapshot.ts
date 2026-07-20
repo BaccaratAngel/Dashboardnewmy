@@ -5,6 +5,9 @@
  * Baccarat prediction dashboard API
  * OpenAPI spec version: 0.1.0
  */
+import type { LookAheadResult } from './lookAheadResult';
+import type { MetaAIResult } from './metaAIResult';
+import type { ObserverResult } from './observerResult';
 import type { RegimeState } from './regimeState';
 
 export interface GameSnapshot {
@@ -12,4 +15,7 @@ export interface GameSnapshot {
   /** Array of B, P, T outcomes entered so far */
   history: string[];
   regime: RegimeState;
+  lookAhead: LookAheadResult;
+  metaAI: MetaAIResult;
+  observer: ObserverResult;
 }

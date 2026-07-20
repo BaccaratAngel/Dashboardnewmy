@@ -506,7 +506,7 @@ components:
 
     GameSnapshot:
       type: object
-      required: [handCount, history, regime]
+      required: [handCount, history, regime, lookAhead, metaAI, observer]
       properties:
         handCount:
           type: integer
@@ -517,6 +517,65 @@ components:
           description: Array of B, P, T outcomes entered so far
         regime:
           $ref: "#/components/schemas/RegimeState"
+        lookAhead:
+          $ref: "#/components/schemas/LookAheadResult"
+        metaAI:
+          $ref: "#/components/schemas/MetaAIResult"
+        observer:
+          $ref: "#/components/schemas/ObserverResult"
+
+    LookAheadResult:
+      type: object
+      required: [active, verdict, bias, strength, recentAcc, avgP, avgB]
+      properties:
+        active:
+          type: boolean
+        verdict:
+          type: ["string", "null"]
+          description: '"P", "B", or null'
+        bias:
+          type: number
+        strength:
+          type: number
+        recentAcc:
+          type: ["number", "null"]
+          description: Rolling accuracy (0-1) or null if no predictions yet
+        avgP:
+          type: number
+        avgB:
+          type: number
+
+    MetaAIResult:
+      type: object
+      required: [decision, pPlayer, accuracy, seen]
+      properties:
+        decision:
+          type: string
+          description: '"P", "B", or "WAIT"'
+        pPlayer:
+          type: number
+          description: Probability of Player (0-1)
+        accuracy:
+          type: ["number", "null"]
+          description: Rolling accuracy (0-1) or null if fewer than 1 prediction
+        seen:
+          type: integer
+          description: Total labeled hands seen by MetaAI
+
+    ObserverResult:
+      type: object
+      required: [decision, wr, reasoning, isFallback]
+      properties:
+        decision:
+          type: string
+          description: '"P", "B", or "WAIT"'
+        wr:
+          type: ["number", "null"]
+          description: Win-rate of the winning sub-system, or null for fallback
+        reasoning:
+          type: string
+        isFallback:
+          type: boolean
 
     # ── Admin schemas ───────────────────────────────────────
     UserAccount:

@@ -83,11 +83,58 @@ export interface RegimeState {
   window: number;
 }
 
+export interface LookAheadResult {
+  active: boolean;
+  /**
+     * "P", "B", or null
+     * @nullable
+     */
+  verdict: string | null;
+  bias: number;
+  strength: number;
+  /**
+     * Rolling accuracy (0-1) or null if no predictions yet
+     * @nullable
+     */
+  recentAcc: number | null;
+  avgP: number;
+  avgB: number;
+}
+
+export interface MetaAIResult {
+  /** "P", "B", or "WAIT" */
+  decision: string;
+  /** Probability of Player (0-1) */
+  pPlayer: number;
+  /**
+     * Rolling accuracy (0-1) or null if fewer than 1 prediction
+     * @nullable
+     */
+  accuracy: number | null;
+  /** Total labeled hands seen by MetaAI */
+  seen: number;
+}
+
+export interface ObserverResult {
+  /** "P", "B", or "WAIT" */
+  decision: string;
+  /**
+     * Win-rate of the winning sub-system, or null for fallback
+     * @nullable
+     */
+  wr: number | null;
+  reasoning: string;
+  isFallback: boolean;
+}
+
 export interface GameSnapshot {
   handCount: number;
   /** Array of B, P, T outcomes entered so far */
   history: string[];
   regime: RegimeState;
+  lookAhead: LookAheadResult;
+  metaAI: MetaAIResult;
+  observer: ObserverResult;
 }
 
 export interface UserAccount {

@@ -266,4 +266,52 @@ export class NexusEngine {
 
     return { apexSignal, probP, probB, vol };
   }
+
+  /**
+   * Pure-history snapshot for look-ahead simulation.
+   * Does NOT touch engine registry — uses only raw ENGINES votes + EMA.
+   * Fast: O(38 + n) with no state mutation.
+   */
+  static computeApexForHistory(history: Side[]): NexusSnapshot {
+    const h = history;
+    const engineKeys = Object.keys(ENGINES);
+
+    // Simple vote consensus (no accumulated registry)
+    const votes = engineKeys.map((k) => ENGINES[k](h));
+    const pVotes = votes.filter((v) => v === "P").length;
+    const bVotes = votes.filter((v) => v === "B").length;
+    const total = pVotes + bVotes;
+    const rawTop5: Side | null = pVotes > bVotes ? "P" : bVotes > pVotes ? "B" : null;
+
+    // EMA signal
+    let ema: Side | null = null;
+    if (h.length >= 5) {
+      let cur = 0;
+      const priceTrace: number[] = [];
+      h.forEach((x) => { cur += x === "P" ? 1 : -1; priceTrace.push(cur); });
+      const k = 2 / (5 + 1);
+      const emas: number[] = [];
+      for (let i = 0; i < priceTrace.length; i++) {
+        emas.push(i === 0 ? priceTrace[0] : priceTrace[i] * k + emas[i - 1] * (1 - k));
+      }
+      const lastPrice = priceTrace[priceTrace.length - 1];
+      const lastEMA = emas[emas.length - 1];
+      ema = lastPrice > lastEMA ? "P" : "B";
+    }
+
+    let apexSignal: Side | "WAIT" = "WAIT";
+    if (rawTop5 && ema && rawTop5 === ema) apexSignal = rawTop5;
+    else if (rawTop5) apexSignal = rawTop5;
+
+    const probP = total > 0 ? (pVotes / total) * 100 : 50;
+    const probB = 100 - probP;
+
+    let flipCount = 0;
+    for (let i = 1; i < h.length; i++) {
+      if (h[i] !== h[i - 1]) flipCount++;
+    }
+    const vol = h.length > 1 ? flipCount / (h.length - 1) : 0.5;
+
+    return { apexSignal, probP, probB, vol };
+  }
 }

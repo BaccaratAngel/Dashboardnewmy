@@ -359,4 +359,77 @@ export class RoadEngine {
   getSnapshot(): RoadSnapshot {
     return this._computeSnapshot();
   }
+
+  /**
+   * Pure-history road snapshot for look-ahead simulation.
+   * Skips the 1000-bot accuracy pool (not needed for signal features).
+   * Fast: O(n²) on derived roads only — n capped at 45 for look-ahead.
+   */
+  static computeSignalsForHistory(shoe: string[]): RoadSnapshot {
+    const nonTies = shoe.filter((x): x is Side => x === "B" || x === "P");
+
+    // Derived roads (pure functions of history)
+    const brB = generateBigRoad([...nonTies, "B"]);
+    const brP = generateBigRoad([...nonTies, "P"]);
+    const simB = { be: evaluateRoadColor(brB, 1), sr: evaluateRoadColor(brB, 2), cp: evaluateRoadColor(brB, 3) };
+    const simP = { be: evaluateRoadColor(brP, 1), sr: evaluateRoadColor(brP, 2), cp: evaluateRoadColor(brP, 3) };
+
+    const bebHist = generateHistoricalDerivedArray(nonTies, 1);
+    const srHist  = generateHistoricalDerivedArray(nonTies, 2);
+    const cpHist  = generateHistoricalDerivedArray(nonTies, 3);
+
+    const tgt = {
+      beb: interpretRoadCreativePattern(bebHist),
+      sr:  interpretRoadCreativePattern(srHist),
+      cp:  interpretRoadCreativePattern(cpHist),
+    };
+
+    function roadPred(
+      simBColor: RoadColor | null,
+      simPColor: RoadColor | null,
+      target: RoadColor | null
+    ): Side | "NEUTRAL" {
+      if (!target) return "NEUTRAL";
+      if (simBColor === target && simPColor !== target) return "B";
+      if (simPColor === target && simBColor !== target) return "P";
+      return "NEUTRAL";
+    }
+
+    const beb = roadPred(simB.be, simP.be, tgt.beb);
+    const sr  = roadPred(simB.sr, simP.sr, tgt.sr);
+    const cp  = roadPred(simB.cp, simP.cp, tgt.cp);
+
+    const votes = { B: 0, P: 0 };
+    if (beb === "B") votes.B++; else if (beb === "P") votes.P++;
+    if (sr  === "B") votes.B++; else if (sr  === "P") votes.P++;
+    if (cp  === "B") votes.B++; else if (cp  === "P") votes.P++;
+    let consensus: Side | "NEUTRAL" = "NEUTRAL";
+    if (votes.B >= 2) consensus = "B";
+    else if (votes.P >= 2) consensus = "P";
+
+    // Streak / ping-pong override (same logic as _computeSnapshot)
+    let finalAction: Side | "WAIT" = consensus === "NEUTRAL" ? (nonTies.length > 0 ? nonTies[nonTies.length - 1] : "B") : consensus;
+    if (nonTies.length >= 3) {
+      const last3 = nonTies.slice(-3);
+      if (last3.every((x) => x === last3[0])) finalAction = last3[0];
+    }
+    if (nonTies.length >= 4) {
+      const l4 = nonTies.slice(-4);
+      if (l4[0] !== l4[1] && l4[1] !== l4[2] && l4[2] !== l4[3] && l4[0] === l4[2] && l4[1] === l4[3]) {
+        finalAction = l4[3] === "B" ? "P" : "B";
+      }
+    }
+    if (consensus !== "NEUTRAL") finalAction = consensus;
+
+    const volatility = 0; // not needed for look-ahead features
+
+    return {
+      nextPrediction: nonTies.length >= 6 ? finalAction : "WAIT",
+      beb,
+      sr,
+      cp,
+      consensus,
+      volatility,
+    };
+  }
 }

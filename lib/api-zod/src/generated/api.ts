@@ -81,6 +81,27 @@ export const GetSnapshotResponse = zod.object({
   "rawWr": zod.number().describe('Raw win rate (0-1)')
 }),
   "window": zod.number()
+}),
+  "lookAhead": zod.object({
+  "active": zod.boolean(),
+  "verdict": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "bias": zod.number(),
+  "strength": zod.number(),
+  "recentAcc": zod.number().nullable().describe('Rolling accuracy (0-1) or null if no predictions yet'),
+  "avgP": zod.number(),
+  "avgB": zod.number()
+}),
+  "metaAI": zod.object({
+  "decision": zod.string().describe('\"P\", \"B\", or \"WAIT\"'),
+  "pPlayer": zod.number().describe('Probability of Player (0-1)'),
+  "accuracy": zod.number().nullable().describe('Rolling accuracy (0-1) or null if fewer than 1 prediction'),
+  "seen": zod.number().describe('Total labeled hands seen by MetaAI')
+}),
+  "observer": zod.object({
+  "decision": zod.string().describe('\"P\", \"B\", or \"WAIT\"'),
+  "wr": zod.number().nullable().describe('Win-rate of the winning sub-system, or null for fallback'),
+  "reasoning": zod.string(),
+  "isFallback": zod.boolean()
 })
 })
 
@@ -119,6 +140,27 @@ export const SubmitInputResponse = zod.object({
   "rawWr": zod.number().describe('Raw win rate (0-1)')
 }),
   "window": zod.number()
+}),
+  "lookAhead": zod.object({
+  "active": zod.boolean(),
+  "verdict": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "bias": zod.number(),
+  "strength": zod.number(),
+  "recentAcc": zod.number().nullable().describe('Rolling accuracy (0-1) or null if no predictions yet'),
+  "avgP": zod.number(),
+  "avgB": zod.number()
+}),
+  "metaAI": zod.object({
+  "decision": zod.string().describe('\"P\", \"B\", or \"WAIT\"'),
+  "pPlayer": zod.number().describe('Probability of Player (0-1)'),
+  "accuracy": zod.number().nullable().describe('Rolling accuracy (0-1) or null if fewer than 1 prediction'),
+  "seen": zod.number().describe('Total labeled hands seen by MetaAI')
+}),
+  "observer": zod.object({
+  "decision": zod.string().describe('\"P\", \"B\", or \"WAIT\"'),
+  "wr": zod.number().nullable().describe('Win-rate of the winning sub-system, or null for fallback'),
+  "reasoning": zod.string(),
+  "isFallback": zod.boolean()
 })
 })
 
@@ -153,6 +195,27 @@ export const UndoInputResponse = zod.object({
   "rawWr": zod.number().describe('Raw win rate (0-1)')
 }),
   "window": zod.number()
+}),
+  "lookAhead": zod.object({
+  "active": zod.boolean(),
+  "verdict": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "bias": zod.number(),
+  "strength": zod.number(),
+  "recentAcc": zod.number().nullable().describe('Rolling accuracy (0-1) or null if no predictions yet'),
+  "avgP": zod.number(),
+  "avgB": zod.number()
+}),
+  "metaAI": zod.object({
+  "decision": zod.string().describe('\"P\", \"B\", or \"WAIT\"'),
+  "pPlayer": zod.number().describe('Probability of Player (0-1)'),
+  "accuracy": zod.number().nullable().describe('Rolling accuracy (0-1) or null if fewer than 1 prediction'),
+  "seen": zod.number().describe('Total labeled hands seen by MetaAI')
+}),
+  "observer": zod.object({
+  "decision": zod.string().describe('\"P\", \"B\", or \"WAIT\"'),
+  "wr": zod.number().nullable().describe('Win-rate of the winning sub-system, or null for fallback'),
+  "reasoning": zod.string(),
+  "isFallback": zod.boolean()
 })
 })
 
@@ -187,6 +250,27 @@ export const ResetGameResponse = zod.object({
   "rawWr": zod.number().describe('Raw win rate (0-1)')
 }),
   "window": zod.number()
+}),
+  "lookAhead": zod.object({
+  "active": zod.boolean(),
+  "verdict": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "bias": zod.number(),
+  "strength": zod.number(),
+  "recentAcc": zod.number().nullable().describe('Rolling accuracy (0-1) or null if no predictions yet'),
+  "avgP": zod.number(),
+  "avgB": zod.number()
+}),
+  "metaAI": zod.object({
+  "decision": zod.string().describe('\"P\", \"B\", or \"WAIT\"'),
+  "pPlayer": zod.number().describe('Probability of Player (0-1)'),
+  "accuracy": zod.number().nullable().describe('Rolling accuracy (0-1) or null if fewer than 1 prediction'),
+  "seen": zod.number().describe('Total labeled hands seen by MetaAI')
+}),
+  "observer": zod.object({
+  "decision": zod.string().describe('\"P\", \"B\", or \"WAIT\"'),
+  "wr": zod.number().nullable().describe('Win-rate of the winning sub-system, or null for fallback'),
+  "reasoning": zod.string(),
+  "isFallback": zod.boolean()
 })
 })
 
@@ -225,6 +309,27 @@ export const SetWindowResponse = zod.object({
   "rawWr": zod.number().describe('Raw win rate (0-1)')
 }),
   "window": zod.number()
+}),
+  "lookAhead": zod.object({
+  "active": zod.boolean(),
+  "verdict": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "bias": zod.number(),
+  "strength": zod.number(),
+  "recentAcc": zod.number().nullable().describe('Rolling accuracy (0-1) or null if no predictions yet'),
+  "avgP": zod.number(),
+  "avgB": zod.number()
+}),
+  "metaAI": zod.object({
+  "decision": zod.string().describe('\"P\", \"B\", or \"WAIT\"'),
+  "pPlayer": zod.number().describe('Probability of Player (0-1)'),
+  "accuracy": zod.number().nullable().describe('Rolling accuracy (0-1) or null if fewer than 1 prediction'),
+  "seen": zod.number().describe('Total labeled hands seen by MetaAI')
+}),
+  "observer": zod.object({
+  "decision": zod.string().describe('\"P\", \"B\", or \"WAIT\"'),
+  "wr": zod.number().nullable().describe('Win-rate of the winning sub-system, or null for fallback'),
+  "reasoning": zod.string(),
+  "isFallback": zod.boolean()
 })
 })
 

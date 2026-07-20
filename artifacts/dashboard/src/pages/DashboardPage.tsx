@@ -118,6 +118,50 @@ function ConfidenceBadge({ confidence }: { confidence: string }) {
   );
 }
 
+function LookAheadBadge({ la }: { la: { active: boolean; verdict: string | null } }) {
+  if (!la.active || !la.verdict) {
+    return (
+      <span className="text-xs font-bold px-2 py-0.5 rounded-sm" style={{ color: '#52525b', border: '1px solid rgba(255,255,255,0.07)' }}>
+        --
+      </span>
+    );
+  }
+  if (la.verdict === 'P') {
+    return (
+      <span className="text-xs font-bold px-2 py-0.5 rounded-sm tracking-wider" style={{ color: '#22d3ee', backgroundColor: 'rgba(34,211,238,0.1)', border: '1px solid rgba(34,211,238,0.3)' }}>
+        PLAYER ▲
+      </span>
+    );
+  }
+  return (
+    <span className="text-xs font-bold px-2 py-0.5 rounded-sm tracking-wider" style={{ color: '#f87171', backgroundColor: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)' }}>
+      BANKER ▲
+    </span>
+  );
+}
+
+function SideVerdict({ verdict, color }: { verdict: string; color: 'purple' | 'cyan' | 'red' }) {
+  if (verdict === 'P') {
+    return (
+      <span className="text-xs font-bold px-2 py-0.5 rounded-sm tracking-wider" style={{ color: '#22d3ee', backgroundColor: 'rgba(34,211,238,0.1)', border: '1px solid rgba(34,211,238,0.3)' }}>
+        P
+      </span>
+    );
+  }
+  if (verdict === 'B') {
+    return (
+      <span className="text-xs font-bold px-2 py-0.5 rounded-sm tracking-wider" style={{ color: '#f87171', backgroundColor: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)' }}>
+        B
+      </span>
+    );
+  }
+  return (
+    <span className="text-xs font-bold px-2 py-0.5 rounded-sm" style={{ color: '#52525b', border: '1px solid rgba(255,255,255,0.07)' }}>
+      WAIT
+    </span>
+  );
+}
+
 export default function DashboardPage() {
   const [, setLocation] = useLocation();
   const [snapshot, setSnapshot] = useState<GameSnapshot | null>(null);
@@ -659,6 +703,90 @@ export default function DashboardPage() {
             </button>
           </div>
         </div>
+
+        {/* META AI / LOOK-AHEAD / OBSERVER PANEL */}
+        {snapshot && (
+          <div
+            className="rounded-sm border flex flex-col gap-0 overflow-hidden"
+            style={{
+              backgroundColor: '#0d0d14',
+              borderColor: 'rgba(176,0,255,0.25)',
+            }}
+          >
+            {/* Section header */}
+            <div
+              className="px-4 py-2 flex items-center justify-between"
+              style={{
+                borderBottom: '1px solid rgba(176,0,255,0.15)',
+                backgroundColor: 'rgba(176,0,255,0.04)',
+              }}
+            >
+              <span
+                className="text-xs font-bold tracking-widest"
+                style={{ color: '#b000ff' }}
+              >
+                ◈ META AI PANEL
+              </span>
+              <span className="text-xs" style={{ color: '#52525b' }}>
+                Self-Learning Layer
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-0 divide-y" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
+
+              {/* LOOK-AHEAD ROW */}
+              <div className="px-4 py-3 flex items-center justify-between">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs tracking-widest" style={{ color: '#71717a' }}>
+                    LOOK-AHEAD
+                  </span>
+                  <span className="text-xs" style={{ color: '#52525b' }}>
+                    {snapshot.lookAhead.active
+                      ? `bias ${snapshot.lookAhead.bias >= 0 ? '+' : ''}${snapshot.lookAhead.bias.toFixed(3)}  ·  P:${snapshot.lookAhead.avgP.toFixed(3)}  B:${snapshot.lookAhead.avgB.toFixed(3)}`
+                      : 'warming up — need 6+ hands'}
+                  </span>
+                </div>
+                <LookAheadBadge la={snapshot.lookAhead} />
+              </div>
+
+              {/* META AI ROW */}
+              <div className="px-4 py-3 flex items-center justify-between">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs tracking-widest" style={{ color: '#71717a' }}>
+                    META AI
+                  </span>
+                  <span className="text-xs" style={{ color: '#52525b' }}>
+                    {snapshot.metaAI.seen === 0
+                      ? 'no samples yet'
+                      : `${snapshot.metaAI.seen} samples · acc ${
+                          snapshot.metaAI.accuracy !== null
+                            ? `${Math.round(snapshot.metaAI.accuracy * 100)}%`
+                            : '--'
+                        }  ·  P̂ ${(snapshot.metaAI.pPlayer * 100).toFixed(1)}%`}
+                  </span>
+                </div>
+                <SideVerdict verdict={snapshot.metaAI.decision} color="purple" />
+              </div>
+
+              {/* OBSERVER ROW */}
+              <div className="px-4 py-3 flex items-center justify-between">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs tracking-widest" style={{ color: '#71717a' }}>
+                    OBSERVER
+                  </span>
+                  <span className="text-xs" style={{ color: '#52525b' }}>
+                    {snapshot.observer.reasoning}
+                    {snapshot.observer.wr !== null
+                      ? ` (${Math.round(snapshot.observer.wr * 100)}% WR)`
+                      : ''}
+                  </span>
+                </div>
+                <SideVerdict verdict={snapshot.observer.decision} color="purple" />
+              </div>
+
+            </div>
+          </div>
+        )}
 
         {/* History strip */}
         {snapshot && snapshot.history.length > 0 && (
