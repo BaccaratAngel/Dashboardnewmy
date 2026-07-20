@@ -1,0 +1,93 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&display=swap');
+@import "tailwindcss";
+@import 'tw-animate-css';
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 8px);
+}
+
+:root {
+  --background: 240 20% 3%;
+  --foreground: 214 32% 91%;
+  --card: 240 19% 6%;
+  --card-foreground: 214 32% 91%;
+  --popover: 240 19% 6%;
+  --popover-foreground: 214 32% 91%;
+  --primary: 189 94% 53%;
+  --primary-foreground: 240 20% 3%;
+  --secondary: 240 10% 12%;
+  --secondary-foreground: 214 32% 91%;
+  --muted: 240 10% 12%;
+  --muted-foreground: 240 5% 45%;
+  --accent: 189 94% 53%;
+  --accent-foreground: 240 20% 3%;
+  --destructive: 0 91% 71%;
+  --destructive-foreground: 240 20% 3%;
+  --border: 240 10% 12%;
+  --input: 240 10% 12%;
+  --ring: 189 94% 53%;
+  --radius: 0.25rem;
+}
+
+.dark {
+  --background: 240 20% 3%;
+  --foreground: 214 32% 91%;
+  --card: 240 19% 6%;
+  --card-foreground: 214 32% 91%;
+  --popover: 240 19% 6%;
+  --popover-foreground: 214 32% 91%;
+  --primary: 189 94% 53%;
+  --primary-foreground: 240 20% 3%;
+  --secondary: 240 10% 12%;
+  --secondary-foreground: 214 32% 91%;
+  --muted: 240 10% 12%;
+  --muted-foreground: 240 5% 45%;
+  --accent: 189 94% 53%;
+  --accent-foreground: 240 20% 3%;
+  --destructive: 0 91% 71%;
+  --destructive-foreground: 240 20% 3%;
+  --border: 240 10% 12%;
+  --input: 240 10% 12%;
+  --ring: 189 94% 53%;
+  --radius: 0.25rem;
+}
+
+html, body {
+  background-color: #060609;
+  color: #e2e8f0;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+* {
+  border-color: rgba(255, 255, 255, 0.08);
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+}

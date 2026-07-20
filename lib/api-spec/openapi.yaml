@@ -3,20 +3,26 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Baccarat prediction dashboard API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: User authentication
+  - name: game
+    description: Game session (per-user engine state)
+  - name: admin
+    description: Admin account management
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +30,355 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ── Auth ──────────────────────────────────────────────────
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Log in with username and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginCredentials"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionUser"
+        "401":
+          description: Invalid credentials or account expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Log out current session
+      responses:
+        "204":
+          description: Logged out
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current session user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionUser"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Game ──────────────────────────────────────────────────
+  /game/snapshot:
+    get:
+      operationId: getSnapshot
+      tags: [game]
+      summary: Get current prediction snapshot for this user's session
+      responses:
+        "200":
+          description: Current engine snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameSnapshot"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /game/input:
+    post:
+      operationId: submitInput
+      tags: [game]
+      summary: Submit a game result (B, P, or T)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GameInputData"
+      responses:
+        "200":
+          description: Updated snapshot after input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameSnapshot"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /game/undo:
+    post:
+      operationId: undoInput
+      tags: [game]
+      summary: Undo last hand
+      responses:
+        "200":
+          description: Snapshot after undo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameSnapshot"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /game/reset:
+    post:
+      operationId: resetGame
+      tags: [game]
+      summary: Reset the shoe (clear all history)
+      responses:
+        "200":
+          description: Fresh snapshot after reset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameSnapshot"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /game/window:
+    post:
+      operationId: setWindow
+      tags: [game]
+      summary: Set the regime tracker rolling window (8, 12, or 16)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WindowSetting"
+      responses:
+        "200":
+          description: Updated snapshot with new window
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameSnapshot"
+        "400":
+          description: Invalid window value
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Admin ─────────────────────────────────────────────────
+  /admin/login:
+    post:
+      operationId: adminLogin
+      tags: [admin]
+      summary: Admin login with separate admin password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminCredentials"
+      responses:
+        "200":
+          description: Admin authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminSession"
+        "401":
+          description: Wrong admin password
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/logout:
+    post:
+      operationId: adminLogout
+      tags: [admin]
+      summary: Log out admin session
+      responses:
+        "204":
+          description: Logged out
+
+  /admin/users:
+    get:
+      operationId: listUsers
+      tags: [admin]
+      summary: List all user accounts
+      responses:
+        "200":
+          description: List of accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserAccount"
+        "401":
+          description: Not authenticated as admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createUser
+      tags: [admin]
+      summary: Create a new user account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserAccountInput"
+      responses:
+        "201":
+          description: Created account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserAccount"
+        "400":
+          description: Invalid input or username taken
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated as admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/users/{id}:
+    patch:
+      operationId: updateUser
+      tags: [admin]
+      summary: Update account (change expiry, password, or username)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserAccountUpdate"
+      responses:
+        "200":
+          description: Updated account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserAccount"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated as admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteUser
+      tags: [admin]
+      summary: Delete a user account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated as admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/users/{id}/kick:
+    post:
+      operationId: kickUserSession
+      tags: [admin]
+      summary: Revoke active session (force logout) for a user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Session revoked
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated as admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +389,179 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    # ── Auth schemas ────────────────────────────────────────
+    LoginCredentials:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 1
+
+    SessionUser:
+      type: object
+      required: [id, username, expiresAt]
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        expiresAt:
+          type: string
+          description: ISO 8601 datetime when account expires
+
+    AdminCredentials:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+          minLength: 1
+
+    AdminSession:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+
+    # ── Game schemas ────────────────────────────────────────
+    GameInputData:
+      type: object
+      required: [value]
+      properties:
+        value:
+          type: string
+          description: "B, P, or T"
+
+    WindowSetting:
+      type: object
+      required: [window]
+      properties:
+        window:
+          type: integer
+          description: "Rolling window: 8, 12, or 16"
+
+    RegimeExpert:
+      type: object
+      required: [predCount, wwr, rawWr]
+      properties:
+        predCount:
+          type: integer
+        wwr:
+          type: number
+          description: Weighted win rate (0-1)
+        rawWr:
+          type: number
+          description: Raw win rate (0-1)
+
+    RegimeState:
+      type: object
+      required: [status, decision, expert, confidence, isSplit, gap, bothAgree, regimeAge, switchCount, justSwitched, supreme, syndicate, window]
+      properties:
+        status:
+          type: string
+          description: "WARMING_UP | TRACKING | SPLIT"
+        decision:
+          type: ["string", "null"]
+          description: "B | P | null (wait)"
+        expert:
+          type: ["string", "null"]
+          description: "supreme | syndicate | null"
+        confidence:
+          type: string
+          description: "NONE | LOW | MED | HIGH"
+        isSplit:
+          type: boolean
+        gap:
+          type: number
+        bothAgree:
+          type: boolean
+        bothAgreeSide:
+          type: ["string", "null"]
+        regimeAge:
+          type: integer
+        switchCount:
+          type: integer
+        justSwitched:
+          type: boolean
+        isLocked:
+          type: boolean
+        supreme:
+          $ref: "#/components/schemas/RegimeExpert"
+        syndicate:
+          $ref: "#/components/schemas/RegimeExpert"
+        window:
+          type: integer
+
+    GameSnapshot:
+      type: object
+      required: [handCount, history, regime]
+      properties:
+        handCount:
+          type: integer
+        history:
+          type: array
+          items:
+            type: string
+          description: Array of B, P, T outcomes entered so far
+        regime:
+          $ref: "#/components/schemas/RegimeState"
+
+    # ── Admin schemas ───────────────────────────────────────
+    UserAccount:
+      type: object
+      required: [id, username, expiresAt, createdAt, isOnline, lastLoginAt]
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        expiresAt:
+          type: string
+          description: ISO 8601 datetime
+        createdAt:
+          type: string
+          description: ISO 8601 datetime
+        isOnline:
+          type: boolean
+        lastLoginAt:
+          type: ["string", "null"]
+          description: ISO 8601 datetime or null
+
+    UserAccountInput:
+      type: object
+      required: [username, password, expiresAt]
+      properties:
+        username:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 6
+        expiresAt:
+          type: string
+          description: ISO 8601 datetime
+
+    UserAccountUpdate:
+      type: object
+      properties:
+        username:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 6
+        expiresAt:
+          type: string
+          description: ISO 8601 datetime
