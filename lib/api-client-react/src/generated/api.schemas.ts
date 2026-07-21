@@ -46,12 +46,34 @@ export interface WindowSetting {
   window: number;
 }
 
-export interface RegimeExpert {
+export interface ExpertStats {
   predCount: number;
-  /** Weighted win rate (0-1) */
+  /** Bayesian-adjusted weighted win rate (0-1) */
   wwr: number;
   /** Raw win rate (0-1) */
   rawWr: number;
+  /** Option C composite score (Bayesian + momentum + streak bonus) */
+  compositeScore: number;
+  /** "up" | "down" | "flat" — trend over last 4 wwr values */
+  momentum: string;
+  /** Current consecutive correct picks */
+  streak: number;
+  /** streak >= 4 */
+  hotStreak: boolean;
+  /** Last 8 outcomes: 1=hit, 0=miss */
+  sparkline: number[];
+  /** Change in wwr since last hand */
+  wwrDelta: number;
+  /**
+     * "P", "B", or null
+     * @nullable
+     */
+  lastPred: string | null;
+}
+
+export interface TimelineEntry {
+  expert: string;
+  hands: number;
 }
 
 export interface RegimeState {
@@ -63,24 +85,62 @@ export interface RegimeState {
      */
   decision: string | null;
   /**
-     * supreme | syndicate | null
+     * Dominant expert key, or null
      * @nullable
      */
   expert: string | null;
   /** NONE | LOW | MED | HIGH */
   confidence: string;
   isSplit: boolean;
+  /** Composite score gap between top two experts */
   gap: number;
   bothAgree: boolean;
   /** @nullable */
   bothAgreeSide?: string | null;
+  /** Number of experts agreeing with ensembleVerdict */
+  agreeCount: number;
   regimeAge: number;
   switchCount: number;
   justSwitched: boolean;
-  isLocked?: boolean;
-  supreme: RegimeExpert;
-  syndicate: RegimeExpert;
+  isLocked: boolean;
+  lockRemain: number;
+  /** Max lock hands (for progress bar) */
+  lockMax: number;
   window: number;
+  /** 0-1 shoe volatility index (drives dynamic window) */
+  volatilityIndex: number;
+  supreme: ExpertStats;
+  syndicate: ExpertStats;
+  lookAhead: ExpertStats;
+  legacyLookAhead: ExpertStats;
+  metaAI: ExpertStats;
+  observer: ExpertStats;
+  /**
+     * Ensemble-blended verdict (P, B, or null)
+     * @nullable
+     */
+  ensembleVerdict: string | null;
+  /** 0-100 lean strength toward ensembleVerdict */
+  ensemblePercent: number;
+  switchTimeline: TimelineEntry[];
+}
+
+export interface ObserverSubSystem {
+  /** Rolling 10-hand win rate (0-1) */
+  winRate: number;
+  /** Total predictions evaluated */
+  total: number;
+  /**
+     * "P", "B", or null
+     * @nullable
+     */
+  lastPred: string | null;
+}
+
+export interface ObserverMemory {
+  meta: ObserverSubSystem;
+  lookAhead: ObserverSubSystem;
+  derived: ObserverSubSystem;
 }
 
 export interface LookAheadResult {
@@ -133,8 +193,11 @@ export interface GameSnapshot {
   history: string[];
   regime: RegimeState;
   lookAhead: LookAheadResult;
+  legacyLookAhead: LookAheadResult;
   metaAI: MetaAIResult;
   observer: ObserverResult;
+  /** Per-sub-system win rates tracked by ObserverMasterAI */
+  observerMemory: ObserverMemory;
 }
 
 export interface UserAccount {

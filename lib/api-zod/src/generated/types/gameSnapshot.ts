@@ -7,6 +7,7 @@
  */
 import type { LookAheadResult } from './lookAheadResult';
 import type { MetaAIResult } from './metaAIResult';
+import type { ObserverMemory } from './observerMemory';
 import type { ObserverResult } from './observerResult';
 import type { RegimeState } from './regimeState';
 
@@ -16,6 +17,9 @@ export interface GameSnapshot {
   history: string[];
   regime: RegimeState;
   lookAhead: LookAheadResult;
+  legacyLookAhead: LookAheadResult;
   metaAI: MetaAIResult;
   observer: ObserverResult;
+  /** Per-sub-system win rates tracked by ObserverMasterAI */
+  observerMemory: ObserverMemory;
 }

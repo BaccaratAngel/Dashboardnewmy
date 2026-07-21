@@ -6,10 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface RegimeExpert {
-  predCount: number;
-  /** Weighted win rate (0-1) */
-  wwr: number;
-  /** Raw win rate (0-1) */
-  rawWr: number;
+export interface TimelineEntry {
+  expert: string;
+  hands: number;
 }

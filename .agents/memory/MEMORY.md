@@ -2,3 +2,4 @@
 - [Engine data flow](engine-dataflow.md) — on each hand: score engines against prior predictions, record outcome, generate new predictions, capture in RegimeSwitchTracker.
 - [OpenAPI/type notes](openapi-types.md) — regime.confidence is string ("NONE"|"LOW"|"MED"|"HIGH"), not number; generated hooks return UseQueryResult<T> (use .data), mutations use { data: payload }.
 - [Look-ahead & MetaAI architecture](lookahead-metaai.md) — iframe simulation replaced with pure in-process calls; 10s→<20ms; MetaAI/Observer/LookAhead fully wired into session.
+- [6-expert regime tracker upgrade](regime-6expert.md) — regime.ts tracks 6 experts with Option C composite scoring; DashboardPage shows all panels including ensemble, sparklines, timeline strip, lock bar.

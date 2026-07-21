@@ -9,158 +9,281 @@ import {
   useSetWindow,
   useLogout,
 } from '@workspace/api-client-react';
-import type { GameSnapshot } from '@workspace/api-client-react';
+import type { GameSnapshot, ExpertStats } from '@workspace/api-client-react';
 import { cn } from '@/lib/utils';
 
+// ── Color & label helpers ─────────────────────────────────────────────────────
+
+const EXPERT_META: Record<string, { label: string; shortLabel: string; color: string }> = {
+  supreme:          { label: 'SUPREME BAYESIAN', shortLabel: 'SUPREME',  color: '#a855f7' },
+  syndicate:        { label: 'SYNDICATE B2B',    shortLabel: 'SYNDICATE', color: '#38bdf8' },
+  lookAhead:        { label: 'LOOK-AHEAD v1',    shortLabel: 'LA v1',    color: '#22d3ee' },
+  legacyLookAhead:  { label: 'LOOK-AHEAD v2',    shortLabel: 'LA v2',    color: '#fb923c' },
+  metaAI:           { label: 'META AI',           shortLabel: 'META AI',  color: '#c084fc' },
+  observer:         { label: 'OBSERVER',          shortLabel: 'OBSERVER', color: '#4ade80' },
+};
+
+function expertColor(key: string): string {
+  // key may be "supreme+observer" etc — use base key
+  const base = key.split('+')[0];
+  return EXPERT_META[base]?.color ?? '#71717a';
+}
+function expertLabel(key: string): string {
+  const base = key.split('+')[0];
+  return EXPERT_META[base]?.shortLabel ?? key.toUpperCase();
+}
+
+// ── Small reusable components ─────────────────────────────────────────────────
+
 function StatusBadge({ status }: { status: string }) {
-  if (status === 'WARMING_UP') {
-    return (
-      <span
-        className="text-xs font-bold tracking-widest px-3 py-1 rounded-sm"
-        style={{
-          color: '#eab308',
-          backgroundColor: 'rgba(234,179,8,0.1)',
-          border: '1px solid rgba(234,179,8,0.3)',
-        }}
-      >
-        WARMING UP
-      </span>
-    );
-  }
-  if (status === 'TRACKING') {
-    return (
-      <span
-        className="text-xs font-bold tracking-widest px-3 py-1 rounded-sm"
-        style={{
-          color: '#22d3ee',
-          backgroundColor: 'rgba(34,211,238,0.1)',
-          border: '1px solid rgba(34,211,238,0.3)',
-        }}
-      >
-        TRACKING
-      </span>
-    );
-  }
-  if (status === 'SPLIT') {
-    return (
-      <span
-        className="text-xs font-bold tracking-widest px-3 py-1 rounded-sm"
-        style={{
-          color: '#fb923c',
-          backgroundColor: 'rgba(251,146,60,0.1)',
-          border: '1px solid rgba(251,146,60,0.3)',
-        }}
-      >
-        SPLIT
-      </span>
-    );
-  }
+  const map: Record<string, { color: string; bg: string }> = {
+    WARMING_UP: { color: '#eab308', bg: 'rgba(234,179,8,0.1)' },
+    TRACKING:   { color: '#22d3ee', bg: 'rgba(34,211,238,0.1)' },
+    SPLIT:      { color: '#fb923c', bg: 'rgba(251,146,60,0.1)' },
+  };
+  const s = map[status] ?? { color: '#71717a', bg: 'transparent' };
   return (
-    <span
-      className="text-xs font-bold tracking-widest px-3 py-1 rounded-sm"
-      style={{ color: '#71717a', border: '1px solid rgba(255,255,255,0.08)' }}
-    >
-      {status}
+    <span className="text-xs font-bold tracking-widest px-3 py-1 rounded-sm"
+      style={{ color: s.color, backgroundColor: s.bg, border: `1px solid ${s.color}40` }}>
+      {status.replace('_', ' ')}
     </span>
   );
 }
 
 function ConfidenceBadge({ confidence }: { confidence: string }) {
-  if (confidence === 'HIGH') {
-    return (
-      <span
-        className="text-xs font-bold tracking-wider px-2 py-0.5 rounded-sm"
-        style={{
-          color: '#4ade80',
-          backgroundColor: 'rgba(74,222,128,0.1)',
-          border: '1px solid rgba(74,222,128,0.3)',
-        }}
-      >
-        HIGH
-      </span>
-    );
-  }
-  if (confidence === 'MED') {
-    return (
-      <span
-        className="text-xs font-bold tracking-wider px-2 py-0.5 rounded-sm"
-        style={{
-          color: '#facc15',
-          backgroundColor: 'rgba(250,204,21,0.1)',
-          border: '1px solid rgba(250,204,21,0.3)',
-        }}
-      >
-        MED
-      </span>
-    );
-  }
-  if (confidence === 'LOW') {
-    return (
-      <span
-        className="text-xs font-bold tracking-wider px-2 py-0.5 rounded-sm"
-        style={{
-          color: '#f59e0b',
-          backgroundColor: 'rgba(245,158,11,0.1)',
-          border: '1px solid rgba(245,158,11,0.3)',
-        }}
-      >
-        LOW
-      </span>
-    );
-  }
+  const map: Record<string, { color: string; bg: string }> = {
+    HIGH: { color: '#4ade80', bg: 'rgba(74,222,128,0.1)' },
+    MED:  { color: '#facc15', bg: 'rgba(250,204,21,0.1)' },
+    LOW:  { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
+    NONE: { color: '#71717a', bg: 'transparent' },
+  };
+  const s = map[confidence] ?? map.NONE;
   return (
-    <span
-      className="text-xs font-bold tracking-wider px-2 py-0.5 rounded-sm"
-      style={{ color: '#71717a', border: '1px solid rgba(255,255,255,0.08)' }}
-    >
-      NONE
+    <span className="text-xs font-bold tracking-wider px-2 py-0.5 rounded-sm"
+      style={{ color: s.color, backgroundColor: s.bg, border: `1px solid ${s.color}40` }}>
+      {confidence}
     </span>
   );
 }
 
-function LookAheadBadge({ la }: { la: { active: boolean; verdict: string | null } }) {
-  if (!la.active || !la.verdict) {
-    return (
-      <span className="text-xs font-bold px-2 py-0.5 rounded-sm" style={{ color: '#52525b', border: '1px solid rgba(255,255,255,0.07)' }}>
-        --
-      </span>
-    );
-  }
-  if (la.verdict === 'P') {
-    return (
-      <span className="text-xs font-bold px-2 py-0.5 rounded-sm tracking-wider" style={{ color: '#22d3ee', backgroundColor: 'rgba(34,211,238,0.1)', border: '1px solid rgba(34,211,238,0.3)' }}>
-        PLAYER ▲
-      </span>
-    );
-  }
+function SidePill({ pred }: { pred: string | null }) {
+  if (pred === 'P') return (
+    <span className="text-xs font-bold px-1.5 py-0.5 rounded-sm"
+      style={{ color: '#22d3ee', backgroundColor: 'rgba(34,211,238,0.12)', border: '1px solid rgba(34,211,238,0.35)' }}>
+      P
+    </span>
+  );
+  if (pred === 'B') return (
+    <span className="text-xs font-bold px-1.5 py-0.5 rounded-sm"
+      style={{ color: '#f87171', backgroundColor: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.35)' }}>
+      B
+    </span>
+  );
   return (
-    <span className="text-xs font-bold px-2 py-0.5 rounded-sm tracking-wider" style={{ color: '#f87171', backgroundColor: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)' }}>
-      BANKER ▲
+    <span className="text-xs font-bold px-1.5 py-0.5 rounded-sm"
+      style={{ color: '#52525b', border: '1px solid rgba(255,255,255,0.07)' }}>
+      —
     </span>
   );
 }
 
-function SideVerdict({ verdict, color }: { verdict: string; color: 'purple' | 'cyan' | 'red' }) {
-  if (verdict === 'P') {
-    return (
-      <span className="text-xs font-bold px-2 py-0.5 rounded-sm tracking-wider" style={{ color: '#22d3ee', backgroundColor: 'rgba(34,211,238,0.1)', border: '1px solid rgba(34,211,238,0.3)' }}>
-        P
-      </span>
-    );
-  }
-  if (verdict === 'B') {
-    return (
-      <span className="text-xs font-bold px-2 py-0.5 rounded-sm tracking-wider" style={{ color: '#f87171', backgroundColor: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)' }}>
-        B
-      </span>
-    );
-  }
+function SideVerdict({ verdict }: { verdict: string }) {
+  return <SidePill pred={verdict === 'P' || verdict === 'B' ? verdict : null} />;
+}
+
+// ── Expert row (regime tracker) ───────────────────────────────────────────────
+
+function ExpertRow({
+  expertKey,
+  stats,
+  isActive,
+}: {
+  expertKey: string;
+  stats: ExpertStats;
+  isActive: boolean;
+}) {
+  const meta = EXPERT_META[expertKey] ?? { label: expertKey.toUpperCase(), shortLabel: expertKey, color: '#71717a' };
+  const color = meta.color;
+  const pct = (stats.compositeScore * 100).toFixed(1);
+  const wwrPct = (stats.wwr * 100).toFixed(1);
+  const delta = stats.wwrDelta * 100;
+  const deltaStr = delta >= 0.05 ? `+${delta.toFixed(1)}` : delta <= -0.05 ? delta.toFixed(1) : '±0';
+  const deltaColor = delta >= 0.05 ? '#4ade80' : delta <= -0.05 ? '#f87171' : '#52525b';
+  const arrowChar = stats.momentum === 'up' ? '↑' : stats.momentum === 'down' ? '↓' : '→';
+  const arrowColor = stats.momentum === 'up' ? '#4ade80' : stats.momentum === 'down' ? '#f87171' : '#52525b';
+
   return (
-    <span className="text-xs font-bold px-2 py-0.5 rounded-sm" style={{ color: '#52525b', border: '1px solid rgba(255,255,255,0.07)' }}>
-      WAIT
-    </span>
+    <div className="flex flex-col gap-1 py-2.5"
+      style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+      {/* Row 1: label + arrows + pill + delta */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-bold tracking-wider" style={{ color: isActive ? color : `${color}80` }}>
+            {meta.label}
+          </span>
+          {isActive && (
+            <span className="text-xs"
+              style={{ color: '#eab308', backgroundColor: 'rgba(234,179,8,0.1)', padding: '0 3px', borderRadius: 2, fontSize: 9 }}>
+              ★
+            </span>
+          )}
+          <span className="text-xs font-bold" style={{ color: arrowColor }}>{arrowChar}</span>
+          {stats.hotStreak && <span style={{ fontSize: 10 }}>🔥</span>}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs tabular-nums" style={{ color: deltaColor, fontFamily: 'monospace' }}>
+            {deltaStr}%
+          </span>
+          <SidePill pred={stats.lastPred} />
+        </div>
+      </div>
+
+      {/* Row 2: composite bar + composite% (wwr in parentheses) */}
+      <div className="flex items-center gap-2">
+        <div className="flex-1 h-1.5 rounded-full overflow-hidden"
+          style={{ backgroundColor: `${color}18` }}>
+          <div className="h-full rounded-full transition-all duration-700"
+            style={{
+              width: `${pct}%`,
+              backgroundColor: color,
+              boxShadow: isActive ? `0 0 6px ${color}80` : 'none',
+            }} />
+        </div>
+        <span className="text-xs font-bold tabular-nums" style={{ color: isActive ? color : `${color}90`, minWidth: 36, textAlign: 'right' }}>
+          {wwrPct}%
+        </span>
+      </div>
+
+      {/* Row 3: sparkline */}
+      <div className="flex items-center gap-0.5" style={{ minHeight: 14 }}>
+        {(stats.sparkline?.length ?? 0) > 0
+          ? stats.sparkline.map((hit, i) => (
+              <span key={i} style={{ color: hit ? color : '#3f3f46', fontSize: 10, lineHeight: 1 }}>
+                {hit ? '●' : '○'}
+              </span>
+            ))
+          : <span className="text-xs" style={{ color: '#3f3f46' }}>— warming up</span>
+        }
+        {stats.streak > 1 && (
+          <span className="text-xs ml-1.5" style={{ color: '#71717a' }}>
+            {stats.streak}×
+          </span>
+        )}
+      </div>
+    </div>
   );
 }
+
+// ── Lock countdown bar ────────────────────────────────────────────────────────
+
+function LockBar({ lockRemain, lockMax }: { lockRemain: number; lockMax: number }) {
+  const pct = lockMax > 0 ? (lockRemain / lockMax) * 100 : 0;
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex justify-between items-center">
+        <span className="text-xs font-bold tracking-wider" style={{ color: '#eab308' }}>
+          🔒 LOCKED
+        </span>
+        <span className="text-xs tabular-nums" style={{ color: '#eab308' }}>
+          {lockRemain}/{lockMax}
+        </span>
+      </div>
+      <div className="h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(234,179,8,0.15)' }}>
+        <div className="h-full rounded-full transition-all duration-500"
+          style={{ width: `${pct}%`, backgroundColor: '#eab308', boxShadow: '0 0 4px rgba(234,179,8,0.5)' }} />
+      </div>
+    </div>
+  );
+}
+
+// ── Look-ahead display row ────────────────────────────────────────────────────
+
+function LookAheadRow({
+  label,
+  la,
+  color,
+  depth,
+}: {
+  label: string;
+  la: { active: boolean; verdict: string | null; bias: number; avgP: number; avgB: number; recentAcc: number | null };
+  color: string;
+  depth: string;
+}) {
+  return (
+    <div className="px-4 py-3 flex items-center justify-between">
+      <div className="flex flex-col gap-0.5">
+        <div className="flex items-center gap-2">
+          <span className="text-xs tracking-widest" style={{ color: '#71717a' }}>{label}</span>
+          <span className="text-xs px-1.5 py-0 rounded-sm"
+            style={{ color, backgroundColor: `${color}12`, border: `1px solid ${color}25`, fontSize: 9 }}>
+            {depth}
+          </span>
+        </div>
+        <span className="text-xs" style={{ color: '#52525b' }}>
+          {la.active
+            ? `bias ${la.bias >= 0 ? '+' : ''}${la.bias.toFixed(3)}  ·  P:${la.avgP.toFixed(3)}  B:${la.avgB.toFixed(3)}`
+            : `warming up — need ${depth === 'depth-1' ? '6' : '8'}+ hands`}
+        </span>
+      </div>
+      {la.active && la.verdict ? (
+        la.verdict === 'P' ? (
+          <span className="text-xs font-bold px-2 py-0.5 rounded-sm tracking-wider"
+            style={{ color: '#22d3ee', backgroundColor: 'rgba(34,211,238,0.1)', border: '1px solid rgba(34,211,238,0.3)' }}>
+            PLAYER ▲
+          </span>
+        ) : (
+          <span className="text-xs font-bold px-2 py-0.5 rounded-sm tracking-wider"
+            style={{ color: '#f87171', backgroundColor: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)' }}>
+            BANKER ▲
+          </span>
+        )
+      ) : (
+        <span className="text-xs font-bold px-2 py-0.5 rounded-sm"
+          style={{ color: '#52525b', border: '1px solid rgba(255,255,255,0.07)' }}>
+          --
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ── Observer sub-system row ───────────────────────────────────────────────────
+
+function SubSystemRow({
+  label,
+  color,
+  winRate,
+  total,
+  lastPred,
+}: {
+  label: string;
+  color: string;
+  winRate: number;
+  total: number;
+  lastPred: string | null;
+}) {
+  const pct = total > 0 ? Math.round(winRate * 100) : null;
+  return (
+    <div className="px-4 py-2 flex items-center justify-between">
+      <div className="flex flex-col gap-0.5">
+        <span className="text-xs tracking-widest" style={{ color: '#71717a' }}>{label}</span>
+        <span className="text-xs" style={{ color: '#52525b' }}>
+          {total > 0 ? `${total} tracked · ${pct}% WR` : 'no data yet'}
+        </span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        {pct !== null && (
+          <div className="w-14 h-1 rounded-full overflow-hidden" style={{ backgroundColor: `${color}18` }}>
+            <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
+          </div>
+        )}
+        <SidePill pred={lastPred} />
+      </div>
+    </div>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const [, setLocation] = useLocation();
@@ -174,49 +297,30 @@ export default function DashboardPage() {
   const setWindow = useSetWindow();
   const logout = useLogout();
 
-  // Auth guard
   useEffect(() => {
-    if (me.isError) {
-      setLocation('/login');
-    }
+    if (me.isError) setLocation('/login');
   }, [me.isError, setLocation]);
 
-  // Load initial snapshot
+  // Keep local snapshot in sync with React Query cache (covers API-server restarts and background refetches)
   useEffect(() => {
-    if (initialSnapshot.data && !snapshot) {
-      setSnapshot(initialSnapshot.data);
-    }
-  }, [initialSnapshot.data, snapshot]);
+    if (initialSnapshot.data) setSnapshot(initialSnapshot.data);
+  }, [initialSnapshot.data]);
 
-  const isMutating =
-    submitInput.isPending ||
-    undoInput.isPending ||
-    resetGame.isPending ||
-    setWindow.isPending;
+  const isMutating = submitInput.isPending || undoInput.isPending || resetGame.isPending || setWindow.isPending;
 
   function handleInput(value: 'P' | 'B' | 'T') {
-    submitInput.mutate(
-      { data: { value } },
-      { onSuccess: (d) => setSnapshot(d) }
-    );
+    submitInput.mutate({ data: { value } }, { onSuccess: (d) => setSnapshot(d) });
   }
-
   function handleUndo() {
     undoInput.mutate(undefined, { onSuccess: (d) => setSnapshot(d) });
   }
-
   function handleReset() {
     if (!window.confirm('Reset the entire shoe? This cannot be undone.')) return;
     resetGame.mutate(undefined, { onSuccess: (d) => setSnapshot(d) });
   }
-
   function handleWindowChange(w: number) {
-    setWindow.mutate(
-      { data: { window: w } },
-      { onSuccess: (d) => setSnapshot(d) }
-    );
+    setWindow.mutate({ data: { window: w } }, { onSuccess: (d) => setSnapshot(d) });
   }
-
   function handleLogout() {
     logout.mutate(undefined, {
       onSuccess: () => setLocation('/login'),
@@ -225,26 +329,21 @@ export default function DashboardPage() {
   }
 
   const regime = snapshot?.regime;
-  const activeWindow = regime?.window ?? 8;
+  const activeWindow = regime?.window ?? 12;
+
+  // Resolve active dominant key (may be "supreme+observer")
+  const dominantKey = regime?.expert?.split('+')[0] ?? null;
+
+  // Experts list in order
+  const expertKeys = ['supreme', 'syndicate', 'lookAhead', 'legacyLookAhead', 'metaAI', 'observer'] as const;
 
   return (
-    <div
-      className="min-h-screen flex flex-col"
-      style={{ backgroundColor: '#060609', fontFamily: "'JetBrains Mono', monospace" }}
-    >
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#060609', fontFamily: "'JetBrains Mono', monospace" }}>
+
       {/* TOP BAR */}
-      <header
-        className="flex items-center justify-between px-4 py-3 border-b"
-        style={{
-          backgroundColor: '#0d0d14',
-          borderColor: 'rgba(255,255,255,0.08)',
-        }}
-      >
-        <span
-          className="text-sm font-bold tracking-wider"
-          style={{ color: '#22d3ee' }}
-          data-testid="app-title"
-        >
+      <header className="flex items-center justify-between px-4 py-3 border-b"
+        style={{ backgroundColor: '#0d0d14', borderColor: 'rgba(255,255,255,0.08)' }}>
+        <span className="text-sm font-bold tracking-wider" style={{ color: '#22d3ee' }} data-testid="app-title">
           ⚡ META-EXPERT REGIME TRACKER
         </span>
         <div className="flex items-center gap-3">
@@ -253,75 +352,54 @@ export default function DashboardPage() {
               {me.data.username}
             </span>
           )}
-          <button
-            data-testid="btn-logout"
-            onClick={handleLogout}
+          <button data-testid="btn-logout" onClick={handleLogout}
             className="text-xs px-3 py-1 rounded-sm tracking-wider transition-all active:scale-95"
-            style={{
-              color: '#71717a',
-              border: '1px solid rgba(255,255,255,0.12)',
-              backgroundColor: 'transparent',
-              cursor: 'pointer',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = '#e2e8f0';
-              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = '#71717a';
-              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)';
-            }}
-          >
+            style={{ color: '#71717a', border: '1px solid rgba(255,255,255,0.12)', backgroundColor: 'transparent', cursor: 'pointer' }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = '#e2e8f0'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = '#71717a'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'; }}>
             LOGOUT
           </button>
         </div>
       </header>
 
       <main className="flex-1 flex flex-col max-w-lg mx-auto w-full px-4 py-4 gap-4">
+
         {/* HAND COUNTER + WINDOW SELECTOR */}
-        <div
-          className="rounded-sm p-4 border"
-          style={{
-            backgroundColor: '#0d0d14',
-            borderColor: 'rgba(255,255,255,0.08)',
-          }}
-        >
-          <div className="flex items-center justify-between mb-3">
+        <div className="rounded-sm p-4 border" style={{ backgroundColor: '#0d0d14', borderColor: 'rgba(255,255,255,0.08)' }}>
+          <div className="flex items-center justify-between">
             <div>
-              <div
-                className="text-2xl font-black tracking-wider"
-                style={{ color: '#e2e8f0' }}
-                data-testid="hand-count"
-              >
+              <div className="text-2xl font-black tracking-wider" style={{ color: '#e2e8f0' }} data-testid="hand-count">
                 HAND #{snapshot?.handCount ?? 0}
               </div>
+              {regime && (
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-xs" style={{ color: '#3f3f46' }}>
+                    VOL {(regime.volatilityIndex * 100).toFixed(0)}%
+                  </span>
+                  <div className="w-16 h-0.5 rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(255,255,255,0.06)' }}>
+                    <div className="h-full rounded-full"
+                      style={{ width: `${regime.volatilityIndex * 100}%`, backgroundColor: regime.volatilityIndex > 0.6 ? '#f87171' : regime.volatilityIndex > 0.3 ? '#fb923c' : '#4ade80' }} />
+                  </div>
+                  <span className="text-xs" style={{ color: '#3f3f46' }}>
+                    WIN {activeWindow}
+                  </span>
+                </div>
+              )}
             </div>
             <div className="flex flex-col items-end gap-2">
-              <span className="text-xs tracking-widest" style={{ color: '#71717a' }}>
-                ROLLING WINDOW
-              </span>
+              <span className="text-xs tracking-widest" style={{ color: '#71717a' }}>ROLLING WINDOW</span>
               <div className="flex gap-2">
                 {[8, 12, 16].map((w) => (
-                  <button
-                    key={w}
-                    data-testid={`btn-window-${w}`}
-                    onClick={() => handleWindowChange(w)}
+                  <button key={w} data-testid={`btn-window-${w}`} onClick={() => handleWindowChange(w)}
                     disabled={isMutating}
                     className="px-3 py-1 rounded-sm text-sm font-bold tracking-wider transition-all active:scale-95"
                     style={{
-                      border: activeWindow === w
-                        ? '2px solid #22d3ee'
-                        : '1px solid rgba(255,255,255,0.12)',
+                      border: activeWindow === w ? '2px solid #22d3ee' : '1px solid rgba(255,255,255,0.12)',
                       color: activeWindow === w ? '#22d3ee' : '#71717a',
-                      backgroundColor: activeWindow === w
-                        ? 'rgba(34,211,238,0.1)'
-                        : 'transparent',
+                      backgroundColor: activeWindow === w ? 'rgba(34,211,238,0.1)' : 'transparent',
                       cursor: isMutating ? 'not-allowed' : 'pointer',
-                      boxShadow: activeWindow === w
-                        ? '0 0 8px rgba(34,211,238,0.2)'
-                        : 'none',
-                    }}
-                  >
+                      boxShadow: activeWindow === w ? '0 0 8px rgba(34,211,238,0.2)' : 'none',
+                    }}>
                     {w}
                   </button>
                 ))}
@@ -330,504 +408,394 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* MAIN PANEL */}
+        {/* ── META REGIME TRACKER PANEL ──────────────────────────────── */}
         {regime && (
-          <div
-            className="rounded-sm border flex flex-col gap-5 p-4"
-            style={{
-              backgroundColor: '#0d0d14',
-              borderColor: 'rgba(255,255,255,0.08)',
-            }}
-          >
-            {/* Status */}
-            <div className="flex items-center justify-between">
-              <StatusBadge status={regime.status} />
-              <span className="text-xs" style={{ color: '#71717a' }}>
-                {snapshot?.history.length ?? 0} hands logged
-              </span>
-            </div>
+          <div className="rounded-sm border flex flex-col overflow-hidden"
+            style={{ backgroundColor: '#0d0d14', borderColor: 'rgba(255,255,255,0.08)' }}>
 
-            {/* Expert scores */}
-            <div className="grid grid-cols-2 gap-4">
-              {/* SUPREME */}
-              <div className="flex flex-col gap-2">
-                <div
-                  className="text-xs font-bold tracking-wider"
-                  style={{ color: '#a855f7' }}
-                >
-                  SUPREME BAYESIAN
-                </div>
-                <div
-                  className="w-full h-1.5 rounded-full overflow-hidden"
-                  style={{ backgroundColor: 'rgba(168,85,247,0.15)' }}
-                >
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{
-                      width: `${Math.round((regime.supreme.wwr || 0) * 100)}%`,
-                      backgroundColor: '#a855f7',
-                      boxShadow: '0 0 6px rgba(168,85,247,0.5)',
-                    }}
-                  />
-                </div>
-                <div className="flex justify-between items-center">
-                  <span
-                    className="text-sm font-bold"
-                    style={{ color: '#a855f7' }}
-                    data-testid="supreme-pct"
-                  >
-                    {(regime.supreme.wwr * 100).toFixed(1)}%
-                  </span>
-                  <span className="text-xs" style={{ color: '#71717a' }} data-testid="supreme-count">
-                    {regime.supreme.predCount} hands
-                  </span>
-                </div>
+            {/* Panel header */}
+            <div className="px-4 py-2 flex items-center justify-between"
+              style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'rgba(34,211,238,0.02)' }}>
+              <div className="flex items-center gap-2">
+                <StatusBadge status={regime.status} />
+                <ConfidenceBadge confidence={regime.confidence} />
               </div>
-
-              {/* SYNDICATE */}
-              <div className="flex flex-col gap-2">
-                <div
-                  className="text-xs font-bold tracking-wider"
-                  style={{ color: '#38bdf8' }}
-                >
-                  SYNDICATE B2B
-                </div>
-                <div
-                  className="w-full h-1.5 rounded-full overflow-hidden"
-                  style={{ backgroundColor: 'rgba(56,189,248,0.15)' }}
-                >
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{
-                      width: `${Math.round((regime.syndicate.wwr || 0) * 100)}%`,
-                      backgroundColor: '#38bdf8',
-                      boxShadow: '0 0 6px rgba(56,189,248,0.5)',
-                    }}
-                  />
-                </div>
-                <div className="flex justify-between items-center">
-                  <span
-                    className="text-sm font-bold"
-                    style={{ color: '#38bdf8' }}
-                    data-testid="syndicate-pct"
-                  >
-                    {(regime.syndicate.wwr * 100).toFixed(1)}%
-                  </span>
-                  <span className="text-xs" style={{ color: '#71717a' }} data-testid="syndicate-count">
-                    {regime.syndicate.predCount} hands
-                  </span>
-                </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs" style={{ color: '#3f3f46' }}>Age {regime.regimeAge}h</span>
+                <span className="text-xs" style={{ color: '#3f3f46' }}>Sw {regime.switchCount}</span>
+                <span className="text-xs" style={{ color: '#71717a' }}>{snapshot?.history.length ?? 0}h</span>
               </div>
             </div>
 
-            {/* Both Agree Banner */}
+            {/* 6-expert rows */}
+            <div className="px-4">
+              {expertKeys.map((key) => {
+                const stats = regime[key] as ExpertStats;
+                return (
+                  <ExpertRow
+                    key={key}
+                    expertKey={key}
+                    stats={stats}
+                    isActive={dominantKey === key}
+                  />
+                );
+              })}
+            </div>
+
+            {/* Ensemble Voting Block */}
+            <div className="mx-4 mb-3 rounded-sm p-3"
+              style={{ backgroundColor: 'rgba(234,179,8,0.05)', border: '1px solid rgba(234,179,8,0.15)' }}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold tracking-wider" style={{ color: '#eab308' }}>
+                  ⚖ ENSEMBLE VOTE
+                </span>
+                <div className="flex items-center gap-1.5">
+                  {regime.agreeCount > 0 && (
+                    <span className="text-xs" style={{ color: '#71717a' }}>
+                      {regime.agreeCount}/6 agree
+                    </span>
+                  )}
+                  <span className="text-xs font-bold" style={{
+                    color: regime.ensembleVerdict === 'P' ? '#22d3ee'
+                      : regime.ensembleVerdict === 'B' ? '#f87171'
+                      : '#71717a',
+                  }}>
+                    {regime.ensembleVerdict === 'P' ? `PLAYER ${regime.ensemblePercent}%`
+                      : regime.ensembleVerdict === 'B' ? `BANKER ${regime.ensemblePercent}%`
+                      : 'NO LEAN'}
+                  </span>
+                </div>
+              </div>
+              {/* Blend bar */}
+              <div className="h-2 rounded-full overflow-hidden flex" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>
+                {regime.ensembleVerdict === 'P' && (
+                  <>
+                    <div className="h-full rounded-l-full transition-all duration-700"
+                      style={{ width: `${regime.ensemblePercent}%`, backgroundColor: '#22d3ee', opacity: 0.85 }} />
+                    <div className="h-full rounded-r-full flex-1" style={{ backgroundColor: '#f87171', opacity: 0.3 }} />
+                  </>
+                )}
+                {regime.ensembleVerdict === 'B' && (
+                  <>
+                    <div className="h-full rounded-l-full flex-1" style={{ backgroundColor: '#22d3ee', opacity: 0.3 }} />
+                    <div className="h-full rounded-r-full transition-all duration-700"
+                      style={{ width: `${regime.ensemblePercent}%`, backgroundColor: '#f87171', opacity: 0.85 }} />
+                  </>
+                )}
+                {!regime.ensembleVerdict && (
+                  <div className="h-full w-full rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }} />
+                )}
+              </div>
+              <div className="flex justify-between mt-1">
+                <span className="text-xs" style={{ color: 'rgba(34,211,238,0.5)' }}>P</span>
+                <span className="text-xs" style={{ color: 'rgba(248,113,113,0.5)' }}>B</span>
+              </div>
+            </div>
+
+            {/* Regime Switch Timeline */}
+            {(regime.switchTimeline?.length ?? 0) > 0 && (
+              <div className="px-4 pb-3">
+                <div className="text-xs tracking-widest mb-1.5" style={{ color: '#3f3f46' }}>TIMELINE</div>
+                <div className="flex flex-wrap items-center gap-1">
+                  {regime.switchTimeline.map((entry, i) => (
+                    <div key={i} className="flex items-center gap-1">
+                      <span className="text-xs px-1.5 py-0.5 rounded-sm tabular-nums"
+                        style={{
+                          color: expertColor(entry.expert),
+                          backgroundColor: `${expertColor(entry.expert)}12`,
+                          border: `1px solid ${expertColor(entry.expert)}25`,
+                        }}>
+                        {expertLabel(entry.expert)} {entry.hands}h
+                      </span>
+                      <span className="text-xs" style={{ color: '#3f3f46' }}>→</span>
+                    </div>
+                  ))}
+                  {/* Current regime */}
+                  <span className="text-xs px-1.5 py-0.5 rounded-sm"
+                    style={{
+                      color: expertColor(regime.expert ?? ''),
+                      backgroundColor: `${expertColor(regime.expert ?? '')}18`,
+                      border: `1px solid ${expertColor(regime.expert ?? '')}35`,
+                    }}>
+                    {expertLabel(regime.expert ?? '—')} ★
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Lock countdown */}
+            {regime.isLocked && (
+              <div className="px-4 pb-3">
+                <LockBar lockRemain={regime.lockRemain} lockMax={regime.lockMax} />
+              </div>
+            )}
+
+            {/* Both / All agree banner */}
             {regime.bothAgree && (
-              <div
-                className="text-center py-2 px-4 rounded-sm font-bold tracking-wider text-sm"
+              <div className="mx-4 mb-3 text-center py-2 px-4 rounded-sm font-bold tracking-wider text-sm"
                 style={{
                   color: '#eab308',
                   backgroundColor: 'rgba(234,179,8,0.1)',
                   border: '1px solid rgba(234,179,8,0.4)',
                   boxShadow: '0 0 12px rgba(234,179,8,0.15)',
                 }}
-                data-testid="both-agree-banner"
-              >
-                ⚡ BOTH AGREE — BET{' '}
-                {regime.bothAgreeSide === 'P'
-                  ? 'PLAYER'
-                  : regime.bothAgreeSide === 'B'
-                  ? 'BANKER'
-                  : regime.decision === 'P'
-                  ? 'PLAYER'
-                  : 'BANKER'}
+                data-testid="both-agree-banner">
+                ⚡ ALL {regime.agreeCount} AGREE —{' '}
+                {regime.bothAgreeSide === 'P' ? 'PLAYER' : regime.bothAgreeSide === 'B' ? 'BANKER' : 'BET'}
+              </div>
+            )}
+            {!regime.bothAgree && regime.agreeCount >= 4 && regime.ensembleVerdict && (
+              <div className="mx-4 mb-3 text-center py-2 px-4 rounded-sm font-bold tracking-wider text-sm"
+                style={{
+                  color: regime.ensembleVerdict === 'P' ? '#22d3ee' : '#f87171',
+                  backgroundColor: regime.ensembleVerdict === 'P' ? 'rgba(34,211,238,0.07)' : 'rgba(248,113,113,0.07)',
+                  border: `1px solid ${regime.ensembleVerdict === 'P' ? 'rgba(34,211,238,0.3)' : 'rgba(248,113,113,0.3)'}`,
+                }}>
+                ⚡ {regime.agreeCount}/6 LEAN —{' '}
+                {regime.ensembleVerdict === 'P' ? 'PLAYER' : 'BANKER'}
               </div>
             )}
 
             {/* MAIN DECISION */}
-            <div className="flex flex-col items-center gap-2 py-4">
+            <div className="flex flex-col items-center gap-2 py-5">
               {regime.decision === 'P' && (
                 <>
-                  <div
-                    className="text-6xl font-black tracking-wider"
-                    style={{
-                      color: '#22d3ee',
-                      textShadow:
-                        '0 0 20px rgba(34,211,238,0.7), 0 0 40px rgba(34,211,238,0.4), 0 0 80px rgba(34,211,238,0.2)',
-                    }}
-                    data-testid="decision-display"
-                  >
+                  <div className="text-6xl font-black tracking-wider"
+                    style={{ color: '#22d3ee', textShadow: '0 0 20px rgba(34,211,238,0.7), 0 0 40px rgba(34,211,238,0.4)' }}
+                    data-testid="decision-display">
                     PLAYER
                   </div>
-                  <div
-                    className="text-xs tracking-wider"
-                    style={{
-                      color: regime.expert === 'supreme' ? '#a855f7' : '#38bdf8',
-                    }}
-                    data-testid="following-label"
-                  >
-                    Following{' '}
-                    {regime.expert === 'supreme' ? 'SUPREME' : 'SYNDICATE'}
+                  <div className="text-xs tracking-wider" style={{ color: expertColor(regime.expert ?? '') }} data-testid="following-label">
+                    Following {expertLabel(regime.expert ?? '')}
+                    {regime.isSplit && ' (split→obs)'}
                   </div>
                 </>
               )}
               {regime.decision === 'B' && (
                 <>
-                  <div
-                    className="text-6xl font-black tracking-wider"
-                    style={{
-                      color: '#f87171',
-                      textShadow:
-                        '0 0 20px rgba(248,113,113,0.7), 0 0 40px rgba(248,113,113,0.4), 0 0 80px rgba(248,113,113,0.2)',
-                    }}
-                    data-testid="decision-display"
-                  >
+                  <div className="text-6xl font-black tracking-wider"
+                    style={{ color: '#f87171', textShadow: '0 0 20px rgba(248,113,113,0.7), 0 0 40px rgba(248,113,113,0.4)' }}
+                    data-testid="decision-display">
                     BANKER
                   </div>
-                  <div
-                    className="text-xs tracking-wider"
-                    style={{
-                      color: regime.expert === 'supreme' ? '#a855f7' : '#38bdf8',
-                    }}
-                    data-testid="following-label"
-                  >
-                    Following{' '}
-                    {regime.expert === 'supreme' ? 'SUPREME' : 'SYNDICATE'}
+                  <div className="text-xs tracking-wider" style={{ color: expertColor(regime.expert ?? '') }} data-testid="following-label">
+                    Following {expertLabel(regime.expert ?? '')}
+                    {regime.isSplit && ' (split→obs)'}
                   </div>
                 </>
               )}
               {!regime.decision && (
-                <div
-                  className="text-4xl font-black tracking-wider"
-                  style={{ color: '#71717a' }}
-                  data-testid="decision-display"
-                >
+                <div className="text-4xl font-black tracking-wider" style={{ color: '#71717a' }} data-testid="decision-display">
                   — WAIT —
                 </div>
               )}
             </div>
 
-            {/* Badge Row */}
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Expert badge */}
-              {regime.expert === 'supreme' && (
-                <span
-                  className="text-xs font-bold px-2 py-0.5 rounded-sm tracking-wider"
-                  style={{
-                    color: '#a855f7',
-                    backgroundColor: 'rgba(168,85,247,0.1)',
-                    border: '1px solid rgba(168,85,247,0.3)',
-                  }}
-                  data-testid="badge-expert"
-                >
-                  SUPREME
-                </span>
-              )}
-              {regime.expert === 'syndicate' && (
-                <span
-                  className="text-xs font-bold px-2 py-0.5 rounded-sm tracking-wider"
-                  style={{
-                    color: '#38bdf8',
-                    backgroundColor: 'rgba(56,189,248,0.1)',
-                    border: '1px solid rgba(56,189,248,0.3)',
-                  }}
-                  data-testid="badge-expert"
-                >
-                  SYNDICATE
-                </span>
-              )}
-              {!regime.expert && (
-                <span
-                  className="text-xs font-bold px-2 py-0.5 rounded-sm tracking-wider"
-                  style={{
-                    color: '#71717a',
-                    border: '1px solid rgba(255,255,255,0.08)',
-                  }}
-                  data-testid="badge-expert"
-                >
-                  NONE
-                </span>
-              )}
-
-              {/* Confidence badge */}
-              <ConfidenceBadge confidence={regime.confidence} />
-
-              {/* Age */}
-              <span
-                className="text-xs px-2 py-0.5"
-                style={{ color: '#71717a' }}
-                data-testid="badge-age"
-              >
-                Age: {regime.regimeAge}h
-              </span>
-
-              {/* Switch count */}
-              <span
-                className="text-xs px-2 py-0.5"
-                style={{ color: '#71717a' }}
-                data-testid="badge-sw"
-              >
-                Sw: {regime.switchCount}
-              </span>
-
-              {/* Locked */}
-              {regime.isLocked && (
-                <span
-                  className="text-xs font-bold px-2 py-0.5 rounded-sm tracking-wider"
-                  style={{
-                    color: '#eab308',
-                    backgroundColor: 'rgba(234,179,8,0.1)',
-                    border: '1px solid rgba(234,179,8,0.3)',
-                  }}
-                  data-testid="badge-locked"
-                >
-                  🔒 LOCKED
-                </span>
-              )}
-            </div>
           </div>
         )}
 
         {/* Loading state */}
         {!regime && !initialSnapshot.isError && (
-          <div
-            className="rounded-sm border p-8 text-center"
-            style={{
-              backgroundColor: '#0d0d14',
-              borderColor: 'rgba(255,255,255,0.08)',
-              color: '#71717a',
-            }}
-          >
+          <div className="rounded-sm border p-8 text-center"
+            style={{ backgroundColor: '#0d0d14', borderColor: 'rgba(255,255,255,0.08)', color: '#71717a' }}>
             <div className="text-sm tracking-wider">LOADING REGIME DATA...</div>
           </div>
         )}
 
-        {/* INPUT AREA */}
-        <div
-          className="rounded-sm border p-4 flex flex-col gap-3"
-          style={{
-            backgroundColor: '#0d0d14',
-            borderColor: 'rgba(255,255,255,0.08)',
-          }}
-        >
-          <div className="text-xs tracking-widest mb-1" style={{ color: '#71717a' }}>
-            RECORD OUTCOME
+        {/* ── LOOK-AHEAD SYSTEMS PANEL ─────────────────────────────── */}
+        {snapshot && snapshot.legacyLookAhead && (
+          <div className="rounded-sm border flex flex-col gap-0 overflow-hidden"
+            style={{ backgroundColor: '#0d0d14', borderColor: 'rgba(34,211,238,0.2)' }}>
+            <div className="px-4 py-2 flex items-center justify-between"
+              style={{ borderBottom: '1px solid rgba(34,211,238,0.1)', backgroundColor: 'rgba(34,211,238,0.03)' }}>
+              <span className="text-xs font-bold tracking-widest" style={{ color: '#22d3ee' }}>
+                ◈ LOOK-AHEAD SYSTEMS
+              </span>
+              <span className="text-xs" style={{ color: '#52525b' }}>Branch Simulation</span>
+            </div>
+            <div className="divide-y" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
+              <LookAheadRow
+                label="LOOK-AHEAD v1"
+                la={snapshot.lookAhead}
+                color="#22d3ee"
+                depth="depth-1"
+              />
+              <LookAheadRow
+                label="LOOK-AHEAD v2 (LEGACY)"
+                la={snapshot.legacyLookAhead}
+                color="#fb923c"
+                depth="depth-2"
+              />
+            </div>
+            {/* Agreement indicator */}
+            {snapshot.lookAhead.active && snapshot.legacyLookAhead.active &&
+             snapshot.lookAhead.verdict && snapshot.legacyLookAhead.verdict && (
+              <div className="px-4 py-2"
+                style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+                {snapshot.lookAhead.verdict === snapshot.legacyLookAhead.verdict ? (
+                  <span className="text-xs font-bold" style={{ color: '#4ade80' }}>
+                    ✓ v1 + v2 AGREE → {snapshot.lookAhead.verdict === 'P' ? 'PLAYER' : 'BANKER'}
+                  </span>
+                ) : (
+                  <span className="text-xs font-bold" style={{ color: '#fb923c' }}>
+                    ⚡ v1 vs v2 SPLIT — v1:{snapshot.lookAhead.verdict} v2:{snapshot.legacyLookAhead.verdict}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
-          {/* P B T buttons */}
-          <div className="grid grid-cols-3 gap-3">
-            <button
-              data-testid="btn-player"
-              onClick={() => handleInput('P')}
-              disabled={isMutating}
-              className="py-5 font-black text-2xl rounded-sm transition-all active:scale-95"
-              style={{
-                border: '2px solid #22d3ee',
-                backgroundColor: 'rgba(34,211,238,0.08)',
-                color: '#22d3ee',
-                cursor: isMutating ? 'not-allowed' : 'pointer',
-                opacity: isMutating ? 0.5 : 1,
-                fontFamily: "'JetBrains Mono', monospace",
-                boxShadow: isMutating ? 'none' : '0 0 12px rgba(34,211,238,0.15)',
-              }}
-            >
-              P
-            </button>
-            <button
-              data-testid="btn-banker"
-              onClick={() => handleInput('B')}
-              disabled={isMutating}
-              className="py-5 font-black text-2xl rounded-sm transition-all active:scale-95"
-              style={{
-                border: '2px solid #f87171',
-                backgroundColor: 'rgba(248,113,113,0.08)',
-                color: '#f87171',
-                cursor: isMutating ? 'not-allowed' : 'pointer',
-                opacity: isMutating ? 0.5 : 1,
-                fontFamily: "'JetBrains Mono', monospace",
-                boxShadow: isMutating ? 'none' : '0 0 12px rgba(248,113,113,0.15)',
-              }}
-            >
-              B
-            </button>
-            <button
-              data-testid="btn-tie"
-              onClick={() => handleInput('T')}
-              disabled={isMutating}
-              className="py-5 font-black text-2xl rounded-sm transition-all active:scale-95"
-              style={{
-                border: '2px solid #4ade80',
-                backgroundColor: 'rgba(74,222,128,0.08)',
-                color: '#4ade80',
-                cursor: isMutating ? 'not-allowed' : 'pointer',
-                opacity: isMutating ? 0.5 : 1,
-                fontFamily: "'JetBrains Mono', monospace",
-                boxShadow: isMutating ? 'none' : '0 0 12px rgba(74,222,128,0.15)',
-              }}
-            >
-              T
-            </button>
-          </div>
+        )}
 
-          {/* UNDO / RESET */}
+        {/* ── META AI PANEL ─────────────────────────────────────────── */}
+        {snapshot && (
+          <div className="rounded-sm border flex flex-col gap-0 overflow-hidden"
+            style={{ backgroundColor: '#0d0d14', borderColor: 'rgba(176,0,255,0.25)' }}>
+            <div className="px-4 py-2 flex items-center justify-between"
+              style={{ borderBottom: '1px solid rgba(176,0,255,0.15)', backgroundColor: 'rgba(176,0,255,0.04)' }}>
+              <span className="text-xs font-bold tracking-widest" style={{ color: '#b000ff' }}>
+                ◈ META AI
+              </span>
+              <span className="text-xs" style={{ color: '#52525b' }}>Online Logistic Regression</span>
+            </div>
+            <div className="px-4 py-3 flex items-center justify-between">
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs tracking-widest" style={{ color: '#71717a' }}>DECISION</span>
+                  <SideVerdict verdict={snapshot.metaAI.decision} />
+                </div>
+                <span className="text-xs" style={{ color: '#52525b' }}>
+                  {snapshot.metaAI.seen === 0
+                    ? 'no samples yet'
+                    : `${snapshot.metaAI.seen} samples · acc ${snapshot.metaAI.accuracy !== null ? `${Math.round(snapshot.metaAI.accuracy * 100)}%` : '--'}  ·  P̂ ${(snapshot.metaAI.pPlayer * 100).toFixed(1)}%`}
+                </span>
+              </div>
+              {snapshot.metaAI.seen > 0 && (
+                <div className="flex flex-col items-end gap-1">
+                  <div className="w-20 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(176,0,255,0.15)' }}>
+                    <div className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${(snapshot.metaAI.pPlayer * 100).toFixed(0)}%`, backgroundColor: '#b000ff', boxShadow: '0 0 4px rgba(176,0,255,0.6)' }} />
+                  </div>
+                  <span className="text-xs tabular-nums" style={{ color: '#b000ff' }}>
+                    {(snapshot.metaAI.pPlayer * 100).toFixed(1)}% P
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── OBSERVER MASTER AI PANEL ──────────────────────────────── */}
+        {snapshot && (
+          <div className="rounded-sm border flex flex-col gap-0 overflow-hidden"
+            style={{ backgroundColor: '#0d0d14', borderColor: 'rgba(74,222,128,0.2)' }}>
+            <div className="px-4 py-2 flex items-center justify-between"
+              style={{ borderBottom: '1px solid rgba(74,222,128,0.1)', backgroundColor: 'rgba(74,222,128,0.02)' }}>
+              <span className="text-xs font-bold tracking-widest" style={{ color: '#4ade80' }}>
+                ◈ OBSERVER MASTER AI
+              </span>
+              <span className="text-xs" style={{ color: '#52525b' }}>Meta-learning Layer</span>
+            </div>
+            <div className="px-4 py-3 flex items-center justify-between">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-xs tracking-widest" style={{ color: '#71717a' }}>VERDICT</span>
+                <span className="text-xs" style={{ color: '#52525b' }}>
+                  {snapshot.observer.reasoning}
+                  {snapshot.observer.wr !== null ? ` (${Math.round(snapshot.observer.wr * 100)}% WR)` : ''}
+                </span>
+              </div>
+              <SideVerdict verdict={snapshot.observer.decision} />
+            </div>
+
+            {/* Sub-system breakdown */}
+            {snapshot.observerMemory && (
+              <div className="border-t" style={{ borderColor: 'rgba(74,222,128,0.08)' }}>
+                <div className="px-4 pt-2 pb-1 text-xs tracking-widest" style={{ color: '#3f3f46' }}>
+                  SUB-SYSTEM TRACKERS
+                </div>
+                <div className="divide-y" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
+                  <SubSystemRow
+                    label="META AI"
+                    color="#b000ff"
+                    winRate={snapshot.observerMemory.meta.winRate}
+                    total={snapshot.observerMemory.meta.total}
+                    lastPred={snapshot.observerMemory.meta.lastPred}
+                  />
+                  <SubSystemRow
+                    label="LOOK-AHEAD (v1)"
+                    color="#22d3ee"
+                    winRate={snapshot.observerMemory.lookAhead.winRate}
+                    total={snapshot.observerMemory.lookAhead.total}
+                    lastPred={snapshot.observerMemory.lookAhead.lastPred}
+                  />
+                  <SubSystemRow
+                    label="DERIVED ROADS"
+                    color="#fb923c"
+                    winRate={snapshot.observerMemory.derived.winRate}
+                    total={snapshot.observerMemory.derived.total}
+                    lastPred={snapshot.observerMemory.derived.lastPred}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── INPUT AREA ────────────────────────────────────────────── */}
+        <div className="rounded-sm border p-4 flex flex-col gap-3"
+          style={{ backgroundColor: '#0d0d14', borderColor: 'rgba(255,255,255,0.08)' }}>
+          <div className="text-xs tracking-widest mb-1" style={{ color: '#71717a' }}>RECORD OUTCOME</div>
+          <div className="grid grid-cols-3 gap-3">
+            {([['P', '#22d3ee'], ['B', '#f87171'], ['T', '#4ade80']] as const).map(([val, col]) => (
+              <button key={val} data-testid={`btn-${val === 'P' ? 'player' : val === 'B' ? 'banker' : 'tie'}`}
+                onClick={() => handleInput(val)}
+                disabled={isMutating}
+                className="py-5 font-black text-2xl rounded-sm transition-all active:scale-95"
+                style={{
+                  border: `2px solid ${col}`,
+                  backgroundColor: `${col}0d`,
+                  color: col,
+                  cursor: isMutating ? 'not-allowed' : 'pointer',
+                  opacity: isMutating ? 0.5 : 1,
+                  fontFamily: "'JetBrains Mono', monospace",
+                  boxShadow: isMutating ? 'none' : `0 0 12px ${col}25`,
+                }}>
+                {val}
+              </button>
+            ))}
+          </div>
           <div className="grid grid-cols-2 gap-3">
-            <button
-              data-testid="btn-undo"
-              onClick={handleUndo}
-              disabled={isMutating}
+            <button data-testid="btn-undo" onClick={handleUndo} disabled={isMutating}
               className="py-2 text-sm rounded-sm tracking-wider transition-all active:scale-95"
-              style={{
-                border: '1px solid rgba(255,255,255,0.18)',
-                color: 'rgba(255,255,255,0.5)',
-                backgroundColor: 'transparent',
-                cursor: isMutating ? 'not-allowed' : 'pointer',
-                opacity: isMutating ? 0.5 : 1,
-                fontFamily: "'JetBrains Mono', monospace",
-              }}
-            >
+              style={{ border: '1px solid rgba(255,255,255,0.18)', color: 'rgba(255,255,255,0.5)', backgroundColor: 'transparent', cursor: isMutating ? 'not-allowed' : 'pointer', opacity: isMutating ? 0.5 : 1, fontFamily: "'JetBrains Mono', monospace" }}>
               UNDO
             </button>
-            <button
-              data-testid="btn-reset"
-              onClick={handleReset}
-              disabled={isMutating}
+            <button data-testid="btn-reset" onClick={handleReset} disabled={isMutating}
               className="py-2 text-sm rounded-sm tracking-wider transition-all active:scale-95"
-              style={{
-                border: '1px solid rgba(248,113,113,0.28)',
-                color: 'rgba(248,113,113,0.7)',
-                backgroundColor: 'transparent',
-                cursor: isMutating ? 'not-allowed' : 'pointer',
-                opacity: isMutating ? 0.5 : 1,
-                fontFamily: "'JetBrains Mono', monospace",
-              }}
-            >
+              style={{ border: '1px solid rgba(248,113,113,0.28)', color: 'rgba(248,113,113,0.7)', backgroundColor: 'transparent', cursor: isMutating ? 'not-allowed' : 'pointer', opacity: isMutating ? 0.5 : 1, fontFamily: "'JetBrains Mono', monospace" }}>
               RESET
             </button>
           </div>
         </div>
 
-        {/* META AI / LOOK-AHEAD / OBSERVER PANEL */}
-        {snapshot && (
-          <div
-            className="rounded-sm border flex flex-col gap-0 overflow-hidden"
-            style={{
-              backgroundColor: '#0d0d14',
-              borderColor: 'rgba(176,0,255,0.25)',
-            }}
-          >
-            {/* Section header */}
-            <div
-              className="px-4 py-2 flex items-center justify-between"
-              style={{
-                borderBottom: '1px solid rgba(176,0,255,0.15)',
-                backgroundColor: 'rgba(176,0,255,0.04)',
-              }}
-            >
-              <span
-                className="text-xs font-bold tracking-widest"
-                style={{ color: '#b000ff' }}
-              >
-                ◈ META AI PANEL
-              </span>
-              <span className="text-xs" style={{ color: '#52525b' }}>
-                Self-Learning Layer
-              </span>
-            </div>
-
-            <div className="flex flex-col gap-0 divide-y" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
-
-              {/* LOOK-AHEAD ROW */}
-              <div className="px-4 py-3 flex items-center justify-between">
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-xs tracking-widest" style={{ color: '#71717a' }}>
-                    LOOK-AHEAD
-                  </span>
-                  <span className="text-xs" style={{ color: '#52525b' }}>
-                    {snapshot.lookAhead.active
-                      ? `bias ${snapshot.lookAhead.bias >= 0 ? '+' : ''}${snapshot.lookAhead.bias.toFixed(3)}  ·  P:${snapshot.lookAhead.avgP.toFixed(3)}  B:${snapshot.lookAhead.avgB.toFixed(3)}`
-                      : 'warming up — need 6+ hands'}
-                  </span>
-                </div>
-                <LookAheadBadge la={snapshot.lookAhead} />
-              </div>
-
-              {/* META AI ROW */}
-              <div className="px-4 py-3 flex items-center justify-between">
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-xs tracking-widest" style={{ color: '#71717a' }}>
-                    META AI
-                  </span>
-                  <span className="text-xs" style={{ color: '#52525b' }}>
-                    {snapshot.metaAI.seen === 0
-                      ? 'no samples yet'
-                      : `${snapshot.metaAI.seen} samples · acc ${
-                          snapshot.metaAI.accuracy !== null
-                            ? `${Math.round(snapshot.metaAI.accuracy * 100)}%`
-                            : '--'
-                        }  ·  P̂ ${(snapshot.metaAI.pPlayer * 100).toFixed(1)}%`}
-                  </span>
-                </div>
-                <SideVerdict verdict={snapshot.metaAI.decision} color="purple" />
-              </div>
-
-              {/* OBSERVER ROW */}
-              <div className="px-4 py-3 flex items-center justify-between">
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-xs tracking-widest" style={{ color: '#71717a' }}>
-                    OBSERVER
-                  </span>
-                  <span className="text-xs" style={{ color: '#52525b' }}>
-                    {snapshot.observer.reasoning}
-                    {snapshot.observer.wr !== null
-                      ? ` (${Math.round(snapshot.observer.wr * 100)}% WR)`
-                      : ''}
-                  </span>
-                </div>
-                <SideVerdict verdict={snapshot.observer.decision} color="purple" />
-              </div>
-
-            </div>
-          </div>
-        )}
-
-        {/* History strip */}
+        {/* ── HISTORY STRIP ─────────────────────────────────────────── */}
         {snapshot && snapshot.history.length > 0 && (
-          <div
-            className="rounded-sm border p-3"
-            style={{
-              backgroundColor: '#0d0d14',
-              borderColor: 'rgba(255,255,255,0.08)',
-            }}
-          >
-            <div className="text-xs tracking-widest mb-2" style={{ color: '#71717a' }}>
-              HISTORY (last 20)
-            </div>
+          <div className="rounded-sm border p-3" style={{ backgroundColor: '#0d0d14', borderColor: 'rgba(255,255,255,0.08)' }}>
+            <div className="text-xs tracking-widest mb-2" style={{ color: '#71717a' }}>HISTORY (last 20)</div>
             <div className="flex flex-wrap gap-1">
               {snapshot.history.slice(-20).map((h, i) => (
-                <span
-                  key={i}
-                  className="text-xs font-bold w-6 h-6 flex items-center justify-center rounded-sm"
+                <span key={i} className="text-xs font-bold w-6 h-6 flex items-center justify-center rounded-sm"
                   style={{
-                    color:
-                      h === 'P' ? '#22d3ee' : h === 'B' ? '#f87171' : '#4ade80',
-                    backgroundColor:
-                      h === 'P'
-                        ? 'rgba(34,211,238,0.12)'
-                        : h === 'B'
-                        ? 'rgba(248,113,113,0.12)'
-                        : 'rgba(74,222,128,0.12)',
-                    border:
-                      h === 'P'
-                        ? '1px solid rgba(34,211,238,0.25)'
-                        : h === 'B'
-                        ? '1px solid rgba(248,113,113,0.25)'
-                        : '1px solid rgba(74,222,128,0.25)',
-                  }}
-                >
+                    color: h === 'P' ? '#22d3ee' : h === 'B' ? '#f87171' : '#4ade80',
+                    backgroundColor: h === 'P' ? 'rgba(34,211,238,0.12)' : h === 'B' ? 'rgba(248,113,113,0.12)' : 'rgba(74,222,128,0.12)',
+                    border: h === 'P' ? '1px solid rgba(34,211,238,0.25)' : h === 'B' ? '1px solid rgba(248,113,113,0.25)' : '1px solid rgba(74,222,128,0.25)',
+                  }}>
                   {h}
                 </span>
               ))}
             </div>
           </div>
         )}
+
       </main>
     </div>
   );

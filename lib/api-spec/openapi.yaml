@@ -452,22 +452,80 @@ components:
           type: integer
           description: "Rolling window: 8, 12, or 16"
 
-    RegimeExpert:
+    # Per-expert stats (Option C composite scoring)
+    ExpertStats:
       type: object
-      required: [predCount, wwr, rawWr]
+      required: [predCount, wwr, rawWr, compositeScore, momentum, streak, hotStreak, sparkline, wwrDelta, lastPred]
       properties:
         predCount:
           type: integer
         wwr:
           type: number
-          description: Weighted win rate (0-1)
+          description: Bayesian-adjusted weighted win rate (0-1)
         rawWr:
           type: number
           description: Raw win rate (0-1)
+        compositeScore:
+          type: number
+          description: Option C composite score (Bayesian + momentum + streak bonus)
+        momentum:
+          type: string
+          description: '"up" | "down" | "flat" — trend over last 4 wwr values'
+        streak:
+          type: integer
+          description: Current consecutive correct picks
+        hotStreak:
+          type: boolean
+          description: streak >= 4
+        sparkline:
+          type: array
+          items:
+            type: number
+          description: "Last 8 outcomes: 1=hit, 0=miss"
+        wwrDelta:
+          type: number
+          description: Change in wwr since last hand
+        lastPred:
+          type: ["string", "null"]
+          description: '"P", "B", or null'
+
+    TimelineEntry:
+      type: object
+      required: [expert, hands]
+      properties:
+        expert:
+          type: string
+        hands:
+          type: integer
 
     RegimeState:
       type: object
-      required: [status, decision, expert, confidence, isSplit, gap, bothAgree, regimeAge, switchCount, justSwitched, supreme, syndicate, window]
+      required:
+        - status
+        - decision
+        - expert
+        - confidence
+        - isSplit
+        - gap
+        - bothAgree
+        - agreeCount
+        - regimeAge
+        - switchCount
+        - justSwitched
+        - isLocked
+        - lockRemain
+        - lockMax
+        - window
+        - volatilityIndex
+        - supreme
+        - syndicate
+        - lookAhead
+        - legacyLookAhead
+        - metaAI
+        - observer
+        - ensembleVerdict
+        - ensemblePercent
+        - switchTimeline
       properties:
         status:
           type: string
@@ -477,7 +535,7 @@ components:
           description: "B | P | null (wait)"
         expert:
           type: ["string", "null"]
-          description: "supreme | syndicate | null"
+          description: "Dominant expert key, or null"
         confidence:
           type: string
           description: "NONE | LOW | MED | HIGH"
@@ -485,10 +543,14 @@ components:
           type: boolean
         gap:
           type: number
+          description: Composite score gap between top two experts
         bothAgree:
           type: boolean
         bothAgreeSide:
           type: ["string", "null"]
+        agreeCount:
+          type: integer
+          description: Number of experts agreeing with ensembleVerdict
         regimeAge:
           type: integer
         switchCount:
@@ -497,16 +559,67 @@ components:
           type: boolean
         isLocked:
           type: boolean
-        supreme:
-          $ref: "#/components/schemas/RegimeExpert"
-        syndicate:
-          $ref: "#/components/schemas/RegimeExpert"
+        lockRemain:
+          type: integer
+        lockMax:
+          type: integer
+          description: Max lock hands (for progress bar)
         window:
           type: integer
+        volatilityIndex:
+          type: number
+          description: 0-1 shoe volatility index (drives dynamic window)
+        supreme:
+          $ref: "#/components/schemas/ExpertStats"
+        syndicate:
+          $ref: "#/components/schemas/ExpertStats"
+        lookAhead:
+          $ref: "#/components/schemas/ExpertStats"
+        legacyLookAhead:
+          $ref: "#/components/schemas/ExpertStats"
+        metaAI:
+          $ref: "#/components/schemas/ExpertStats"
+        observer:
+          $ref: "#/components/schemas/ExpertStats"
+        ensembleVerdict:
+          type: ["string", "null"]
+          description: Ensemble-blended verdict (P, B, or null)
+        ensemblePercent:
+          type: integer
+          description: 0-100 lean strength toward ensembleVerdict
+        switchTimeline:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimelineEntry"
+
+    ObserverSubSystem:
+      type: object
+      required: [winRate, total, lastPred]
+      properties:
+        winRate:
+          type: number
+          description: Rolling 10-hand win rate (0-1)
+        total:
+          type: integer
+          description: Total predictions evaluated
+        lastPred:
+          type: ["string", "null"]
+          description: '"P", "B", or null'
+
+    ObserverMemory:
+      type: object
+      required: [meta, lookAhead, derived]
+      properties:
+        meta:
+          $ref: "#/components/schemas/ObserverSubSystem"
+        lookAhead:
+          $ref: "#/components/schemas/ObserverSubSystem"
+        derived:
+          $ref: "#/components/schemas/ObserverSubSystem"
 
     GameSnapshot:
       type: object
-      required: [handCount, history, regime, lookAhead, metaAI, observer]
+      required: [handCount, history, regime, lookAhead, legacyLookAhead, metaAI, observer, observerMemory]
       properties:
         handCount:
           type: integer
@@ -519,10 +632,15 @@ components:
           $ref: "#/components/schemas/RegimeState"
         lookAhead:
           $ref: "#/components/schemas/LookAheadResult"
+        legacyLookAhead:
+          $ref: "#/components/schemas/LookAheadResult"
         metaAI:
           $ref: "#/components/schemas/MetaAIResult"
         observer:
           $ref: "#/components/schemas/ObserverResult"
+        observerMemory:
+          $ref: "#/components/schemas/ObserverMemory"
+          description: Per-sub-system win rates tracked by ObserverMasterAI
 
     LookAheadResult:
       type: object

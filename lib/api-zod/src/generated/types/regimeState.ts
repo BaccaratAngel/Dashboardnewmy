@@ -5,7 +5,8 @@
  * Baccarat prediction dashboard API
  * OpenAPI spec version: 0.1.0
  */
-import type { RegimeExpert } from './regimeExpert';
+import type { ExpertStats } from './expertStats';
+import type { TimelineEntry } from './timelineEntry';
 
 export interface RegimeState {
   /** WARMING_UP | TRACKING | SPLIT */
@@ -16,22 +17,42 @@ export interface RegimeState {
      */
   decision: string | null;
   /**
-     * supreme | syndicate | null
+     * Dominant expert key, or null
      * @nullable
      */
   expert: string | null;
   /** NONE | LOW | MED | HIGH */
   confidence: string;
   isSplit: boolean;
+  /** Composite score gap between top two experts */
   gap: number;
   bothAgree: boolean;
   /** @nullable */
   bothAgreeSide?: string | null;
+  /** Number of experts agreeing with ensembleVerdict */
+  agreeCount: number;
   regimeAge: number;
   switchCount: number;
   justSwitched: boolean;
-  isLocked?: boolean;
-  supreme: RegimeExpert;
-  syndicate: RegimeExpert;
+  isLocked: boolean;
+  lockRemain: number;
+  /** Max lock hands (for progress bar) */
+  lockMax: number;
   window: number;
+  /** 0-1 shoe volatility index (drives dynamic window) */
+  volatilityIndex: number;
+  supreme: ExpertStats;
+  syndicate: ExpertStats;
+  lookAhead: ExpertStats;
+  legacyLookAhead: ExpertStats;
+  metaAI: ExpertStats;
+  observer: ExpertStats;
+  /**
+     * Ensemble-blended verdict (P, B, or null)
+     * @nullable
+     */
+  ensembleVerdict: string | null;
+  /** 0-100 lean strength toward ensembleVerdict */
+  ensemblePercent: number;
+  switchTimeline: TimelineEntry[];
 }

@@ -6,8 +6,9 @@
  *   1. Score all engines against this actual outcome (prior predictions)
  *   2. Record the outcome in all engines
  *   3. Generate new predictions from all engines
- *   4. Run look-ahead (pure in-process branch simulation — no iframes, no delays)
- *   5. Capture predictions in regime tracker + observer
+ *   4. Run look-ahead v1 (depth=1, in-process branch simulation)
+ *   5. Run look-ahead v2 / legacy (depth=2, two-step simulation)
+ *   6. Capture all 6 predictions in regime tracker + observer
  */
 
 import { SyndicateEngine } from "./syndicate.js";
@@ -40,6 +41,7 @@ export interface GameSnapshot {
   history: string[];
   regime: RegimeVerdict;
   lookAhead: LookAheadResult;
+  legacyLookAhead: LookAheadResult;
   metaAI: {
     decision: Side | "WAIT";
     pPlayer: number;
@@ -52,14 +54,18 @@ export interface GameSnapshot {
     reasoning: string;
     isFallback: boolean;
   };
+  observerMemory: {
+    meta: { winRate: number; total: number; lastPred: Side | null };
+    lookAhead: { winRate: number; total: number; lastPred: Side | null };
+    derived: { winRate: number; total: number; lastPred: Side | null };
+  };
 }
 
-// ── Pure in-process look-ahead (replaces iframe simulation) ─────────────────
-// Browser original: 10s because of iframe message-passing + init polling.
-// Here: pure in-memory function calls. Expected: <50ms at depth=1.
+// ── Look-ahead v1 (depth=1) — in-process branch simulation ──────────────────
+// Simulates "what if next hand is P?" vs "what if next hand is B?" using
+// RoadEngine + NexusEngine signals + MetaAI predictPartial.
 
-const LOOK_AHEAD_DEPTH = 1;
-const LOOK_AHEAD_TAIL = 45; // max history handed to simulation
+const LOOK_AHEAD_TAIL = 45;
 
 function runLookAhead(
   cleanHistory: Side[],
@@ -67,51 +73,79 @@ function runLookAhead(
   markovPred: string
 ): LookAheadResult {
   if (cleanHistory.length < 6) {
-    // Not enough history for meaningful road signals
     return { active: false, verdict: null, bias: 0, strength: 0, recentAcc: metaAI.getRecentAccuracy(), avgP: 0, avgB: 0 };
   }
 
   const tail = cleanHistory.slice(-LOOK_AHEAD_TAIL);
-  const branches: Side[] = ["P", "B"]; // depth=1: 2 branches
 
-  const scores: { branch: Side; score: number; pPlayer: number }[] = [];
-
-  for (const branch of branches) {
+  const scores: { branch: Side; score: number }[] = [];
+  for (const branch of ["P", "B"] as Side[]) {
     const hypothetical = [...tail, branch];
-
-    // Pure-function snapshots — no engine state mutation, no delays
     const roadSnap = RoadEngine.computeSignalsForHistory(hypothetical);
     const nexusSnap = NexusEngine.computeApexForHistory(hypothetical);
-
     const feat = buildMetaFeatures(roadSnap, nexusSnap, hypothetical, markovPred);
     const pred = metaAI.predictPartial(feat.x);
     const conf = Math.max(pred.pPlayer, 1 - pred.pPlayer);
-
-    // Score mirrors original: conf + composite quality signals
     const score = conf
       + Math.abs(feat.meta.coreTransMean) * 0.08
       + Math.abs(feat.meta.apexSignal) * 0.04;
-
-    scores.push({ branch, score, pPlayer: pred.pPlayer });
+    scores.push({ branch, score });
   }
 
-  const pEntry = scores.find((s) => s.branch === "P")!;
-  const bEntry = scores.find((s) => s.branch === "B")!;
-  const avgP = pEntry.score;
-  const avgB = bEntry.score;
+  const pScore = scores.find((s) => s.branch === "P")!.score;
+  const bScore = scores.find((s) => s.branch === "B")!.score;
+  const bias = pScore - bScore;
+  const strength = Math.max(pScore, bScore);
+  const verdict: Side | null = bias === 0 ? null : bias > 0 ? "P" : "B";
+
+  return { active: true, verdict, bias, strength, recentAcc: metaAI.getRecentAccuracy(), avgP: pScore, avgB: bScore };
+}
+
+// ── Look-ahead v2 / Legacy (depth=2) ─────────────────────────────────────────
+// Simulates two steps ahead: PP / PB / BP / BB.
+// Scores each 2-step branch, then averages by first step to pick best entry.
+// Uses a complementary weighting formula (heavier on apex + road final signal)
+// vs the v1 formula — the two systems are designed to be orthogonal.
+
+function runLegacyLookAhead(
+  cleanHistory: Side[],
+  metaAI: MetaAI,
+  markovPred: string
+): LookAheadResult {
+  if (cleanHistory.length < 8) {
+    return { active: false, verdict: null, bias: 0, strength: 0, recentAcc: metaAI.getRecentAccuracy(), avgP: 0, avgB: 0 };
+  }
+
+  const tail = cleanHistory.slice(-LOOK_AHEAD_TAIL);
+
+  // Generate all 4 depth-2 branches: [P,P] [P,B] [B,P] [B,B]
+  const branches: [Side, Side][] = [["P", "P"], ["P", "B"], ["B", "P"], ["B", "B"]];
+  const branchScores: Map<Side, number[]> = new Map([["P", []], ["B", []]]);
+
+  for (const [first, second] of branches) {
+    const hypothetical = [...tail, first, second];
+    const roadSnap = RoadEngine.computeSignalsForHistory(hypothetical);
+    const nexusSnap = NexusEngine.computeApexForHistory(hypothetical);
+    const feat = buildMetaFeatures(roadSnap, nexusSnap, hypothetical, markovPred);
+    const pred = metaAI.predictPartial(feat.x);
+    const conf = Math.max(pred.pPlayer, 1 - pred.pPlayer);
+    // Legacy weighting: heavier on apex + road final signal (complementary to v1)
+    const score = conf
+      + Math.abs(feat.meta.apexSignal) * 0.12
+      + Math.abs(feat.meta.roadFinalSignal) * 0.08
+      + Math.abs(feat.meta.coreTransMean) * 0.04;
+    branchScores.get(first)!.push(score);
+  }
+
+  const pBranches = branchScores.get("P")!;
+  const bBranches = branchScores.get("B")!;
+  const avgP = pBranches.reduce((s, v) => s + v, 0) / pBranches.length;
+  const avgB = bBranches.reduce((s, v) => s + v, 0) / bBranches.length;
   const bias = avgP - avgB;
   const strength = Math.max(avgP, avgB);
   const verdict: Side | null = bias === 0 ? null : bias > 0 ? "P" : "B";
 
-  return {
-    active: true,
-    verdict,
-    bias,
-    strength,
-    recentAcc: metaAI.getRecentAccuracy(),
-    avgP,
-    avgB,
-  };
+  return { active: true, verdict, bias, strength, recentAcc: metaAI.getRecentAccuracy(), avgP, avgB };
 }
 
 // ── GameSession ───────────────────────────────────────────────────────────────
@@ -127,9 +161,9 @@ export class GameSession {
   private observer = new ObserverMasterAI();
   private history: HandValue[] = [];
 
-  // Pending state: feature vector built for the NEXT hand (used to learn after outcome arrives)
   private _pendingFeatureX: number[] | null = null;
   private _pendingLookAhead: LookAheadResult = { active: false, verdict: null, bias: 0, strength: 0, recentAcc: null, avgP: 0, avgB: 0 };
+  private _pendingLegacyLookAhead: LookAheadResult = { active: false, verdict: null, bias: 0, strength: 0, recentAcc: null, avgP: 0, avgB: 0 };
   private _pendingMetaDecision: { decision: Side | "WAIT"; pPlayer: number } = { decision: "WAIT", pPlayer: 0.5 };
   private _pendingObserver: { decision: Side | "WAIT"; wr: number | null; reasoning: string; isFallback: boolean } = {
     decision: "WAIT", wr: null, reasoning: "Insufficient Data", isFallback: true
@@ -138,22 +172,16 @@ export class GameSession {
   /** Process a new hand result */
   handleInput(value: string): GameSnapshot {
     const v = value.toUpperCase() as HandValue;
-    if (v !== "B" && v !== "P" && v !== "T") {
-      throw new Error(`Invalid value: ${value}`);
-    }
+    if (v !== "B" && v !== "P" && v !== "T") throw new Error(`Invalid value: ${value}`);
 
     const actual = v === "T" ? null : (v as Side);
 
-    // 1. Score all engines against this actual outcome (uses predictions from BEFORE this hand)
+    // 1. Score all engines against this actual outcome
     if (actual) {
       this.supreme.evaluateOutcome(actual);
       this.regime.evaluateOutcome(actual);
       this.observer.evaluateOutcome(actual);
-
-      // Teach MetaAI from the feature vector that was pending before this hand
-      if (this._pendingFeatureX) {
-        this.metaAI.onLabeled(this._pendingFeatureX, actual);
-      }
+      if (this._pendingFeatureX) this.metaAI.onLabeled(this._pendingFeatureX, actual);
     }
 
     // 2. Record the outcome in all engines
@@ -165,17 +193,14 @@ export class GameSession {
     }
     this.history.push(v);
 
-    // 3. Generate new predictions + run look-ahead
+    // 3. Generate new predictions
     this._captureNewPredictions();
-
     return this.getSnapshot();
   }
 
-  /** Undo the last hand */
   undo(): GameSnapshot {
     if (this.history.length === 0) return this.getSnapshot();
     this.history.pop();
-
     this.syndicate.undoLast();
     this.road.undoLast();
     this.nexus.undoLast();
@@ -184,13 +209,10 @@ export class GameSession {
     this.regime.undoLast();
     this.metaAI.undoLast();
     this.observer.undoLast();
-
-    // Re-capture predictions after undo
     this._captureNewPredictions();
     return this.getSnapshot();
   }
 
-  /** Reset the entire shoe */
   reset(): GameSnapshot {
     this.history = [];
     this.syndicate.reset();
@@ -203,25 +225,26 @@ export class GameSession {
     this.observer.reset();
     this._pendingFeatureX = null;
     this._pendingLookAhead = { active: false, verdict: null, bias: 0, strength: 0, recentAcc: null, avgP: 0, avgB: 0 };
+    this._pendingLegacyLookAhead = { active: false, verdict: null, bias: 0, strength: 0, recentAcc: null, avgP: 0, avgB: 0 };
     this._pendingMetaDecision = { decision: "WAIT", pPlayer: 0.5 };
     this._pendingObserver = { decision: "WAIT", wr: null, reasoning: "Insufficient Data", isFallback: true };
     return this.getSnapshot();
   }
 
-  /** Set the regime rolling window size */
   setWindow(n: number): GameSnapshot {
     this.regime.setWindow(n);
     return this.getSnapshot();
   }
 
-  /** Read-only snapshot */
   getSnapshot(): GameSnapshot {
     const metaStats = this.metaAI.getStats();
+    const obsMem = this.observer.getMemorySnapshot();
     return {
       handCount: this.history.length,
       history: [...this.history],
       regime: this.regime.getVerdict(),
       lookAhead: { ...this._pendingLookAhead },
+      legacyLookAhead: { ...this._pendingLegacyLookAhead },
       metaAI: {
         decision: this._pendingMetaDecision.decision,
         pPlayer: this._pendingMetaDecision.pPlayer,
@@ -229,10 +252,13 @@ export class GameSession {
         seen: metaStats.seen,
       },
       observer: { ...this._pendingObserver },
+      observerMemory: {
+        meta: { winRate: obsMem.meta.winRate, total: obsMem.meta.total, lastPred: obsMem.meta.lastPred },
+        lookAhead: { winRate: obsMem.lookAhead.winRate, total: obsMem.lookAhead.total, lastPred: obsMem.lookAhead.lastPred },
+        derived: { winRate: obsMem.derived.winRate, total: obsMem.derived.total, lastPred: obsMem.derived.lastPred },
+      },
     };
   }
-
-  // ── Internal: generate and capture new predictions ──────────────────────
 
   private _captureNewPredictions(): void {
     const roadSnap = this.road.getSnapshot();
@@ -243,21 +269,26 @@ export class GameSession {
     const normRoad = (v: string): Side | "WAIT" =>
       v === "B" ? "B" : v === "P" ? "P" : "WAIT";
 
-    // Build MetaAI feature vector from current engine state
     const cleanHistory = this.history.filter((h) => h !== "T") as Side[];
+
+    // Build MetaAI feature vector
     const feat = buildMetaFeatures(roadSnap, nexusSnap, cleanHistory, markovPred);
     this._pendingFeatureX = feat.x;
 
-    // MetaAI prediction for this hand
+    // MetaAI prediction
     const metaPred = this.metaAI.predict(feat.x);
     this._pendingMetaDecision = metaPred;
     const metaDecision: Side | "WAIT" = metaPred.pPlayer >= 0.55 ? "P"
       : metaPred.pPlayer <= 0.45 ? "B"
       : "WAIT";
 
-    // Look-ahead: fast in-process branch simulation
+    // Look-ahead v1: depth=1 (fast, ~1ms)
     const laResult = runLookAhead(cleanHistory, this.metaAI, markovPred);
     this._pendingLookAhead = laResult;
+
+    // Look-ahead v2 / legacy: depth=2 (4 branches, ~2ms)
+    const legacyResult = runLegacyLookAhead(cleanHistory, this.metaAI, markovPred);
+    this._pendingLegacyLookAhead = legacyResult;
 
     // Observer verdict (uses last-captured predictions)
     const observerVerdict = this.observer.getUltimateVerdict();
@@ -279,11 +310,15 @@ export class GameSession {
 
     const supremeResult = this.supreme.predict(qPreds, nexusSnap.vol);
 
-    // Capture in regime tracker
+    // ── Capture all 6 experts in regime tracker ──────────────────────
     this.regime.captureSupreme(supremeResult.decision);
     this.regime.captureSyndicate(b2bAlert);
+    this.regime.captureLookAhead(laResult.verdict);
+    this.regime.captureLegacyLookAhead(legacyResult.verdict);
+    this.regime.captureMetaAI(metaDecision);
+    this.regime.captureObserver(observerDecision);
 
-    // Observer captures current predictions (evaluated against next hand's actual outcome)
+    // Observer tracks predictions for next hand's scoring
     this.observer.capturePredictions(
       metaDecision,
       laResult.verdict,
@@ -292,7 +327,7 @@ export class GameSession {
   }
 }
 
-// ── Per-user session store (in-memory, by userId) ───────────────────────────
+// ── Per-user session store ───────────────────────────────────────────────────
 
 const sessionStore = new Map<number, GameSession>();
 

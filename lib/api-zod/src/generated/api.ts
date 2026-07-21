@@ -60,29 +60,110 @@ export const GetSnapshotResponse = zod.object({
   "regime": zod.object({
   "status": zod.string().describe('WARMING_UP | TRACKING | SPLIT'),
   "decision": zod.string().nullable().describe('B | P | null (wait)'),
-  "expert": zod.string().nullable().describe('supreme | syndicate | null'),
+  "expert": zod.string().nullable().describe('Dominant expert key, or null'),
   "confidence": zod.string().describe('NONE | LOW | MED | HIGH'),
   "isSplit": zod.boolean(),
-  "gap": zod.number(),
+  "gap": zod.number().describe('Composite score gap between top two experts'),
   "bothAgree": zod.boolean(),
   "bothAgreeSide": zod.string().nullish(),
+  "agreeCount": zod.number().describe('Number of experts agreeing with ensembleVerdict'),
   "regimeAge": zod.number(),
   "switchCount": zod.number(),
   "justSwitched": zod.boolean(),
-  "isLocked": zod.boolean().optional(),
+  "isLocked": zod.boolean(),
+  "lockRemain": zod.number(),
+  "lockMax": zod.number().describe('Max lock hands (for progress bar)'),
+  "window": zod.number(),
+  "volatilityIndex": zod.number().describe('0-1 shoe volatility index (drives dynamic window)'),
   "supreme": zod.object({
   "predCount": zod.number(),
-  "wwr": zod.number().describe('Weighted win rate (0-1)'),
-  "rawWr": zod.number().describe('Raw win rate (0-1)')
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
 }),
   "syndicate": zod.object({
   "predCount": zod.number(),
-  "wwr": zod.number().describe('Weighted win rate (0-1)'),
-  "rawWr": zod.number().describe('Raw win rate (0-1)')
-}),
-  "window": zod.number()
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
 }),
   "lookAhead": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+}),
+  "legacyLookAhead": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+}),
+  "metaAI": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+}),
+  "observer": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+}),
+  "ensembleVerdict": zod.string().nullable().describe('Ensemble-blended verdict (P, B, or null)'),
+  "ensemblePercent": zod.number().describe('0-100 lean strength toward ensembleVerdict'),
+  "switchTimeline": zod.array(zod.object({
+  "expert": zod.string(),
+  "hands": zod.number()
+}))
+}),
+  "lookAhead": zod.object({
+  "active": zod.boolean(),
+  "verdict": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "bias": zod.number(),
+  "strength": zod.number(),
+  "recentAcc": zod.number().nullable().describe('Rolling accuracy (0-1) or null if no predictions yet'),
+  "avgP": zod.number(),
+  "avgB": zod.number()
+}),
+  "legacyLookAhead": zod.object({
   "active": zod.boolean(),
   "verdict": zod.string().nullable().describe('\"P\", \"B\", or null'),
   "bias": zod.number(),
@@ -102,7 +183,24 @@ export const GetSnapshotResponse = zod.object({
   "wr": zod.number().nullable().describe('Win-rate of the winning sub-system, or null for fallback'),
   "reasoning": zod.string(),
   "isFallback": zod.boolean()
+}),
+  "observerMemory": zod.object({
+  "meta": zod.object({
+  "winRate": zod.number().describe('Rolling 10-hand win rate (0-1)'),
+  "total": zod.number().describe('Total predictions evaluated'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+}),
+  "lookAhead": zod.object({
+  "winRate": zod.number().describe('Rolling 10-hand win rate (0-1)'),
+  "total": zod.number().describe('Total predictions evaluated'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+}),
+  "derived": zod.object({
+  "winRate": zod.number().describe('Rolling 10-hand win rate (0-1)'),
+  "total": zod.number().describe('Total predictions evaluated'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
 })
+}).describe('Per-sub-system win rates tracked by ObserverMasterAI')
 })
 
 
@@ -119,29 +217,110 @@ export const SubmitInputResponse = zod.object({
   "regime": zod.object({
   "status": zod.string().describe('WARMING_UP | TRACKING | SPLIT'),
   "decision": zod.string().nullable().describe('B | P | null (wait)'),
-  "expert": zod.string().nullable().describe('supreme | syndicate | null'),
+  "expert": zod.string().nullable().describe('Dominant expert key, or null'),
   "confidence": zod.string().describe('NONE | LOW | MED | HIGH'),
   "isSplit": zod.boolean(),
-  "gap": zod.number(),
+  "gap": zod.number().describe('Composite score gap between top two experts'),
   "bothAgree": zod.boolean(),
   "bothAgreeSide": zod.string().nullish(),
+  "agreeCount": zod.number().describe('Number of experts agreeing with ensembleVerdict'),
   "regimeAge": zod.number(),
   "switchCount": zod.number(),
   "justSwitched": zod.boolean(),
-  "isLocked": zod.boolean().optional(),
+  "isLocked": zod.boolean(),
+  "lockRemain": zod.number(),
+  "lockMax": zod.number().describe('Max lock hands (for progress bar)'),
+  "window": zod.number(),
+  "volatilityIndex": zod.number().describe('0-1 shoe volatility index (drives dynamic window)'),
   "supreme": zod.object({
   "predCount": zod.number(),
-  "wwr": zod.number().describe('Weighted win rate (0-1)'),
-  "rawWr": zod.number().describe('Raw win rate (0-1)')
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
 }),
   "syndicate": zod.object({
   "predCount": zod.number(),
-  "wwr": zod.number().describe('Weighted win rate (0-1)'),
-  "rawWr": zod.number().describe('Raw win rate (0-1)')
-}),
-  "window": zod.number()
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
 }),
   "lookAhead": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+}),
+  "legacyLookAhead": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+}),
+  "metaAI": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+}),
+  "observer": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+}),
+  "ensembleVerdict": zod.string().nullable().describe('Ensemble-blended verdict (P, B, or null)'),
+  "ensemblePercent": zod.number().describe('0-100 lean strength toward ensembleVerdict'),
+  "switchTimeline": zod.array(zod.object({
+  "expert": zod.string(),
+  "hands": zod.number()
+}))
+}),
+  "lookAhead": zod.object({
+  "active": zod.boolean(),
+  "verdict": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "bias": zod.number(),
+  "strength": zod.number(),
+  "recentAcc": zod.number().nullable().describe('Rolling accuracy (0-1) or null if no predictions yet'),
+  "avgP": zod.number(),
+  "avgB": zod.number()
+}),
+  "legacyLookAhead": zod.object({
   "active": zod.boolean(),
   "verdict": zod.string().nullable().describe('\"P\", \"B\", or null'),
   "bias": zod.number(),
@@ -161,7 +340,24 @@ export const SubmitInputResponse = zod.object({
   "wr": zod.number().nullable().describe('Win-rate of the winning sub-system, or null for fallback'),
   "reasoning": zod.string(),
   "isFallback": zod.boolean()
+}),
+  "observerMemory": zod.object({
+  "meta": zod.object({
+  "winRate": zod.number().describe('Rolling 10-hand win rate (0-1)'),
+  "total": zod.number().describe('Total predictions evaluated'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+}),
+  "lookAhead": zod.object({
+  "winRate": zod.number().describe('Rolling 10-hand win rate (0-1)'),
+  "total": zod.number().describe('Total predictions evaluated'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+}),
+  "derived": zod.object({
+  "winRate": zod.number().describe('Rolling 10-hand win rate (0-1)'),
+  "total": zod.number().describe('Total predictions evaluated'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
 })
+}).describe('Per-sub-system win rates tracked by ObserverMasterAI')
 })
 
 
@@ -174,29 +370,110 @@ export const UndoInputResponse = zod.object({
   "regime": zod.object({
   "status": zod.string().describe('WARMING_UP | TRACKING | SPLIT'),
   "decision": zod.string().nullable().describe('B | P | null (wait)'),
-  "expert": zod.string().nullable().describe('supreme | syndicate | null'),
+  "expert": zod.string().nullable().describe('Dominant expert key, or null'),
   "confidence": zod.string().describe('NONE | LOW | MED | HIGH'),
   "isSplit": zod.boolean(),
-  "gap": zod.number(),
+  "gap": zod.number().describe('Composite score gap between top two experts'),
   "bothAgree": zod.boolean(),
   "bothAgreeSide": zod.string().nullish(),
+  "agreeCount": zod.number().describe('Number of experts agreeing with ensembleVerdict'),
   "regimeAge": zod.number(),
   "switchCount": zod.number(),
   "justSwitched": zod.boolean(),
-  "isLocked": zod.boolean().optional(),
+  "isLocked": zod.boolean(),
+  "lockRemain": zod.number(),
+  "lockMax": zod.number().describe('Max lock hands (for progress bar)'),
+  "window": zod.number(),
+  "volatilityIndex": zod.number().describe('0-1 shoe volatility index (drives dynamic window)'),
   "supreme": zod.object({
   "predCount": zod.number(),
-  "wwr": zod.number().describe('Weighted win rate (0-1)'),
-  "rawWr": zod.number().describe('Raw win rate (0-1)')
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
 }),
   "syndicate": zod.object({
   "predCount": zod.number(),
-  "wwr": zod.number().describe('Weighted win rate (0-1)'),
-  "rawWr": zod.number().describe('Raw win rate (0-1)')
-}),
-  "window": zod.number()
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
 }),
   "lookAhead": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+}),
+  "legacyLookAhead": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+}),
+  "metaAI": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+}),
+  "observer": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+}),
+  "ensembleVerdict": zod.string().nullable().describe('Ensemble-blended verdict (P, B, or null)'),
+  "ensemblePercent": zod.number().describe('0-100 lean strength toward ensembleVerdict'),
+  "switchTimeline": zod.array(zod.object({
+  "expert": zod.string(),
+  "hands": zod.number()
+}))
+}),
+  "lookAhead": zod.object({
+  "active": zod.boolean(),
+  "verdict": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "bias": zod.number(),
+  "strength": zod.number(),
+  "recentAcc": zod.number().nullable().describe('Rolling accuracy (0-1) or null if no predictions yet'),
+  "avgP": zod.number(),
+  "avgB": zod.number()
+}),
+  "legacyLookAhead": zod.object({
   "active": zod.boolean(),
   "verdict": zod.string().nullable().describe('\"P\", \"B\", or null'),
   "bias": zod.number(),
@@ -216,7 +493,24 @@ export const UndoInputResponse = zod.object({
   "wr": zod.number().nullable().describe('Win-rate of the winning sub-system, or null for fallback'),
   "reasoning": zod.string(),
   "isFallback": zod.boolean()
+}),
+  "observerMemory": zod.object({
+  "meta": zod.object({
+  "winRate": zod.number().describe('Rolling 10-hand win rate (0-1)'),
+  "total": zod.number().describe('Total predictions evaluated'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+}),
+  "lookAhead": zod.object({
+  "winRate": zod.number().describe('Rolling 10-hand win rate (0-1)'),
+  "total": zod.number().describe('Total predictions evaluated'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+}),
+  "derived": zod.object({
+  "winRate": zod.number().describe('Rolling 10-hand win rate (0-1)'),
+  "total": zod.number().describe('Total predictions evaluated'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
 })
+}).describe('Per-sub-system win rates tracked by ObserverMasterAI')
 })
 
 
@@ -229,29 +523,110 @@ export const ResetGameResponse = zod.object({
   "regime": zod.object({
   "status": zod.string().describe('WARMING_UP | TRACKING | SPLIT'),
   "decision": zod.string().nullable().describe('B | P | null (wait)'),
-  "expert": zod.string().nullable().describe('supreme | syndicate | null'),
+  "expert": zod.string().nullable().describe('Dominant expert key, or null'),
   "confidence": zod.string().describe('NONE | LOW | MED | HIGH'),
   "isSplit": zod.boolean(),
-  "gap": zod.number(),
+  "gap": zod.number().describe('Composite score gap between top two experts'),
   "bothAgree": zod.boolean(),
   "bothAgreeSide": zod.string().nullish(),
+  "agreeCount": zod.number().describe('Number of experts agreeing with ensembleVerdict'),
   "regimeAge": zod.number(),
   "switchCount": zod.number(),
   "justSwitched": zod.boolean(),
-  "isLocked": zod.boolean().optional(),
+  "isLocked": zod.boolean(),
+  "lockRemain": zod.number(),
+  "lockMax": zod.number().describe('Max lock hands (for progress bar)'),
+  "window": zod.number(),
+  "volatilityIndex": zod.number().describe('0-1 shoe volatility index (drives dynamic window)'),
   "supreme": zod.object({
   "predCount": zod.number(),
-  "wwr": zod.number().describe('Weighted win rate (0-1)'),
-  "rawWr": zod.number().describe('Raw win rate (0-1)')
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
 }),
   "syndicate": zod.object({
   "predCount": zod.number(),
-  "wwr": zod.number().describe('Weighted win rate (0-1)'),
-  "rawWr": zod.number().describe('Raw win rate (0-1)')
-}),
-  "window": zod.number()
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
 }),
   "lookAhead": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+}),
+  "legacyLookAhead": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+}),
+  "metaAI": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+}),
+  "observer": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+}),
+  "ensembleVerdict": zod.string().nullable().describe('Ensemble-blended verdict (P, B, or null)'),
+  "ensemblePercent": zod.number().describe('0-100 lean strength toward ensembleVerdict'),
+  "switchTimeline": zod.array(zod.object({
+  "expert": zod.string(),
+  "hands": zod.number()
+}))
+}),
+  "lookAhead": zod.object({
+  "active": zod.boolean(),
+  "verdict": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "bias": zod.number(),
+  "strength": zod.number(),
+  "recentAcc": zod.number().nullable().describe('Rolling accuracy (0-1) or null if no predictions yet'),
+  "avgP": zod.number(),
+  "avgB": zod.number()
+}),
+  "legacyLookAhead": zod.object({
   "active": zod.boolean(),
   "verdict": zod.string().nullable().describe('\"P\", \"B\", or null'),
   "bias": zod.number(),
@@ -271,7 +646,24 @@ export const ResetGameResponse = zod.object({
   "wr": zod.number().nullable().describe('Win-rate of the winning sub-system, or null for fallback'),
   "reasoning": zod.string(),
   "isFallback": zod.boolean()
+}),
+  "observerMemory": zod.object({
+  "meta": zod.object({
+  "winRate": zod.number().describe('Rolling 10-hand win rate (0-1)'),
+  "total": zod.number().describe('Total predictions evaluated'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+}),
+  "lookAhead": zod.object({
+  "winRate": zod.number().describe('Rolling 10-hand win rate (0-1)'),
+  "total": zod.number().describe('Total predictions evaluated'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+}),
+  "derived": zod.object({
+  "winRate": zod.number().describe('Rolling 10-hand win rate (0-1)'),
+  "total": zod.number().describe('Total predictions evaluated'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
 })
+}).describe('Per-sub-system win rates tracked by ObserverMasterAI')
 })
 
 
@@ -288,29 +680,110 @@ export const SetWindowResponse = zod.object({
   "regime": zod.object({
   "status": zod.string().describe('WARMING_UP | TRACKING | SPLIT'),
   "decision": zod.string().nullable().describe('B | P | null (wait)'),
-  "expert": zod.string().nullable().describe('supreme | syndicate | null'),
+  "expert": zod.string().nullable().describe('Dominant expert key, or null'),
   "confidence": zod.string().describe('NONE | LOW | MED | HIGH'),
   "isSplit": zod.boolean(),
-  "gap": zod.number(),
+  "gap": zod.number().describe('Composite score gap between top two experts'),
   "bothAgree": zod.boolean(),
   "bothAgreeSide": zod.string().nullish(),
+  "agreeCount": zod.number().describe('Number of experts agreeing with ensembleVerdict'),
   "regimeAge": zod.number(),
   "switchCount": zod.number(),
   "justSwitched": zod.boolean(),
-  "isLocked": zod.boolean().optional(),
+  "isLocked": zod.boolean(),
+  "lockRemain": zod.number(),
+  "lockMax": zod.number().describe('Max lock hands (for progress bar)'),
+  "window": zod.number(),
+  "volatilityIndex": zod.number().describe('0-1 shoe volatility index (drives dynamic window)'),
   "supreme": zod.object({
   "predCount": zod.number(),
-  "wwr": zod.number().describe('Weighted win rate (0-1)'),
-  "rawWr": zod.number().describe('Raw win rate (0-1)')
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
 }),
   "syndicate": zod.object({
   "predCount": zod.number(),
-  "wwr": zod.number().describe('Weighted win rate (0-1)'),
-  "rawWr": zod.number().describe('Raw win rate (0-1)')
-}),
-  "window": zod.number()
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
 }),
   "lookAhead": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+}),
+  "legacyLookAhead": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+}),
+  "metaAI": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+}),
+  "observer": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+}),
+  "ensembleVerdict": zod.string().nullable().describe('Ensemble-blended verdict (P, B, or null)'),
+  "ensemblePercent": zod.number().describe('0-100 lean strength toward ensembleVerdict'),
+  "switchTimeline": zod.array(zod.object({
+  "expert": zod.string(),
+  "hands": zod.number()
+}))
+}),
+  "lookAhead": zod.object({
+  "active": zod.boolean(),
+  "verdict": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "bias": zod.number(),
+  "strength": zod.number(),
+  "recentAcc": zod.number().nullable().describe('Rolling accuracy (0-1) or null if no predictions yet'),
+  "avgP": zod.number(),
+  "avgB": zod.number()
+}),
+  "legacyLookAhead": zod.object({
   "active": zod.boolean(),
   "verdict": zod.string().nullable().describe('\"P\", \"B\", or null'),
   "bias": zod.number(),
@@ -330,7 +803,24 @@ export const SetWindowResponse = zod.object({
   "wr": zod.number().nullable().describe('Win-rate of the winning sub-system, or null for fallback'),
   "reasoning": zod.string(),
   "isFallback": zod.boolean()
+}),
+  "observerMemory": zod.object({
+  "meta": zod.object({
+  "winRate": zod.number().describe('Rolling 10-hand win rate (0-1)'),
+  "total": zod.number().describe('Total predictions evaluated'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+}),
+  "lookAhead": zod.object({
+  "winRate": zod.number().describe('Rolling 10-hand win rate (0-1)'),
+  "total": zod.number().describe('Total predictions evaluated'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+}),
+  "derived": zod.object({
+  "winRate": zod.number().describe('Rolling 10-hand win rate (0-1)'),
+  "total": zod.number().describe('Total predictions evaluated'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
 })
+}).describe('Per-sub-system win rates tracked by ObserverMasterAI')
 })
 
 
