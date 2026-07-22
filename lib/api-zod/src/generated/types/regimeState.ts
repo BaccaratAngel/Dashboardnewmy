@@ -47,6 +47,10 @@ export interface RegimeState {
   legacyLookAhead: ExpertStats;
   metaAI: ExpertStats;
   observer: ExpertStats;
+  bebRoad: ExpertStats;
+  smallRoad: ExpertStats;
+  cockroachRoad: ExpertStats;
+  dualAuth: ExpertStats;
   /**
      * Ensemble-blended verdict (P, B, or null)
      * @nullable
@@ -55,4 +59,18 @@ export interface RegimeState {
   /** 0-100 lean strength toward ensembleVerdict */
   ensemblePercent: number;
   switchTimeline: TimelineEntry[];
+  /**
+     * Best non-locked expert during a lock window
+     * @nullable
+     */
+  shadowLeader: string | null;
+  /**
+     * Shadow leader current prediction (P, B, or null)
+     * @nullable
+     */
+  shadowLeaderPred: string | null;
+  /** Shadow leader composite score */
+  shadowLeaderComposite: number;
+  /** True when lock was broken early this hand by streak analysis */
+  lockAccelerated: boolean;
 }

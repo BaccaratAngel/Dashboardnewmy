@@ -29,4 +29,15 @@ export interface ExpertStats {
      * @nullable
      */
   lastPred: string | null;
+  /** Average consecutive-win run length from history */
+  avgWinRun: number;
+  /** Average consecutive-loss run length from history */
+  avgLossRun: number;
+  /** Length of the current ongoing win/loss run */
+  currentRunLen: number;
+  /**
+     * true=winning run, false=losing run, null=no data
+     * @nullable
+     */
+  currentRunIsWin: boolean | null;
 }

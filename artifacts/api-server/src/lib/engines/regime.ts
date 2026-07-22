@@ -1,21 +1,19 @@
 /**
- * Meta Regime Switch Tracker — 6-expert ensemble with Option C composite scoring.
+ * Meta Regime Switch Tracker — 10-expert ensemble with Option C composite scoring.
  *
  * Option C = Bayesian-adjusted base rate (50%) + Momentum (25%) + Hot-streak bonus (25%).
  *
- * Experts tracked: supreme, syndicate, lookAhead, legacyLookAhead, metaAI, observer
+ * Experts tracked (10 total):
+ *   Core 6: supreme, syndicate, lookAhead, legacyLookAhead, metaAI, observer
+ *   Road 4:  bebRoad, smallRoad, cockroachRoad, dualAuth
  *
- * Additions over original:
- *   • Expert Momentum Arrows — trend over last 4 wwr values (up/down/flat)
- *   • Ensemble Voting Mode — blend all experts' predictions by compositeScore
- *   • Hot Streak Bonus — 4+ consecutive correct → compositeScore boost
- *   • Dynamic Window — shrinks (→8) during volatile shoes, expands (→16) during stable ones
- *   • Split Tiebreaker — observer breaks SPLIT ties instead of freezing
- *   • Per-Expert Sparkline — last 8 hit/miss
- *   • Regime Switch Timeline — last 10 dominant transitions with hand counts
- *   • Lock Countdown Bar — lockRemain + lockMax for progress display
- *   • WWR Delta — wwr change since last hand
- *   • Current prediction P/B pill per expert
+ * Road experts abstain (null pred) when their signal is WAIT/NEUTRAL.
+ *
+ * Lock system enhancements:
+ *   • Shadow tracking — during lock, always show the live leader + "N hands left"
+ *   • Accelerated unlock — if locked expert's current loss run exceeds their typical
+ *     loss-run length (from streak profile), lock breaks early
+ *   • Streak profile — per expert: win-run lengths, loss-run lengths, current run state
  */
 
 import type { B2BAlert } from "./syndicate.js";
@@ -27,6 +25,13 @@ type Side = "B" | "P";
 interface ExpertHistory {
   pred: Side;
   actual: Side | null;
+}
+
+interface StreakProfile {
+  winRuns: number[];         // completed consecutive-win run lengths (last 10)
+  lossRuns: number[];        // completed consecutive-loss run lengths (last 10)
+  currentRunLen: number;     // length of the current (ongoing) run
+  currentRunIsWin: boolean | null; // true=winning run, false=losing run, null=no data
 }
 
 interface ExpertState {
@@ -43,9 +48,12 @@ interface ExpertState {
   prevWwr: number;
   wwrDelta: number;     // wwr - prevWwr
   compositeScore: number;
+  streakProfile: StreakProfile;
 }
 
-export type ExpertKey = "supreme" | "syndicate" | "lookAhead" | "legacyLookAhead" | "metaAI" | "observer";
+export type ExpertKey =
+  | "supreme" | "syndicate" | "lookAhead" | "legacyLookAhead" | "metaAI" | "observer"
+  | "bebRoad" | "smallRoad" | "cockroachRoad" | "dualAuth";
 
 // ── Public interfaces ─────────────────────────────────────────────────────────
 
@@ -60,6 +68,11 @@ export interface ExpertStats {
   sparkline: number[];
   wwrDelta: number;
   lastPred: Side | null;
+  // Streak profile (for UI display)
+  avgWinRun: number;
+  avgLossRun: number;
+  currentRunLen: number;
+  currentRunIsWin: boolean | null;
 }
 
 export interface TimelineEntry {
@@ -85,23 +98,33 @@ export interface RegimeVerdict {
   lockMax: number;
   window: number;
   volatilityIndex: number;
-  // All 6 experts
+  // Core 6 experts
   supreme: ExpertStats;
   syndicate: ExpertStats;
   lookAhead: ExpertStats;
   legacyLookAhead: ExpertStats;
   metaAI: ExpertStats;
   observer: ExpertStats;
+  // Road 4 experts
+  bebRoad: ExpertStats;
+  smallRoad: ExpertStats;
+  cockroachRoad: ExpertStats;
+  dualAuth: ExpertStats;
   // Ensemble
   ensembleVerdict: Side | null;
-  ensemblePercent: number; // 0–100 lean toward ensembleVerdict
+  ensemblePercent: number;
   // Timeline
   switchTimeline: TimelineEntry[];
+  // Lock enhancements
+  shadowLeader: string | null;       // best non-locked expert during lock
+  shadowLeaderPred: Side | null;
+  shadowLeaderComposite: number;
+  lockAccelerated: boolean;          // accelerated unlock just fired this hand
 }
 
 interface RegimeConfig {
-  baseWindow: number; // user-set baseline
-  window: number;     // dynamic effective window
+  baseWindow: number;
+  window: number;
   minCounts: Record<ExpertKey, number>;
   decayFactor: number;
   lockHands: number;
@@ -119,26 +142,17 @@ interface RegimeStateSnap {
   cfg: RegimeConfig;
   switchTimeline: TimelineEntry[];
   volatilityIndex: number;
+  shadowLeader: ExpertKey | null;
+  lockAccelerated: boolean;
 }
 
 // ── Option C scoring helpers ──────────────────────────────────────────────────
 
-/**
- * Bayesian-adjusted win rate (Laplace / Beta(1,1) smoothing).
- * Shrinks toward 0.5 when sample count is low.
- *   4/4 → ~0.625   (not 1.0)
- *   14/20 → ~0.688
- *   0/0 → 0.5
- */
 function bayesianWwr(rawWr: number, n: number): number {
   if (n === 0) return 0.5;
   return (rawWr * n + 1) / (n + 2);
 }
 
-/**
- * Option C composite: Bayesian(50%) + Momentum(25%) + StreakBonus(25%)
- * Hot streak adds a flat +5% cap bonus.
- */
 function computeComposite(exp: ExpertState): number {
   if (exp.predCount === 0) return 0;
   const bayesAdj = bayesianWwr(exp.rawWr, exp.predCount);
@@ -146,6 +160,10 @@ function computeComposite(exp: ExpertState): number {
   const streakScore = Math.min(exp.streak / 8, 1);
   const hotBonus = exp.hotStreak ? 0.05 : 0;
   return Math.min(1, bayesAdj * 0.5 + momentumScore * 0.25 + streakScore * 0.25 + hotBonus);
+}
+
+function freshStreakProfile(): StreakProfile {
+  return { winRuns: [], lossRuns: [], currentRunLen: 0, currentRunIsWin: null };
 }
 
 function freshExpert(): ExpertState {
@@ -163,10 +181,14 @@ function freshExpert(): ExpertState {
     prevWwr: 0,
     wwrDelta: 0,
     compositeScore: 0,
+    streakProfile: freshStreakProfile(),
   };
 }
 
-const ALL_KEYS: ExpertKey[] = ["supreme", "syndicate", "lookAhead", "legacyLookAhead", "metaAI", "observer"];
+const ALL_KEYS: ExpertKey[] = [
+  "supreme", "syndicate", "lookAhead", "legacyLookAhead", "metaAI", "observer",
+  "bebRoad", "smallRoad", "cockroachRoad", "dualAuth",
+];
 
 // ── Main class ────────────────────────────────────────────────────────────────
 
@@ -174,7 +196,10 @@ export class RegimeSwitchTracker {
   private cfg: RegimeConfig = {
     baseWindow: 12,
     window: 12,
-    minCounts: { supreme: 6, syndicate: 4, lookAhead: 4, legacyLookAhead: 4, metaAI: 4, observer: 4 },
+    minCounts: {
+      supreme: 6, syndicate: 4, lookAhead: 4, legacyLookAhead: 4, metaAI: 4, observer: 4,
+      bebRoad: 6, smallRoad: 6, cockroachRoad: 6, dualAuth: 6,
+    },
     decayFactor: 0.88,
     lockHands: 5,
     splitThreshold: 0.06,
@@ -187,6 +212,10 @@ export class RegimeSwitchTracker {
     legacyLookAhead: freshExpert(),
     metaAI: freshExpert(),
     observer: freshExpert(),
+    bebRoad: freshExpert(),
+    smallRoad: freshExpert(),
+    cockroachRoad: freshExpert(),
+    dualAuth: freshExpert(),
   };
 
   private dominant: ExpertKey | null = null;
@@ -197,6 +226,8 @@ export class RegimeSwitchTracker {
   private justSwitched = false;
   private switchTimeline: TimelineEntry[] = [];
   private volatilityIndex = 0;
+  private _shadowLeader: ExpertKey | null = null;
+  private _lockAccelerated = false;
   private _undoStack: RegimeStateSnap[] = [];
 
   // ── Undo snapshot ───────────────────────────────────────────────────────
@@ -213,11 +244,13 @@ export class RegimeSwitchTracker {
       cfg: JSON.parse(JSON.stringify(this.cfg)) as RegimeConfig,
       switchTimeline: [...this.switchTimeline],
       volatilityIndex: this.volatilityIndex,
+      shadowLeader: this._shadowLeader,
+      lockAccelerated: this._lockAccelerated,
     });
     if (this._undoStack.length > 200) this._undoStack.shift();
   }
 
-  // ── Capture methods (called before evaluateOutcome) ─────────────────────
+  // ── Capture methods ─────────────────────────────────────────────────────
 
   captureSupreme(decision: Side | "WAIT" | null): void {
     const exp = this.experts.supreme;
@@ -275,6 +308,46 @@ export class RegimeSwitchTracker {
     }
   }
 
+  /** BEB derived road prediction — null = abstain */
+  captureBebRoad(verdict: Side | null): void {
+    const exp = this.experts.bebRoad;
+    exp.lastPred = verdict;
+    if (verdict) {
+      exp.history.push({ pred: verdict, actual: null });
+      this._trimHistory(exp);
+    }
+  }
+
+  /** Small Road prediction — null = abstain */
+  captureSmallRoad(verdict: Side | null): void {
+    const exp = this.experts.smallRoad;
+    exp.lastPred = verdict;
+    if (verdict) {
+      exp.history.push({ pred: verdict, actual: null });
+      this._trimHistory(exp);
+    }
+  }
+
+  /** Cockroach Road prediction — null = abstain */
+  captureCockroachRoad(verdict: Side | null): void {
+    const exp = this.experts.cockroachRoad;
+    exp.lastPred = verdict;
+    if (verdict) {
+      exp.history.push({ pred: verdict, actual: null });
+      this._trimHistory(exp);
+    }
+  }
+
+  /** Dual-Auth Engine (nexus+road agree) — null = abstain when signals conflict */
+  captureDualAuth(verdict: Side | null): void {
+    const exp = this.experts.dualAuth;
+    exp.lastPred = verdict;
+    if (verdict) {
+      exp.history.push({ pred: verdict, actual: null });
+      this._trimHistory(exp);
+    }
+  }
+
   private _trimHistory(exp: ExpertState): void {
     if (exp.history.length > this.cfg.window + 8) exp.history.shift();
   }
@@ -285,7 +358,6 @@ export class RegimeSwitchTracker {
     this._save();
     if (actual !== "P" && actual !== "B") return;
 
-    // Fill in actual for the most-recent pending prediction per expert
     ALL_KEYS.forEach((key) => {
       const hist = this.experts[key].history;
       for (let i = hist.length - 1; i >= 0; i--) {
@@ -295,6 +367,7 @@ export class RegimeSwitchTracker {
 
     this._recompute();
     this._adjustWindow();
+    this._lockAccelerated = false;
     this._updateDominant();
   }
 
@@ -313,19 +386,16 @@ export class RegimeSwitchTracker {
         exp.streak = 0; exp.hotStreak = false;
         exp.sparkline = []; exp.compositeScore = 0;
         exp.wwrDelta = 0; exp.momentum = "flat";
+        exp.streakProfile = freshStreakProfile();
         return;
       }
 
       // Weighted win rate (exponential decay, recent = heavier)
-      let wH = 0, wT = 0, rH = 0;
-      scored.forEach((h, i) => {
-        const age = scored.length - 1 - i;
-        const w = Math.pow(this.cfg.decayFactor, age);
-        const hit = h.pred === h.actual ? 1 : 0;
-        wH += hit * w; wT += w; rH += hit;
+      let rH = 0;
+      scored.forEach((h) => {
+        if (h.pred === h.actual) rH++;
       });
       exp.rawWr = rH / scored.length;
-      // Apply Bayesian adjustment to raw win rate
       exp.wwr = bayesianWwr(exp.rawWr, scored.length);
 
       // WWR delta
@@ -353,19 +423,42 @@ export class RegimeSwitchTracker {
 
       // Option C composite
       exp.compositeScore = computeComposite(exp);
+
+      // Streak profile — rebuild from scored window
+      const profile = exp.streakProfile;
+      const newWinRuns: number[] = [];
+      const newLossRuns: number[] = [];
+      let currentType: boolean | null = null;
+      let runLen = 0;
+
+      for (const h of scored) {
+        const isWin = h.pred === h.actual;
+        if (currentType === null) {
+          currentType = isWin;
+          runLen = 1;
+        } else if (isWin === currentType) {
+          runLen++;
+        } else {
+          if (currentType) newWinRuns.push(runLen);
+          else newLossRuns.push(runLen);
+          currentType = isWin;
+          runLen = 1;
+        }
+      }
+
+      profile.winRuns = newWinRuns.slice(-10);
+      profile.lossRuns = newLossRuns.slice(-10);
+      profile.currentRunIsWin = currentType;
+      profile.currentRunLen = runLen;
     });
   }
 
   // ── Dynamic window ──────────────────────────────────────────────────────
 
   private _adjustWindow(): void {
-    // Use switch timeline to gauge volatility:
-    // Short-lived regimes → volatile → shrink window
-    // Long-lived regimes → stable → expand window
     const recent = this.switchTimeline.slice(-6);
     if (recent.length >= 2) {
       const avgHands = recent.reduce((s, e) => s + e.hands, 0) / recent.length;
-      // avgHands < 4 → very volatile; avgHands > 10 → stable
       const volatility = Math.max(0, Math.min(1, 1 - (avgHands - 2) / 12));
       this.volatilityIndex = volatility;
       if (volatility > 0.65) this.cfg.window = 8;
@@ -374,17 +467,64 @@ export class RegimeSwitchTracker {
     }
   }
 
+  // ── Streak-based accelerated unlock ─────────────────────────────────────
+
+  private _shouldAccelerateUnlock(key: ExpertKey): boolean {
+    const exp = this.experts[key];
+    const profile = exp.streakProfile;
+
+    // Must be in an active losing run
+    if (profile.currentRunIsWin !== false) return false;
+
+    // Need at least 2 hands of data in the current loss run
+    if (profile.currentRunLen < 2) return false;
+
+    // Compute typical loss run length
+    const lossRuns = profile.lossRuns;
+    if (lossRuns.length === 0) {
+      // No history — use a conservative default of 3
+      return profile.currentRunLen >= 3;
+    }
+
+    const recent = lossRuns.slice(-5);
+    const avgLossRun = recent.reduce((a, b) => a + b, 0) / recent.length;
+
+    // Trigger if current loss run has reached or exceeded their typical loss-run length
+    return profile.currentRunLen >= Math.max(2, Math.ceil(avgLossRun));
+  }
+
+  // ── Shadow leader (best non-locked expert) ──────────────────────────────
+
+  private _computeShadowLeader(): ExpertKey | null {
+    if (!this.dominant) return null;
+    const eligible = ALL_KEYS
+      .filter((k) => k !== this.dominant && this.experts[k].predCount >= this.cfg.minCounts[k])
+      .sort((a, b) => this.experts[b].compositeScore - this.experts[a].compositeScore);
+    return eligible.length > 0 ? eligible[0] : null;
+  }
+
   // ── Dominant selection ──────────────────────────────────────────────────
 
   private _updateDominant(): void {
     if (this.dominantLockCount > 0) {
-      this.dominantLockCount--;
-      this.regimeAge++;
-      this.justSwitched = false;
-      return;
+      // Shadow leader tracking (always updated during lock)
+      this._shadowLeader = this._computeShadowLeader();
+
+      // Accelerated unlock check
+      if (this.dominant && this._shouldAccelerateUnlock(this.dominant)) {
+        this._lockAccelerated = true;
+        this.dominantLockCount = 0;
+        // Fall through to normal evaluation
+      } else {
+        this.dominantLockCount--;
+        this.regimeAge++;
+        this.justSwitched = false;
+        return;
+      }
+    } else {
+      this._shadowLeader = null;
     }
 
-    // Eligible experts: enough predictions to be considered
     const eligible = ALL_KEYS
       .filter((k) => this.experts[k].predCount >= this.cfg.minCounts[k])
       .sort((a, b) => this.experts[b].compositeScore - this.experts[a].compositeScore);
@@ -397,17 +537,14 @@ export class RegimeSwitchTracker {
 
     let newDom: ExpertKey = eligible[0];
 
-    // SPLIT check: if top two are within splitThreshold — preserve current dominant
     if (eligible.length >= 2) {
       const gap = this.experts[eligible[0]].compositeScore - this.experts[eligible[1]].compositeScore;
       if (gap < this.cfg.splitThreshold) {
-        // Keep existing dominant if still eligible; otherwise pick best
         newDom = this.dominant && eligible.includes(this.dominant) ? this.dominant : eligible[0];
       }
     }
 
     if (newDom !== this.dominant) {
-      // Record the outgoing dominant in the switch timeline
       if (this.dominant !== null) {
         this.switchTimeline.push({ expert: this.dominant, hands: this.regimeAge });
         if (this.switchTimeline.length > 10) this.switchTimeline.shift();
@@ -426,6 +563,7 @@ export class RegimeSwitchTracker {
     this.justSwitched = this.lastDominant !== null;
     this.dominantLockCount = this.cfg.lockHands;
     if (this.lastDominant !== null) this.switchCount++;
+    this._shadowLeader = null; // reset shadow on fresh lock
   }
 
   // ── Verdict ─────────────────────────────────────────────────────────────
@@ -433,10 +571,16 @@ export class RegimeSwitchTracker {
   getVerdict(): RegimeVerdict {
     const dom = this.dominant;
 
-    // Build per-expert public stats
     const expertStats: Record<ExpertKey, ExpertStats> = {} as Record<ExpertKey, ExpertStats>;
     ALL_KEYS.forEach((key) => {
       const exp = this.experts[key];
+      const profile = exp.streakProfile;
+      const avgWinRun = profile.winRuns.length > 0
+        ? profile.winRuns.slice(-5).reduce((a, b) => a + b, 0) / Math.min(profile.winRuns.length, 5)
+        : 0;
+      const avgLossRun = profile.lossRuns.length > 0
+        ? profile.lossRuns.slice(-5).reduce((a, b) => a + b, 0) / Math.min(profile.lossRuns.length, 5)
+        : 0;
       expertStats[key] = {
         predCount: exp.predCount,
         wwr: exp.wwr,
@@ -448,10 +592,14 @@ export class RegimeSwitchTracker {
         sparkline: [...exp.sparkline],
         wwrDelta: exp.wwrDelta,
         lastPred: exp.lastPred,
+        avgWinRun: Math.round(avgWinRun * 10) / 10,
+        avgLossRun: Math.round(avgLossRun * 10) / 10,
+        currentRunLen: profile.currentRunLen,
+        currentRunIsWin: profile.currentRunIsWin,
       };
     });
 
-    // ── Ensemble voting ────────────────────────────────────────────────
+    // ── Ensemble voting (10 experts) ────────────────────────────────────
     let scoreP = 0, scoreB = 0;
     ALL_KEYS.forEach((key) => {
       const exp = this.experts[key];
@@ -481,8 +629,13 @@ export class RegimeSwitchTracker {
     const agreingCount = ensembleVerdict
       ? voting.filter((k) => this.experts[k].lastPred === ensembleVerdict).length
       : 0;
-    const bothAgree = voting.length >= 4 && agreingCount === voting.length;
+    const bothAgree = voting.length >= 6 && agreingCount === voting.length;
     const bothAgreeSide: Side | null = bothAgree ? ensembleVerdict : null;
+
+    // ── Shadow leader stats ────────────────────────────────────────────
+    const shadowKey = this._shadowLeader;
+    const shadowLeaderPred = shadowKey ? this.experts[shadowKey].lastPred : null;
+    const shadowLeaderComposite = shadowKey ? this.experts[shadowKey].compositeScore : 0;
 
     const base = {
       regimeAge: this.regimeAge,
@@ -500,6 +653,10 @@ export class RegimeSwitchTracker {
       bothAgree,
       bothAgreeSide,
       agreeCount: agreingCount,
+      shadowLeader: shadowKey ?? null,
+      shadowLeaderPred,
+      shadowLeaderComposite,
+      lockAccelerated: this._lockAccelerated,
     };
 
     if (!dom) {
@@ -576,6 +733,8 @@ export class RegimeSwitchTracker {
     this.cfg = prev.cfg;
     this.switchTimeline = prev.switchTimeline;
     this.volatilityIndex = prev.volatilityIndex;
+    this._shadowLeader = prev.shadowLeader;
+    this._lockAccelerated = prev.lockAccelerated;
   }
 
   reset(): void {
@@ -586,6 +745,10 @@ export class RegimeSwitchTracker {
       legacyLookAhead: freshExpert(),
       metaAI: freshExpert(),
       observer: freshExpert(),
+      bebRoad: freshExpert(),
+      smallRoad: freshExpert(),
+      cockroachRoad: freshExpert(),
+      dualAuth: freshExpert(),
     };
     this.dominant = null;
     this.dominantLockCount = 0;
@@ -595,6 +758,8 @@ export class RegimeSwitchTracker {
     this.justSwitched = false;
     this.switchTimeline = [];
     this.volatilityIndex = 0;
+    this._shadowLeader = null;
+    this._lockAccelerated = false;
     this._undoStack = [];
   }
 }

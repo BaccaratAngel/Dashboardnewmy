@@ -455,7 +455,7 @@ components:
     # Per-expert stats (Option C composite scoring)
     ExpertStats:
       type: object
-      required: [predCount, wwr, rawWr, compositeScore, momentum, streak, hotStreak, sparkline, wwrDelta, lastPred]
+      required: [predCount, wwr, rawWr, compositeScore, momentum, streak, hotStreak, sparkline, wwrDelta, lastPred, avgWinRun, avgLossRun, currentRunLen, currentRunIsWin]
       properties:
         predCount:
           type: integer
@@ -488,6 +488,18 @@ components:
         lastPred:
           type: ["string", "null"]
           description: '"P", "B", or null'
+        avgWinRun:
+          type: number
+          description: Average consecutive-win run length from history
+        avgLossRun:
+          type: number
+          description: Average consecutive-loss run length from history
+        currentRunLen:
+          type: integer
+          description: Length of the current ongoing win/loss run
+        currentRunIsWin:
+          type: ["boolean", "null"]
+          description: true=winning run, false=losing run, null=no data
 
     TimelineEntry:
       type: object
@@ -523,9 +535,17 @@ components:
         - legacyLookAhead
         - metaAI
         - observer
+        - bebRoad
+        - smallRoad
+        - cockroachRoad
+        - dualAuth
         - ensembleVerdict
         - ensemblePercent
         - switchTimeline
+        - shadowLeader
+        - shadowLeaderPred
+        - shadowLeaderComposite
+        - lockAccelerated
       properties:
         status:
           type: string
@@ -581,6 +601,14 @@ components:
           $ref: "#/components/schemas/ExpertStats"
         observer:
           $ref: "#/components/schemas/ExpertStats"
+        bebRoad:
+          $ref: "#/components/schemas/ExpertStats"
+        smallRoad:
+          $ref: "#/components/schemas/ExpertStats"
+        cockroachRoad:
+          $ref: "#/components/schemas/ExpertStats"
+        dualAuth:
+          $ref: "#/components/schemas/ExpertStats"
         ensembleVerdict:
           type: ["string", "null"]
           description: Ensemble-blended verdict (P, B, or null)
@@ -591,6 +619,18 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/TimelineEntry"
+        shadowLeader:
+          type: ["string", "null"]
+          description: Best non-locked expert during a lock window
+        shadowLeaderPred:
+          type: ["string", "null"]
+          description: Shadow leader current prediction (P, B, or null)
+        shadowLeaderComposite:
+          type: number
+          description: Shadow leader composite score
+        lockAccelerated:
+          type: boolean
+          description: True when lock was broken early this hand by streak analysis
 
     ObserverSubSystem:
       type: object

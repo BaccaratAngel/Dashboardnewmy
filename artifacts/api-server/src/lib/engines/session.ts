@@ -310,13 +310,31 @@ export class GameSession {
 
     const supremeResult = this.supreme.predict(qPreds, nexusSnap.vol);
 
-    // ── Capture all 6 experts in regime tracker ──────────────────────
+    // ── Capture all 10 experts in regime tracker ─────────────────────
+
+    // Core 6
     this.regime.captureSupreme(supremeResult.decision);
     this.regime.captureSyndicate(b2bAlert);
     this.regime.captureLookAhead(laResult.verdict);
     this.regime.captureLegacyLookAhead(legacyResult.verdict);
     this.regime.captureMetaAI(metaDecision);
     this.regime.captureObserver(observerDecision);
+
+    // Road 4 — BEB, Small Road, Cockroach (from road engine)
+    const toSide = (v: string): "B" | "P" | null =>
+      v === "B" ? "B" : v === "P" ? "P" : null;
+
+    this.regime.captureBebRoad(toSide(roadSnap.beb));
+    this.regime.captureSmallRoad(toSide(roadSnap.sr));
+    this.regime.captureCockroachRoad(toSide(roadSnap.cp));
+
+    // Dual-Auth Engine: nexus apex signal AND road final prediction must agree.
+    // When they conflict the engine abstains (null = not counted this hand).
+    const nexusSide = toSide(nexusSnap.apexSignal);
+    const roadSide  = toSide(roadSnap.nextPrediction);
+    const dualAuthSide: "B" | "P" | null =
+      nexusSide && roadSide && nexusSide === roadSide ? nexusSide : null;
+    this.regime.captureDualAuth(dualAuthSide);
 
     // Observer tracks predictions for next hand's scoring
     this.observer.capturePredictions(

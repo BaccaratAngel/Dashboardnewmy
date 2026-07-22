@@ -85,7 +85,11 @@ export const GetSnapshotResponse = zod.object({
   "hotStreak": zod.boolean().describe('streak >= 4'),
   "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
   "wwrDelta": zod.number().describe('Change in wwr since last hand'),
-  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
 }),
   "syndicate": zod.object({
   "predCount": zod.number(),
@@ -97,7 +101,11 @@ export const GetSnapshotResponse = zod.object({
   "hotStreak": zod.boolean().describe('streak >= 4'),
   "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
   "wwrDelta": zod.number().describe('Change in wwr since last hand'),
-  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
 }),
   "lookAhead": zod.object({
   "predCount": zod.number(),
@@ -109,7 +117,11 @@ export const GetSnapshotResponse = zod.object({
   "hotStreak": zod.boolean().describe('streak >= 4'),
   "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
   "wwrDelta": zod.number().describe('Change in wwr since last hand'),
-  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
 }),
   "legacyLookAhead": zod.object({
   "predCount": zod.number(),
@@ -121,7 +133,11 @@ export const GetSnapshotResponse = zod.object({
   "hotStreak": zod.boolean().describe('streak >= 4'),
   "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
   "wwrDelta": zod.number().describe('Change in wwr since last hand'),
-  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
 }),
   "metaAI": zod.object({
   "predCount": zod.number(),
@@ -133,7 +149,11 @@ export const GetSnapshotResponse = zod.object({
   "hotStreak": zod.boolean().describe('streak >= 4'),
   "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
   "wwrDelta": zod.number().describe('Change in wwr since last hand'),
-  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
 }),
   "observer": zod.object({
   "predCount": zod.number(),
@@ -145,14 +165,86 @@ export const GetSnapshotResponse = zod.object({
   "hotStreak": zod.boolean().describe('streak >= 4'),
   "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
   "wwrDelta": zod.number().describe('Change in wwr since last hand'),
-  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
+}),
+  "bebRoad": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
+}),
+  "smallRoad": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
+}),
+  "cockroachRoad": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
+}),
+  "dualAuth": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
 }),
   "ensembleVerdict": zod.string().nullable().describe('Ensemble-blended verdict (P, B, or null)'),
   "ensemblePercent": zod.number().describe('0-100 lean strength toward ensembleVerdict'),
   "switchTimeline": zod.array(zod.object({
   "expert": zod.string(),
   "hands": zod.number()
-}))
+})),
+  "shadowLeader": zod.string().nullable().describe('Best non-locked expert during a lock window'),
+  "shadowLeaderPred": zod.string().nullable().describe('Shadow leader current prediction (P, B, or null)'),
+  "shadowLeaderComposite": zod.number().describe('Shadow leader composite score'),
+  "lockAccelerated": zod.boolean().describe('True when lock was broken early this hand by streak analysis')
 }),
   "lookAhead": zod.object({
   "active": zod.boolean(),
@@ -242,7 +334,11 @@ export const SubmitInputResponse = zod.object({
   "hotStreak": zod.boolean().describe('streak >= 4'),
   "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
   "wwrDelta": zod.number().describe('Change in wwr since last hand'),
-  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
 }),
   "syndicate": zod.object({
   "predCount": zod.number(),
@@ -254,7 +350,11 @@ export const SubmitInputResponse = zod.object({
   "hotStreak": zod.boolean().describe('streak >= 4'),
   "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
   "wwrDelta": zod.number().describe('Change in wwr since last hand'),
-  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
 }),
   "lookAhead": zod.object({
   "predCount": zod.number(),
@@ -266,7 +366,11 @@ export const SubmitInputResponse = zod.object({
   "hotStreak": zod.boolean().describe('streak >= 4'),
   "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
   "wwrDelta": zod.number().describe('Change in wwr since last hand'),
-  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
 }),
   "legacyLookAhead": zod.object({
   "predCount": zod.number(),
@@ -278,7 +382,11 @@ export const SubmitInputResponse = zod.object({
   "hotStreak": zod.boolean().describe('streak >= 4'),
   "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
   "wwrDelta": zod.number().describe('Change in wwr since last hand'),
-  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
 }),
   "metaAI": zod.object({
   "predCount": zod.number(),
@@ -290,7 +398,11 @@ export const SubmitInputResponse = zod.object({
   "hotStreak": zod.boolean().describe('streak >= 4'),
   "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
   "wwrDelta": zod.number().describe('Change in wwr since last hand'),
-  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
 }),
   "observer": zod.object({
   "predCount": zod.number(),
@@ -302,14 +414,86 @@ export const SubmitInputResponse = zod.object({
   "hotStreak": zod.boolean().describe('streak >= 4'),
   "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
   "wwrDelta": zod.number().describe('Change in wwr since last hand'),
-  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
+}),
+  "bebRoad": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
+}),
+  "smallRoad": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
+}),
+  "cockroachRoad": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
+}),
+  "dualAuth": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
 }),
   "ensembleVerdict": zod.string().nullable().describe('Ensemble-blended verdict (P, B, or null)'),
   "ensemblePercent": zod.number().describe('0-100 lean strength toward ensembleVerdict'),
   "switchTimeline": zod.array(zod.object({
   "expert": zod.string(),
   "hands": zod.number()
-}))
+})),
+  "shadowLeader": zod.string().nullable().describe('Best non-locked expert during a lock window'),
+  "shadowLeaderPred": zod.string().nullable().describe('Shadow leader current prediction (P, B, or null)'),
+  "shadowLeaderComposite": zod.number().describe('Shadow leader composite score'),
+  "lockAccelerated": zod.boolean().describe('True when lock was broken early this hand by streak analysis')
 }),
   "lookAhead": zod.object({
   "active": zod.boolean(),
@@ -395,7 +579,11 @@ export const UndoInputResponse = zod.object({
   "hotStreak": zod.boolean().describe('streak >= 4'),
   "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
   "wwrDelta": zod.number().describe('Change in wwr since last hand'),
-  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
 }),
   "syndicate": zod.object({
   "predCount": zod.number(),
@@ -407,7 +595,11 @@ export const UndoInputResponse = zod.object({
   "hotStreak": zod.boolean().describe('streak >= 4'),
   "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
   "wwrDelta": zod.number().describe('Change in wwr since last hand'),
-  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
 }),
   "lookAhead": zod.object({
   "predCount": zod.number(),
@@ -419,7 +611,11 @@ export const UndoInputResponse = zod.object({
   "hotStreak": zod.boolean().describe('streak >= 4'),
   "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
   "wwrDelta": zod.number().describe('Change in wwr since last hand'),
-  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
 }),
   "legacyLookAhead": zod.object({
   "predCount": zod.number(),
@@ -431,7 +627,11 @@ export const UndoInputResponse = zod.object({
   "hotStreak": zod.boolean().describe('streak >= 4'),
   "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
   "wwrDelta": zod.number().describe('Change in wwr since last hand'),
-  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
 }),
   "metaAI": zod.object({
   "predCount": zod.number(),
@@ -443,7 +643,11 @@ export const UndoInputResponse = zod.object({
   "hotStreak": zod.boolean().describe('streak >= 4'),
   "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
   "wwrDelta": zod.number().describe('Change in wwr since last hand'),
-  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
 }),
   "observer": zod.object({
   "predCount": zod.number(),
@@ -455,14 +659,86 @@ export const UndoInputResponse = zod.object({
   "hotStreak": zod.boolean().describe('streak >= 4'),
   "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
   "wwrDelta": zod.number().describe('Change in wwr since last hand'),
-  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
+}),
+  "bebRoad": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
+}),
+  "smallRoad": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
+}),
+  "cockroachRoad": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
+}),
+  "dualAuth": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
 }),
   "ensembleVerdict": zod.string().nullable().describe('Ensemble-blended verdict (P, B, or null)'),
   "ensemblePercent": zod.number().describe('0-100 lean strength toward ensembleVerdict'),
   "switchTimeline": zod.array(zod.object({
   "expert": zod.string(),
   "hands": zod.number()
-}))
+})),
+  "shadowLeader": zod.string().nullable().describe('Best non-locked expert during a lock window'),
+  "shadowLeaderPred": zod.string().nullable().describe('Shadow leader current prediction (P, B, or null)'),
+  "shadowLeaderComposite": zod.number().describe('Shadow leader composite score'),
+  "lockAccelerated": zod.boolean().describe('True when lock was broken early this hand by streak analysis')
 }),
   "lookAhead": zod.object({
   "active": zod.boolean(),
@@ -548,7 +824,11 @@ export const ResetGameResponse = zod.object({
   "hotStreak": zod.boolean().describe('streak >= 4'),
   "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
   "wwrDelta": zod.number().describe('Change in wwr since last hand'),
-  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
 }),
   "syndicate": zod.object({
   "predCount": zod.number(),
@@ -560,7 +840,11 @@ export const ResetGameResponse = zod.object({
   "hotStreak": zod.boolean().describe('streak >= 4'),
   "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
   "wwrDelta": zod.number().describe('Change in wwr since last hand'),
-  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
 }),
   "lookAhead": zod.object({
   "predCount": zod.number(),
@@ -572,7 +856,11 @@ export const ResetGameResponse = zod.object({
   "hotStreak": zod.boolean().describe('streak >= 4'),
   "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
   "wwrDelta": zod.number().describe('Change in wwr since last hand'),
-  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
 }),
   "legacyLookAhead": zod.object({
   "predCount": zod.number(),
@@ -584,7 +872,11 @@ export const ResetGameResponse = zod.object({
   "hotStreak": zod.boolean().describe('streak >= 4'),
   "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
   "wwrDelta": zod.number().describe('Change in wwr since last hand'),
-  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
 }),
   "metaAI": zod.object({
   "predCount": zod.number(),
@@ -596,7 +888,11 @@ export const ResetGameResponse = zod.object({
   "hotStreak": zod.boolean().describe('streak >= 4'),
   "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
   "wwrDelta": zod.number().describe('Change in wwr since last hand'),
-  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
 }),
   "observer": zod.object({
   "predCount": zod.number(),
@@ -608,14 +904,86 @@ export const ResetGameResponse = zod.object({
   "hotStreak": zod.boolean().describe('streak >= 4'),
   "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
   "wwrDelta": zod.number().describe('Change in wwr since last hand'),
-  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
+}),
+  "bebRoad": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
+}),
+  "smallRoad": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
+}),
+  "cockroachRoad": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
+}),
+  "dualAuth": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
 }),
   "ensembleVerdict": zod.string().nullable().describe('Ensemble-blended verdict (P, B, or null)'),
   "ensemblePercent": zod.number().describe('0-100 lean strength toward ensembleVerdict'),
   "switchTimeline": zod.array(zod.object({
   "expert": zod.string(),
   "hands": zod.number()
-}))
+})),
+  "shadowLeader": zod.string().nullable().describe('Best non-locked expert during a lock window'),
+  "shadowLeaderPred": zod.string().nullable().describe('Shadow leader current prediction (P, B, or null)'),
+  "shadowLeaderComposite": zod.number().describe('Shadow leader composite score'),
+  "lockAccelerated": zod.boolean().describe('True when lock was broken early this hand by streak analysis')
 }),
   "lookAhead": zod.object({
   "active": zod.boolean(),
@@ -705,7 +1073,11 @@ export const SetWindowResponse = zod.object({
   "hotStreak": zod.boolean().describe('streak >= 4'),
   "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
   "wwrDelta": zod.number().describe('Change in wwr since last hand'),
-  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
 }),
   "syndicate": zod.object({
   "predCount": zod.number(),
@@ -717,7 +1089,11 @@ export const SetWindowResponse = zod.object({
   "hotStreak": zod.boolean().describe('streak >= 4'),
   "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
   "wwrDelta": zod.number().describe('Change in wwr since last hand'),
-  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
 }),
   "lookAhead": zod.object({
   "predCount": zod.number(),
@@ -729,7 +1105,11 @@ export const SetWindowResponse = zod.object({
   "hotStreak": zod.boolean().describe('streak >= 4'),
   "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
   "wwrDelta": zod.number().describe('Change in wwr since last hand'),
-  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
 }),
   "legacyLookAhead": zod.object({
   "predCount": zod.number(),
@@ -741,7 +1121,11 @@ export const SetWindowResponse = zod.object({
   "hotStreak": zod.boolean().describe('streak >= 4'),
   "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
   "wwrDelta": zod.number().describe('Change in wwr since last hand'),
-  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
 }),
   "metaAI": zod.object({
   "predCount": zod.number(),
@@ -753,7 +1137,11 @@ export const SetWindowResponse = zod.object({
   "hotStreak": zod.boolean().describe('streak >= 4'),
   "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
   "wwrDelta": zod.number().describe('Change in wwr since last hand'),
-  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
 }),
   "observer": zod.object({
   "predCount": zod.number(),
@@ -765,14 +1153,86 @@ export const SetWindowResponse = zod.object({
   "hotStreak": zod.boolean().describe('streak >= 4'),
   "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
   "wwrDelta": zod.number().describe('Change in wwr since last hand'),
-  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
+}),
+  "bebRoad": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
+}),
+  "smallRoad": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
+}),
+  "cockroachRoad": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
+}),
+  "dualAuth": zod.object({
+  "predCount": zod.number(),
+  "wwr": zod.number().describe('Bayesian-adjusted weighted win rate (0-1)'),
+  "rawWr": zod.number().describe('Raw win rate (0-1)'),
+  "compositeScore": zod.number().describe('Option C composite score (Bayesian + momentum + streak bonus)'),
+  "momentum": zod.string().describe('\"up\" | \"down\" | \"flat\" — trend over last 4 wwr values'),
+  "streak": zod.number().describe('Current consecutive correct picks'),
+  "hotStreak": zod.boolean().describe('streak >= 4'),
+  "sparkline": zod.array(zod.number()).describe('Last 8 outcomes: 1=hit, 0=miss'),
+  "wwrDelta": zod.number().describe('Change in wwr since last hand'),
+  "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "avgWinRun": zod.number().describe('Average consecutive-win run length from history'),
+  "avgLossRun": zod.number().describe('Average consecutive-loss run length from history'),
+  "currentRunLen": zod.number().describe('Length of the current ongoing win\/loss run'),
+  "currentRunIsWin": zod.boolean().nullable().describe('true=winning run, false=losing run, null=no data')
 }),
   "ensembleVerdict": zod.string().nullable().describe('Ensemble-blended verdict (P, B, or null)'),
   "ensemblePercent": zod.number().describe('0-100 lean strength toward ensembleVerdict'),
   "switchTimeline": zod.array(zod.object({
   "expert": zod.string(),
   "hands": zod.number()
-}))
+})),
+  "shadowLeader": zod.string().nullable().describe('Best non-locked expert during a lock window'),
+  "shadowLeaderPred": zod.string().nullable().describe('Shadow leader current prediction (P, B, or null)'),
+  "shadowLeaderComposite": zod.number().describe('Shadow leader composite score'),
+  "lockAccelerated": zod.boolean().describe('True when lock was broken early this hand by streak analysis')
 }),
   "lookAhead": zod.object({
   "active": zod.boolean(),

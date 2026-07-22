@@ -15,16 +15,21 @@ import { cn } from '@/lib/utils';
 // ── Color & label helpers ─────────────────────────────────────────────────────
 
 const EXPERT_META: Record<string, { label: string; shortLabel: string; color: string }> = {
-  supreme:          { label: 'SUPREME BAYESIAN', shortLabel: 'SUPREME',  color: '#a855f7' },
+  // Core 6
+  supreme:          { label: 'SUPREME BAYESIAN', shortLabel: 'SUPREME',   color: '#a855f7' },
   syndicate:        { label: 'SYNDICATE B2B',    shortLabel: 'SYNDICATE', color: '#38bdf8' },
-  lookAhead:        { label: 'LOOK-AHEAD v1',    shortLabel: 'LA v1',    color: '#22d3ee' },
-  legacyLookAhead:  { label: 'LOOK-AHEAD v2',    shortLabel: 'LA v2',    color: '#fb923c' },
-  metaAI:           { label: 'META AI',           shortLabel: 'META AI',  color: '#c084fc' },
-  observer:         { label: 'OBSERVER',          shortLabel: 'OBSERVER', color: '#4ade80' },
+  lookAhead:        { label: 'LOOK-AHEAD v1',    shortLabel: 'LA v1',     color: '#22d3ee' },
+  legacyLookAhead:  { label: 'LOOK-AHEAD v2',    shortLabel: 'LA v2',     color: '#fb923c' },
+  metaAI:           { label: 'META AI',           shortLabel: 'META AI',   color: '#c084fc' },
+  observer:         { label: 'OBSERVER',          shortLabel: 'OBSERVER',  color: '#4ade80' },
+  // Road 4
+  bebRoad:          { label: 'BIG EYE BOY',       shortLabel: 'BEB',       color: '#f43f5e' },
+  smallRoad:        { label: 'SMALL ROAD',        shortLabel: 'SM ROAD',   color: '#e879f9' },
+  cockroachRoad:    { label: 'COCKROACH ROAD',    shortLabel: 'COCKROACH', color: '#f97316' },
+  dualAuth:         { label: 'DUAL-AUTH ENGINE',  shortLabel: 'DUAL-AUTH', color: '#facc15' },
 };
 
 function expertColor(key: string): string {
-  // key may be "supreme+observer" etc — use base key
   const base = key.split('+')[0];
   return EXPERT_META[base]?.color ?? '#71717a';
 }
@@ -97,10 +102,12 @@ function ExpertRow({
   expertKey,
   stats,
   isActive,
+  isShadow,
 }: {
   expertKey: string;
   stats: ExpertStats;
   isActive: boolean;
+  isShadow?: boolean;
 }) {
   const meta = EXPERT_META[expertKey] ?? { label: expertKey.toUpperCase(), shortLabel: expertKey, color: '#71717a' };
   const color = meta.color;
@@ -112,13 +119,20 @@ function ExpertRow({
   const arrowChar = stats.momentum === 'up' ? '↑' : stats.momentum === 'down' ? '↓' : '→';
   const arrowColor = stats.momentum === 'up' ? '#4ade80' : stats.momentum === 'down' ? '#f87171' : '#52525b';
 
+  // Streak profile display
+  const runIcon = stats.currentRunIsWin === true ? '▲' : stats.currentRunIsWin === false ? '▼' : '';
+  const runColor = stats.currentRunIsWin === true ? '#4ade80' : stats.currentRunIsWin === false ? '#f87171' : '#52525b';
+
   return (
     <div className="flex flex-col gap-1 py-2.5"
-      style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+      style={{
+        borderBottom: '1px solid rgba(255,255,255,0.04)',
+        ...(isShadow ? { backgroundColor: `${color}06`, borderLeft: `2px solid ${color}50`, paddingLeft: 6 } : {}),
+      }}>
       {/* Row 1: label + arrows + pill + delta */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
-          <span className="text-xs font-bold tracking-wider" style={{ color: isActive ? color : `${color}80` }}>
+          <span className="text-xs font-bold tracking-wider" style={{ color: isActive ? color : isShadow ? `${color}cc` : `${color}80` }}>
             {meta.label}
           </span>
           {isActive && (
@@ -127,10 +141,22 @@ function ExpertRow({
               ★
             </span>
           )}
+          {isShadow && !isActive && (
+            <span className="text-xs"
+              style={{ color, backgroundColor: `${color}18`, padding: '0 3px', borderRadius: 2, fontSize: 9, border: `1px solid ${color}40` }}>
+              SHADOW
+            </span>
+          )}
           <span className="text-xs font-bold" style={{ color: arrowColor }}>{arrowChar}</span>
           {stats.hotStreak && <span style={{ fontSize: 10 }}>🔥</span>}
         </div>
         <div className="flex items-center gap-1.5">
+          {/* Streak run indicator */}
+          {stats.currentRunLen > 0 && stats.currentRunIsWin !== null && (
+            <span className="text-xs tabular-nums font-bold" style={{ color: runColor, fontFamily: 'monospace' }}>
+              {runIcon}{stats.currentRunLen}
+            </span>
+          )}
           <span className="text-xs tabular-nums" style={{ color: deltaColor, fontFamily: 'monospace' }}>
             {deltaStr}%
           </span>
@@ -138,7 +164,7 @@ function ExpertRow({
         </div>
       </div>
 
-      {/* Row 2: composite bar + composite% (wwr in parentheses) */}
+      {/* Row 2: composite bar + wwr% */}
       <div className="flex items-center gap-2">
         <div className="flex-1 h-1.5 rounded-full overflow-hidden"
           style={{ backgroundColor: `${color}18` }}>
@@ -169,29 +195,77 @@ function ExpertRow({
             {stats.streak}×
           </span>
         )}
+        {/* Avg run profile */}
+        {(stats.avgWinRun > 0 || stats.avgLossRun > 0) && (
+          <span className="text-xs ml-auto" style={{ color: '#3f3f46', fontFamily: 'monospace', fontSize: 9 }}>
+            W{stats.avgWinRun.toFixed(1)}/L{stats.avgLossRun.toFixed(1)}
+          </span>
+        )}
       </div>
     </div>
   );
 }
 
-// ── Lock countdown bar ────────────────────────────────────────────────────────
+// ── Lock countdown bar with shadow leader ─────────────────────────────────────
 
-function LockBar({ lockRemain, lockMax }: { lockRemain: number; lockMax: number }) {
+function LockBar({
+  lockRemain,
+  lockMax,
+  shadowLeader,
+  shadowLeaderPred,
+  shadowLeaderComposite,
+  lockAccelerated,
+}: {
+  lockRemain: number;
+  lockMax: number;
+  shadowLeader: string | null;
+  shadowLeaderPred: string | null;
+  shadowLeaderComposite: number;
+  lockAccelerated: boolean;
+}) {
   const pct = lockMax > 0 ? (lockRemain / lockMax) * 100 : 0;
+  const shadowColor = shadowLeader ? expertColor(shadowLeader) : '#71717a';
+
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1.5">
+      {/* Accelerated unlock banner */}
+      {lockAccelerated && (
+        <div className="text-center py-1 px-3 rounded-sm text-xs font-bold tracking-wider"
+          style={{ color: '#fb923c', backgroundColor: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.35)' }}>
+          ⚡ ACCELERATED UNLOCK — Loss run exceeded profile
+        </div>
+      )}
+
+      {/* Lock countdown */}
       <div className="flex justify-between items-center">
         <span className="text-xs font-bold tracking-wider" style={{ color: '#eab308' }}>
           🔒 LOCKED
         </span>
         <span className="text-xs tabular-nums" style={{ color: '#eab308' }}>
-          {lockRemain}/{lockMax}
+          {lockRemain}/{lockMax} hands
         </span>
       </div>
       <div className="h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(234,179,8,0.15)' }}>
         <div className="h-full rounded-full transition-all duration-500"
           style={{ width: `${pct}%`, backgroundColor: '#eab308', boxShadow: '0 0 4px rgba(234,179,8,0.5)' }} />
       </div>
+
+      {/* Shadow leader */}
+      {shadowLeader && (
+        <div className="flex items-center justify-between mt-0.5 px-2 py-1.5 rounded-sm"
+          style={{ backgroundColor: `${shadowColor}08`, border: `1px solid ${shadowColor}25` }}>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs" style={{ color: '#52525b' }}>Shadow leader:</span>
+            <span className="text-xs font-bold" style={{ color: shadowColor }}>
+              {expertLabel(shadowLeader)}
+            </span>
+            <span className="text-xs" style={{ color: '#3f3f46' }}>
+              ({(shadowLeaderComposite * 100).toFixed(1)}%)
+            </span>
+          </div>
+          <SidePill pred={shadowLeaderPred} />
+        </div>
+      )}
     </div>
   );
 }
@@ -283,6 +357,20 @@ function SubSystemRow({
   );
 }
 
+// ── Expert group section header ───────────────────────────────────────────────
+
+function ExpertGroupHeader({ label, color }: { label: string; color: string }) {
+  return (
+    <div className="px-0 pt-2 pb-1 flex items-center gap-2">
+      <div className="h-px flex-1" style={{ backgroundColor: `${color}25` }} />
+      <span className="text-xs tracking-widest font-bold" style={{ color: `${color}80`, fontSize: 9 }}>
+        {label}
+      </span>
+      <div className="h-px flex-1" style={{ backgroundColor: `${color}25` }} />
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -301,7 +389,6 @@ export default function DashboardPage() {
     if (me.isError) setLocation('/login');
   }, [me.isError, setLocation]);
 
-  // Keep local snapshot in sync with React Query cache (covers API-server restarts and background refetches)
   useEffect(() => {
     if (initialSnapshot.data) setSnapshot(initialSnapshot.data);
   }, [initialSnapshot.data]);
@@ -330,12 +417,16 @@ export default function DashboardPage() {
 
   const regime = snapshot?.regime;
   const activeWindow = regime?.window ?? 12;
-
-  // Resolve active dominant key (may be "supreme+observer")
   const dominantKey = regime?.expert?.split('+')[0] ?? null;
+  const shadowKey = regime?.shadowLeader ?? null;
 
-  // Experts list in order
-  const expertKeys = ['supreme', 'syndicate', 'lookAhead', 'legacyLookAhead', 'metaAI', 'observer'] as const;
+  // Core 6 + Road 4
+  const coreKeys = ['supreme', 'syndicate', 'lookAhead', 'legacyLookAhead', 'metaAI', 'observer'] as const;
+  const roadKeys = ['bebRoad', 'smallRoad', 'cockroachRoad', 'dualAuth'] as const;
+  const allExpertKeys = [...coreKeys, ...roadKeys];
+
+  // Total voting experts count (for ensemble display)
+  const totalExperts = allExpertKeys.length;
 
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#060609', fontFamily: "'JetBrains Mono', monospace" }}>
@@ -427,9 +518,10 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* 6-expert rows */}
+            {/* ── Core 6 experts ── */}
             <div className="px-4">
-              {expertKeys.map((key) => {
+              <ExpertGroupHeader label="CORE ENGINES" color="#22d3ee" />
+              {coreKeys.map((key) => {
                 const stats = regime[key] as ExpertStats;
                 return (
                   <ExpertRow
@@ -437,6 +529,24 @@ export default function DashboardPage() {
                     expertKey={key}
                     stats={stats}
                     isActive={dominantKey === key}
+                    isShadow={shadowKey === key}
+                  />
+                );
+              })}
+            </div>
+
+            {/* ── Road 4 experts ── */}
+            <div className="px-4">
+              <ExpertGroupHeader label="DERIVED ROADS" color="#f43f5e" />
+              {roadKeys.map((key) => {
+                const stats = regime[key] as ExpertStats;
+                return (
+                  <ExpertRow
+                    key={key}
+                    expertKey={key}
+                    stats={stats}
+                    isActive={dominantKey === key}
+                    isShadow={shadowKey === key}
                   />
                 );
               })}
@@ -452,7 +562,7 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-1.5">
                   {regime.agreeCount > 0 && (
                     <span className="text-xs" style={{ color: '#71717a' }}>
-                      {regime.agreeCount}/6 agree
+                      {regime.agreeCount}/{totalExperts} agree
                     </span>
                   )}
                   <span className="text-xs font-bold" style={{
@@ -510,7 +620,6 @@ export default function DashboardPage() {
                       <span className="text-xs" style={{ color: '#3f3f46' }}>→</span>
                     </div>
                   ))}
-                  {/* Current regime */}
                   <span className="text-xs px-1.5 py-0.5 rounded-sm"
                     style={{
                       color: expertColor(regime.expert ?? ''),
@@ -523,10 +632,17 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* Lock countdown */}
+            {/* Lock countdown with shadow leader */}
             {regime.isLocked && (
               <div className="px-4 pb-3">
-                <LockBar lockRemain={regime.lockRemain} lockMax={regime.lockMax} />
+                <LockBar
+                  lockRemain={regime.lockRemain}
+                  lockMax={regime.lockMax}
+                  shadowLeader={regime.shadowLeader}
+                  shadowLeaderPred={regime.shadowLeaderPred}
+                  shadowLeaderComposite={regime.shadowLeaderComposite}
+                  lockAccelerated={regime.lockAccelerated}
+                />
               </div>
             )}
 
@@ -544,14 +660,14 @@ export default function DashboardPage() {
                 {regime.bothAgreeSide === 'P' ? 'PLAYER' : regime.bothAgreeSide === 'B' ? 'BANKER' : 'BET'}
               </div>
             )}
-            {!regime.bothAgree && regime.agreeCount >= 4 && regime.ensembleVerdict && (
+            {!regime.bothAgree && regime.agreeCount >= 6 && regime.ensembleVerdict && (
               <div className="mx-4 mb-3 text-center py-2 px-4 rounded-sm font-bold tracking-wider text-sm"
                 style={{
                   color: regime.ensembleVerdict === 'P' ? '#22d3ee' : '#f87171',
                   backgroundColor: regime.ensembleVerdict === 'P' ? 'rgba(34,211,238,0.07)' : 'rgba(248,113,113,0.07)',
                   border: `1px solid ${regime.ensembleVerdict === 'P' ? 'rgba(34,211,238,0.3)' : 'rgba(248,113,113,0.3)'}`,
                 }}>
-                ⚡ {regime.agreeCount}/6 LEAN —{' '}
+                ⚡ {regime.agreeCount}/{totalExperts} LEAN —{' '}
                 {regime.ensembleVerdict === 'P' ? 'PLAYER' : 'BANKER'}
               </div>
             )}
@@ -627,7 +743,6 @@ export default function DashboardPage() {
                 depth="depth-2"
               />
             </div>
-            {/* Agreement indicator */}
             {snapshot.lookAhead.active && snapshot.legacyLookAhead.active &&
              snapshot.lookAhead.verdict && snapshot.legacyLookAhead.verdict && (
               <div className="px-4 py-2"
@@ -706,7 +821,6 @@ export default function DashboardPage() {
               <SideVerdict verdict={snapshot.observer.decision} />
             </div>
 
-            {/* Sub-system breakdown */}
             {snapshot.observerMemory && (
               <div className="border-t" style={{ borderColor: 'rgba(74,222,128,0.08)' }}>
                 <div className="px-4 pt-2 pb-1 text-xs tracking-widest" style={{ color: '#3f3f46' }}>
