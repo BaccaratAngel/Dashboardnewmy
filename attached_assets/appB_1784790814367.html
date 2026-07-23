@@ -1,0 +1,976 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus Elite v5.9 | Full Structural Meta Engine</title>
+    <style>
+        :root {
+            --banker-color: #ef4444;
+            --player-color: #3b82f6;
+            --tie-color: #10b981;
+            --red-road: #ef4444;
+            --blue-road: #3b82f6;
+            --bg-color: #050505;
+            --panel-bg: #121212;
+            --text-main: #e4e4e7;
+            --accent: #06b6d4;
+            --alert: #f59e0b;
+            --chaos-color: #a855f7;
+            --wait: #eab308;
+            --border: #27272a;
+        }
+
+        body { font-family: 'Courier New', Courier, monospace; background-color: var(--bg-color); color: var(--text-main); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        h1 { text-transform: uppercase; letter-spacing: 2px; color: var(--accent); border-bottom: 1px solid var(--accent); padding-bottom: 10px; margin-bottom: 10px; text-align: center;}
+        
+        .container { max-width: 1400px; width: 100%; }
+        
+        .tab-nav { display: flex; gap: 10px; margin-bottom: 20px; }
+        .tab-btn { flex: 1; padding: 15px; background: #18181b; border: 1px solid var(--border); color: #71717a; font-weight: bold; font-size: 16px; cursor: pointer; text-transform: uppercase; transition: 0.3s; }
+        .tab-btn.active { background: #083344; color: var(--accent); border-color: var(--accent); }
+
+        .page { display: none; flex-direction: column; gap: 20px; }
+        .page.active { display: flex; }
+
+        .panel { background-color: var(--panel-bg); padding: 20px; border: 1px solid var(--border); border-radius: 4px; }
+        .pred-label { color: #a1a1aa; font-size: 12px; letter-spacing: 3px; margin-bottom: 15px; text-transform: uppercase; }
+
+        .warning-banner { background-color: #451a03; color: var(--alert); padding: 12px; text-align: center; font-weight: bold; border: 1px solid var(--alert); border-radius: 4px; margin-bottom: 20px; display: none; }
+        .early-shoe-banner { background-color: #1e1b4b; color: #818cf8; padding: 12px; text-align: center; font-weight: bold; border: 1px solid #4f46e5; border-radius: 4px; margin-bottom: 20px; display: none; }
+
+        .top-prediction-panel { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; border: 1px solid var(--accent); box-shadow: 0 0 20px rgba(6, 182, 212, 0.15); }
+        .prediction-box { background-color: #000; border: 1px solid var(--border); display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; text-align: center; }
+        #final-prediction { font-size: 50px; font-weight: bold; letter-spacing: 5px; color: #3f3f46; margin-bottom: 10px; transition: color 0.2s ease, text-shadow 0.2s ease, filter 0.2s ease; }
+        
+        .meta-diagnostic-panel { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; background: #000; border: 1px solid var(--border); padding: 15px; border-radius: 4px; margin-top: 15px; }
+        .meta-card { background: #121212; border: 1px solid #27272a; padding: 12px; border-radius: 4px; text-align: center; transition: all 0.2s ease; }
+        .meta-card.confidence-player {
+            border-color: var(--player-color);
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.65), 0 0 28px rgba(59, 130, 246, 0.55), inset 0 0 18px rgba(59, 130, 246, 0.18);
+            background: linear-gradient(180deg, rgba(59, 130, 246, 0.28), rgba(59, 130, 246, 0.12));
+            transform: translateY(-2px) scale(1.03);
+            filter: brightness(1.25);
+        }
+        .meta-card.confidence-banker {
+            border-color: var(--banker-color);
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.65), 0 0 28px rgba(239, 68, 68, 0.55), inset 0 0 18px rgba(239, 68, 68, 0.18);
+            background: linear-gradient(180deg, rgba(239, 68, 68, 0.28), rgba(239, 68, 68, 0.12));
+            transform: translateY(-2px) scale(1.03);
+            filter: brightness(1.25);
+        }
+        .meta-card.confidence-player .meta-road-title,
+        .meta-card.confidence-player .meta-road-val,
+        .meta-card.confidence-player .road-pct {
+            color: #dbeafe !important;
+            text-shadow: 0 0 12px rgba(59, 130, 246, 0.65);
+        }
+        .meta-card.confidence-banker .meta-road-title,
+        .meta-card.confidence-banker .meta-road-val,
+        .meta-card.confidence-banker .road-pct {
+            color: #ffe4e6 !important;
+            text-shadow: 0 0 12px rgba(239, 68, 68, 0.65);
+        }
+        .meta-road-title { font-size: 11px; color: #71717a; text-transform: uppercase; margin-bottom: 8px; font-weight: bold; }
+        .meta-road-val { font-size: 16px; font-weight: bold; margin-bottom: 5px; }
+
+        /* Tracker Highlight Classes */
+        .highest-performing {
+            border: 2px solid var(--accent) !important;
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.4) !important;
+            background: rgba(6, 182, 212, 0.05) !important;
+            transform: scale(1.05);
+            z-index: 10;
+        }
+        .road-pct {
+            font-size: 12px;
+            font-weight: bold;
+            color: #71717a;
+            background: #000;
+            padding: 4px 8px;
+            border-radius: 4px;
+            display: inline-block;
+            border: 1px solid #27272a;
+        }
+
+        .derived-text-panel { background: #000; border: 1px solid #27272a; padding: 15px; margin-top: 15px; font-size: 14px; line-height: 1.6; width: 100%; text-align: left; box-sizing: border-box;}
+        .derived-row { display: flex; justify-content: space-between; border-bottom: 1px solid #18181b; padding: 5px 0; }
+        
+        .bottom-dashboard { display: grid; grid-template-columns: 1fr 2fr; gap: 20px; }
+        .controls, .action-controls { display: flex; gap: 10px; margin-bottom: 15px; }
+        button.action-btn { flex: 1; padding: 18px; border: none; border-radius: 4px; font-size: 18px; font-weight: bold; cursor: pointer; color: white; }
+        .btn-b { background-color: var(--banker-color); }
+        .btn-p { background-color: var(--player-color); }
+        .btn-t { background-color: var(--tie-color); }
+        .btn-undo { background-color: var(--alert); color: #000; margin-top: 15px;}
+        .btn-reset { background-color: #27272a; color: #a1a1aa; margin-top: 15px;}
+
+        .shoe-display { display: flex; flex-wrap: wrap; gap: 5px; background: #000; padding: 15px; min-height: 80px; border: 1px solid var(--border); align-content: flex-start; }
+        .bead { width: 26px; height: 26px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 12px; font-weight: bold; color: white;}
+
+        .data-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
+        .data-card { background: #000; border: 1px solid var(--border); padding: 15px; display: flex; flex-direction: column; }
+        .data-label { color: #71717a; font-size: 11px; text-transform: uppercase; margin-bottom: 5px; }
+        .data-value { font-size: 18px; font-weight: bold; }
+        .highlight { color: var(--accent); }
+
+        .road-grid { display: grid; grid-template-columns: repeat(40, 20px); grid-template-rows: repeat(6, 20px); gap: 1px; background: #27272a; border: 1px solid #3f3f46; overflow-x: auto; padding: 1px; width: max-content; }
+        .road-cell { background: #000; width: 20px; height: 20px; display: flex; justify-content: center; align-items: center; }
+        .br-dot { width: 16px; height: 16px; border: 2px solid; box-sizing: border-box; border-radius: 50%; }
+        .be-dot { width: 14px; height: 14px; border: 2px solid; box-sizing: border-box; border-radius: 50%; }
+        .sr-dot { width: 10px; height: 10px; background-color: currentColor; border-radius: 50%; }
+        .cr-slash { width: 14px; height: 2px; background-color: currentColor; transform: rotate(-45deg); }
+        
+        .road-wrapper { margin-bottom: 20px; overflow-x: auto; }
+        .road-title { color: #a1a1aa; font-size: 12px; text-transform: uppercase; margin-bottom: 5px; letter-spacing: 2px;}
+    </style>
+</head>
+<body>
+
+    <h1>NEXUS ELITE | V5.9 MACRO STRUCTURAL</h1>
+    
+    <div class="container">
+        <div class="tab-nav">
+            <button class="tab-btn active" onclick="switchTab('main')" id="btn-main">1. Realtime Control Panel</button>
+            <button class="tab-btn" onclick="switchTab('roads')" id="btn-roads">2. Production Matrix Grids</button>
+        </div>
+
+        <div class="warning-banner" id="early-warning">
+            ⚠️ INITIALIZING MATRIX: REQUIRE 6 HANDS TO ENGAGE ENGINES...
+        </div>
+        
+        <div class="early-shoe-banner" id="early-shoe-warning">
+            ⚠️ EARLY SHOE PHASE (< 15 HANDS): DERIVED ROADS FORMING. RELYING 100% ON ENGINES DECISIONS.
+        </div>
+
+        <div class="page active" id="page-main">
+            <div class="panel top-prediction-panel" id="main-panel-border">
+                <div class="prediction-box" style="border: none; border-right: 1px solid #27272a;">
+                    <div class="pred-label">50/50 DUAL-AUTHENTICATION ENGINE</div>
+                    <div id="final-prediction">WAITING...</div>
+                    <div style="font-size:12px; color:#71717a;" id="conflict-status">System Standby</div>
+                </div>
+                
+                <div class="prediction-box" style="border: none;">
+                    <div class="pred-label">INDEPENDENT META-REGULARITY DIAGNOSTICS</div>
+                    
+                    <div class="meta-diagnostic-panel">
+                        <div id="box-beb" class="meta-card">
+                            <div class="meta-road-title">Big Eye Boy</div>
+                            <div id="meta-beb-pred" class="meta-road-val">--</div>
+                            <div id="pct-beb" class="road-pct">--%</div>
+                        </div>
+                        <div id="box-sr" class="meta-card">
+                            <div class="meta-road-title">Small Road</div>
+                            <div id="meta-sr-pred" class="meta-road-val">--</div>
+                            <div id="pct-sr" class="road-pct">--%</div>
+                        </div>
+                        <div id="box-cp" class="meta-card">
+                            <div class="meta-road-title">Cockroach</div>
+                            <div id="meta-cp-pred" class="meta-road-val">--</div>
+                            <div id="pct-cp" class="road-pct">--%</div>
+                        </div>
+                        <div class="meta-card" style="border-color: var(--accent); display: flex; flex-direction: column; justify-content: center;">
+                            <div class="meta-road-title" style="color: var(--accent);">Meta Majority</div>
+                            <div id="meta-consensus-pred" class="meta-road-val" style="color: var(--accent); margin: 0;">--</div>
+                        </div>
+                    </div>
+
+                    <div class="derived-text-panel">
+                        <div class="derived-row"><span>Ask BANKER Yields:</span> <span id="sim-b">--</span></div>
+                        <div class="derived-row"><span>Ask PLAYER Yields:</span> <span id="sim-p">--</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bottom-dashboard">
+                <div class="panel">
+                    <div class="pred-label">SHOE HARDWARE INPUTS</div>
+                    <div class="controls">
+                        <button class="action-btn btn-p" onclick="recordHand('P')">P</button>
+                        <button class="action-btn btn-b" onclick="recordHand('B')">B</button>
+                        <button class="action-btn btn-t" onclick="recordHand('T')">T</button>
+                    </div>
+                    <div class="shoe-display" id="shoe-display"></div>
+                    <div class="action-controls">
+                        <button class="action-btn btn-undo" onclick="undoHand()">UNDO</button>
+                        <button class="action-btn btn-reset" onclick="resetShoe()">RESET</button>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="pred-label">TRANSITION GATEWAY METRICS</div>
+                    <div class="data-grid">
+                        <div class="data-card">
+                            <span class="data-label">System Gateway Mode</span>
+                            <span class="data-value highlight" id="stat-state">NORMAL RUN</span>
+                        </div>
+                        <div class="data-card">
+                            <span class="data-label">Volatility Matrix Index</span>
+                            <span class="data-value" id="stat-volatility">0%</span>
+                        </div>
+                        <div class="data-card">
+                            <span class="data-label">Engine Pivot (4-Hand Window)</span>
+                            <span class="data-value" id="stat-engine-acc">--</span>
+                        </div>
+                        <div class="data-card">
+                            <span class="data-label">Meta-Regularity Integration</span>
+                            <span class="data-value" id="stat-meta-layer" style="color: #22d3ee;">STABLE</span>
+                        </div>
+                        <div class="data-card" style="grid-column: span 2;">
+                            <span class="data-label">Showdown Winner Tracking</span>
+                            <span class="data-value" id="stat-showdown-winner" style="color: var(--alert); font-size:14px;">NONE ACTIVE</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="page" id="page-roads">
+            <div class="panel">
+                <div class="road-wrapper">
+                    <div class="road-title">Big Road Matrix</div>
+                    <div class="road-grid" id="grid-br"></div>
+                </div>
+                <div class="road-wrapper">
+                    <div class="road-title">Big Eye Boy (Offset 1)</div>
+                    <div class="road-grid" id="grid-beb"></div>
+                </div>
+                <div class="road-wrapper">
+                    <div class="road-title">Small Road (Offset 2)</div>
+                    <div class="road-grid" id="grid-sr"></div>
+                </div>
+                <div class="road-wrapper">
+                    <div class="road-title">Cockroach Pig (Offset 3)</div>
+                    <div class="road-grid" id="grid-cr"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class BaccaratVectorEngine {
+            static generateBigRoad(history) {
+                const cleanHistory = history.filter(outcome => outcome === 'B' || outcome === 'P');
+                if (cleanHistory.length === 0) return [];
+                const bigRoad = [[cleanHistory[0]]];
+                let currentColumnIndex = 0;
+                for (let i = 1; i < cleanHistory.length; i++) {
+                    const outcome = cleanHistory[i];
+                    const currentStreak = bigRoad[currentColumnIndex];
+                    if (outcome === currentStreak[0]) {
+                        currentStreak.push(outcome);
+                    } else {
+                        bigRoad.push([outcome]);
+                        currentColumnIndex++;
+                    }
+                }
+                return bigRoad;
+            }
+
+            static evaluateRoadColor(bigRoad, X) {
+                const currentColumnIndex = bigRoad.length - 1;
+                if (currentColumnIndex < X) return null;
+                const currentColumn = bigRoad[currentColumnIndex];
+                const currentRowIndex = currentColumn.length - 1;
+                if (currentRowIndex === 0) {
+                    const prevColLen = bigRoad[currentColumnIndex - 1].length;
+                    const targetColLen = bigRoad[currentColumnIndex - 1 - X]?.length || 0;
+                    return prevColLen === targetColLen ? 'RED' : 'BLUE';
+                }
+                const targetColumn = bigRoad[currentColumnIndex - X];
+                if (targetColumn && targetColumn[currentRowIndex] !== undefined) {
+                    return 'RED';
+                } else {
+                    const cellAboveExists = targetColumn && targetColumn[currentRowIndex - 1] !== undefined;
+                    return !cellAboveExists ? 'RED' : 'BLUE';
+                }
+            }
+
+            static interpretRoadCreativePattern(roadHistory) {
+                if (roadHistory.length === 0) return null;
+                
+                let columns = [];
+                let currentColumn = { color: roadHistory[0], height: 1 };
+                
+                for (let i = 1; i < roadHistory.length; i++) {
+                    if (roadHistory[i] === currentColumn.color) {
+                        currentColumn.height++;
+                    } else {
+                        columns.push(currentColumn);
+                        currentColumn = { color: roadHistory[i], height: 1 };
+                    }
+                }
+                columns.push(currentColumn);
+
+                const numCols = columns.length;
+                const lastCol = columns[numCols - 1];
+
+                if (numCols >= 3) {
+                    let singletons = 0;
+                    if (columns[numCols - 1].height === 1) singletons++;
+                    if (columns[numCols - 2].height === 1) singletons++;
+                    if (columns[numCols - 3].height === 1) singletons++;
+                    if (singletons >= 2) return lastCol.color === 'RED' ? 'BLUE' : 'RED';
+                }
+
+                if (numCols >= 2) {
+                    const prevCol = columns[numCols - 2];
+                    if (lastCol.height >= prevCol.height) return lastCol.color === 'RED' ? 'BLUE' : 'RED';
+                }
+
+                if (numCols >= 4) {
+                    if (columns[numCols - 2].height === columns[numCols - 4].height && 
+                        lastCol.height < columns[numCols - 3].height) {
+                        return lastCol.color;
+                    }
+                }
+
+                return lastCol.color === 'RED' ? 'BLUE' : 'RED';
+            }
+        }
+
+        let shoe = [];
+        let engines = [];
+        
+        let showdownState = {
+            phase: "NORMAL",            
+            enginePrediction: null,
+            derivedPrediction: null,
+            trustedParty: null          
+        };
+
+        // --- NEW LIVE ACCURACY TRACKER STATE ---
+        let derivedRoadTracker = {
+            beb: { hits: 0, total: 0, lastPrediction: null },
+            sr:  { hits: 0, total: 0, lastPrediction: null },
+            cp:  { hits: 0, total: 0, lastPrediction: null }
+        };
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById('btn-' + tabId).classList.add('active');
+            document.getElementById('page-' + tabId).classList.add('active');
+        }
+
+        function initializeEngines() {
+            engines = [];
+            for(let i=0; i<1000; i++) {
+                let strategy = i % 5; let depth = (i % 15) + 2;
+                if (i >= 800) { strategy = 5 + (i % 2); depth = (i % 2) + 2; }
+                engines.push({
+                    id: i, memoryDepth: depth, strategy: strategy, 
+                    globalScore: 0, recentHistory: [], globalAcc: 0, recent4Acc: 0, lastPred: null
+                });
+            }
+        }
+        initializeEngines();
+
+        // --- TRACKER EVALUATION HOOK ---
+        function evaluatePredictions(actualOutcome) {
+            if (actualOutcome === 'T') return;
+            let keys = ['beb', 'sr', 'cp'];
+            keys.forEach(key => {
+                let tracker = derivedRoadTracker[key];
+                if (tracker.lastPrediction === 'PLAYER' || tracker.lastPrediction === 'BANKER') {
+                    tracker.total++;
+                    if (tracker.lastPrediction.charAt(0) === actualOutcome) {
+                        tracker.hits++;
+                    }
+                }
+            });
+            updateAccuracyUI();
+        }
+
+        // --- TRACKER UI HIGHLIGHTER ---
+        function updateAccuracyUI() {
+            let keys = ['beb', 'sr', 'cp'];
+            let bestKey = null;
+            let maxAccuracy = -1;
+
+            keys.forEach(key => {
+                let tracker = derivedRoadTracker[key];
+                let pctElement = document.getElementById(`pct-${key}`);
+                let boxElement = document.getElementById(`box-${key}`);
+
+                if(boxElement) boxElement.classList.remove('highest-performing');
+
+                let percentage = tracker.total > 0 ? Math.round((tracker.hits / tracker.total) * 100) : 0;
+                if(pctElement) {
+                    pctElement.innerText = tracker.total > 0 ? `${percentage}%` : `--%`;
+                    pctElement.style.color = percentage >= 50 ? '#10b981' : (tracker.total > 0 ? '#ef4444' : '#71717a');
+                }
+
+                if (tracker.total >= 1 && percentage > maxAccuracy) {
+                    maxAccuracy = percentage;
+                    bestKey = key;
+                }
+            });
+
+            // Highlight the best performing road dynamically
+            if (bestKey && maxAccuracy >= 50) {
+                let bestBox = document.getElementById(`box-${bestKey}`);
+                if(bestBox) bestBox.classList.add('highest-performing');
+            }
+        }
+
+        // --- TRACKER SAVER ---
+        function lockNextPredictions() {
+            derivedRoadTracker.beb.lastPrediction = document.getElementById('meta-beb-pred').innerText.trim();
+            derivedRoadTracker.sr.lastPrediction  = document.getElementById('meta-sr-pred').innerText.trim();
+            derivedRoadTracker.cp.lastPrediction  = document.getElementById('meta-cp-pred').innerText.trim();
+        }
+
+        function resetTrackerScores() {
+            derivedRoadTracker = {
+                beb: { hits: 0, total: 0, lastPrediction: null },
+                sr:  { hits: 0, total: 0, lastPrediction: null },
+                cp:  { hits: 0, total: 0, lastPrediction: null }
+            };
+            updateAccuracyUI();
+        }
+
+        function recordHand(outcome, options = {}) {
+            if(outcome !== 'T' && !options.replay) {
+                evaluatePredictions(outcome); // 1. Score the previous prediction
+                processShowdownResolution(outcome);
+                gradeEngines(outcome);
+            }
+            shoe.push(outcome);
+            runMasterLogic();        // 2. Generate new predictions
+            lockNextPredictions();   // 3. Save new predictions for next cycle
+        }
+
+        function undoHand() {
+            if(shoe.length === 0) return;
+            shoe.pop();
+            let cache = [...shoe];
+            shoe = [];
+            initializeEngines();
+            showdownState = { phase: "NORMAL", enginePrediction: null, derivedPrediction: null, trustedParty: null };
+            resetTrackerScores();
+            
+            // Re-run the entire shoe cache to rebuild accurate tracker stats step-by-step
+            cache.forEach(h => {
+                if(h !== 'T') {
+                    evaluatePredictions(h);
+                    processShowdownResolution(h);
+                    gradeEngines(h);
+                }
+                shoe.push(h);
+                runMasterLogic();
+                lockNextPredictions();
+            });
+            if (cache.length === 0) {
+                runMasterLogic();
+            }
+        }
+
+        function resetShoe() {
+            shoe = [];
+            showdownState = { phase: "NORMAL", enginePrediction: null, derivedPrediction: null, trustedParty: null };
+            initializeEngines();
+            resetTrackerScores();
+            runMasterLogic();
+        }
+
+        function normalizeSide(value) {
+            if (value === 'B' || value === 'BANKER') return 'B';
+            if (value === 'P' || value === 'PLAYER') return 'P';
+            return null;
+        }
+
+        function getTrackerAccuracy(key) {
+            const tracker = derivedRoadTracker[key];
+            if (!tracker || tracker.total <= 0) return -1;
+            return Math.round((tracker.hits / tracker.total) * 100);
+        }
+
+        function getRoadLabel(key) {
+            if (key === 'beb') return 'BIG EYE BOY';
+            if (key === 'sr') return 'SMALL ROAD';
+            if (key === 'cp') return 'COCKROACH';
+            return 'DERIVED ROAD';
+        }
+
+        function updateDerivedRoadConfidence(activeKey, side) {
+            ['beb', 'sr', 'cp'].forEach(key => {
+                const node = document.getElementById(`box-${key}`);
+                if (!node) return;
+                node.classList.remove('confidence-player', 'confidence-banker');
+                if (key !== activeKey) return;
+                if (side === 'P') node.classList.add('confidence-player');
+                if (side === 'B') node.classList.add('confidence-banker');
+            });
+        }
+
+        function gradeEngines(actual) {
+            engines.forEach(e => {
+                if(e.lastPred !== null) {
+                    let win = e.lastPred === actual ? 1 : 0;
+                    e.globalScore += win;
+                    e.recentHistory.push(win);
+                    if(e.recentHistory.length > 4) e.recentHistory.shift();
+                    e.recent4Acc = e.recentHistory.filter(x=>x===1).length / e.recentHistory.length;
+                }
+                const nonTies = shoe.filter(x => x !== 'T').length;
+                e.globalAcc = nonTies > 0 ? (e.globalScore / nonTies) : 0;
+            });
+        }
+
+        function getEnginePrediction(e, nonTies) {
+            if(nonTies.length < e.memoryDepth) return nonTies.length % 2 === 0 ? 'B' : 'P';
+            const last = nonTies[nonTies.length-1];
+            if(e.strategy === 0 || e.strategy === 1) {
+                const target = nonTies.slice(-e.memoryDepth).join('');
+                const full = nonTies.join('');
+                const idx = full.lastIndexOf(target, full.length - target.length - 1);
+                let pred = last;
+                if(idx !== -1 && idx + target.length < full.length) pred = full[idx + target.length];
+                return e.strategy === 1 ? (pred === 'B'?'P':'B') : pred;
+            }
+            if(e.strategy === 2) return last === 'B'?'P':'B';
+            if(e.strategy === 3) {
+                const prev = nonTies.length > 1 ? nonTies[nonTies.length-2] : null;
+                return last === prev ? (last === 'B'?'P':'B') : last;
+            }
+            if(e.strategy === 4) {
+                const prev = nonTies.length > 1 ? nonTies[nonTies.length-2] : null;
+                return (last === 'B' && prev !== 'B') ? 'B' : last;
+            }
+            if(e.strategy === 5) return last === 'B' ? 'P' : 'B';
+            if(e.strategy === 6) return nonTies[nonTies.length - 2];
+            return 'B';
+        }
+
+        function generateHistoricalDerivedArray(cleanHistory, offset) {
+            let outputs = [];
+            for(let i = 1; i <= cleanHistory.length; i++) {
+                let slice = cleanHistory.slice(0, i);
+                let br = BaccaratVectorEngine.generateBigRoad(slice);
+                let color = BaccaratVectorEngine.evaluateRoadColor(br, offset);
+                if(color) outputs.push(color);
+            }
+            return outputs;
+        }
+
+        function processShowdownResolution(actualHand) {
+            if (showdownState.phase === "SHOWDOWN_WAIT") {
+                let engineRight = (showdownState.enginePrediction === actualHand);
+                let derivedRight = (showdownState.derivedPrediction === actualHand);
+
+                if (engineRight && !derivedRight) {
+                    showdownState.trustedParty = "ENGINES"; showdownState.phase = "RESOLVED_TRUST";
+                } else if (derivedRight && !engineRight) {
+                    showdownState.trustedParty = "DERIVED"; showdownState.phase = "RESOLVED_TRUST";
+                } else {
+                    showdownState.phase = "NORMAL";
+                }
+            }
+        }
+
+        function runMasterLogic() {
+            const nonTies = shoe.filter(x => x !== 'T');
+            updateUIGrids();
+            
+            if(nonTies.length < 6) {
+                document.getElementById('early-warning').style.display = 'block';
+                document.getElementById('early-shoe-warning').style.display = 'none';
+                resetUIFields();
+                return;
+            } else {
+                document.getElementById('early-warning').style.display = 'none';
+            }
+
+            engines.forEach(e => { e.nextPred = getEnginePrediction(e, nonTies); e.lastPred = e.nextPred; });
+
+            let topEngines = [...engines].sort((a,b) => {
+                if(b.recent4Acc !== a.recent4Acc) return b.recent4Acc - a.recent4Acc;
+                return b.globalAcc - a.globalAcc;
+            });
+
+            let activeTopNode = topEngines[0];
+            let isTransitioning = (activeTopNode.recentHistory.length >= 2 && activeTopNode.recentHistory.slice(-2).join('') === '00');
+
+            let mathVotes = {B:0, P:0};
+            topEngines.slice(0, 15).forEach((e, i) => mathVotes[e.nextPred] += (15-i));
+            let engineFinalDecision = mathVotes.B > mathVotes.P ? 'B' : 'P';
+            document.getElementById('stat-engine-acc').innerText = `Recent L4: ${(activeTopNode.recent4Acc*100).toFixed(0)}%`;
+
+            const brB = BaccaratVectorEngine.generateBigRoad([...nonTies, 'B']);
+            const brP = BaccaratVectorEngine.generateBigRoad([...nonTies, 'P']);
+
+            const simB = { 
+                be: BaccaratVectorEngine.evaluateRoadColor(brB, 1), 
+                sr: BaccaratVectorEngine.evaluateRoadColor(brB, 2), 
+                cp: BaccaratVectorEngine.evaluateRoadColor(brB, 3) 
+            };
+            const simP = { 
+                be: BaccaratVectorEngine.evaluateRoadColor(brP, 1), 
+                sr: BaccaratVectorEngine.evaluateRoadColor(brP, 2), 
+                cp: BaccaratVectorEngine.evaluateRoadColor(brP, 3) 
+            };
+
+            document.getElementById('sim-b').innerHTML = `[BEB: ${simB.be==='RED'?'🔴':'🔵'} | SR: ${simB.sr==='RED'?'🔴':'🔵'} | CP: ${simB.cp==='RED'?'🔴':'🔵'}]`;
+            document.getElementById('sim-p').innerHTML = `[BEB: ${simP.be==='RED'?'🔴':'🔵'} | SR: ${simP.sr==='RED'?'🔴':'🔵'} | CP: ${simP.cp==='RED'?'🔴':'🔵'}]`;
+
+            let cols = BaccaratVectorEngine.generateBigRoad(shoe);
+            let volatilityIndex = 0; if (cols.length >= 4) { let scope = cols.slice(-6); let singletons = scope.filter(c => c.length === 1).length; volatilityIndex = Math.round((singletons / scope.length) * 100); }
+            document.getElementById('stat-volatility').innerText = `${volatilityIndex}%`;
+
+            let bebHist = generateHistoricalDerivedArray(nonTies, 1);
+            let srHist = generateHistoricalDerivedArray(nonTies, 2);
+            let cpHist = generateHistoricalDerivedArray(nonTies, 3);
+
+            let targetBebColor = BaccaratVectorEngine.interpretRoadCreativePattern(bebHist);
+            let targetSrColor = BaccaratVectorEngine.interpretRoadCreativePattern(srHist);
+            let targetCpColor = BaccaratVectorEngine.interpretRoadCreativePattern(cpHist);
+
+            let bebTablePred = "NEUTRAL";
+            if (targetBebColor) {
+                if (simB.be === targetBebColor && simP.be !== targetBebColor) bebTablePred = "B";
+                else if (simP.be === targetBebColor && simB.be !== targetBebColor) bebTablePred = "P";
+            }
+
+            let srTablePred = "NEUTRAL";
+            if (targetSrColor) {
+                if (simB.sr === targetSrColor && simP.sr !== targetSrColor) srTablePred = "B";
+                else if (simP.sr === targetSrColor && simB.sr !== targetSrColor) srTablePred = "P";
+            }
+
+            let cpTablePred = "NEUTRAL";
+            if (targetCpColor) {
+                if (simB.cp === targetCpColor && simP.cp !== targetCpColor) cpTablePred = "B";
+                else if (simP.cp === targetCpColor && simB.cp !== targetCpColor) cpTablePred = "P";
+            }
+
+            let metaMajorityVotes = { B: 0, P: 0 };
+            if (bebTablePred === "B") metaMajorityVotes.B++; else if (bebTablePred === "P") metaMajorityVotes.P++;
+            if (srTablePred === "B") metaMajorityVotes.B++; else if (srTablePred === "P") metaMajorityVotes.P++;
+            if (cpTablePred === "B") metaMajorityVotes.B++; else if (cpTablePred === "P") metaMajorityVotes.P++;
+
+            let metaConsensus = "NEUTRAL";
+            if (metaMajorityVotes.B > metaMajorityVotes.P && metaMajorityVotes.B >= 2) metaConsensus = "B";
+            else if (metaMajorityVotes.P > metaMajorityVotes.B && metaMajorityVotes.P >= 2) metaConsensus = "P";
+
+            updateMetaDiagnosticUI('meta-beb-pred', bebTablePred);
+            updateMetaDiagnosticUI('meta-sr-pred', srTablePred);
+            updateMetaDiagnosticUI('meta-cp-pred', cpTablePred);
+            updateMetaDiagnosticUI('meta-consensus-pred', metaConsensus);
+
+            let finalAction = engineFinalDecision;
+            let finalColor = finalAction === 'B' ? 'var(--banker-color)' : 'var(--player-color)';
+            let statusText = "ENGINES DOMINANT: STABLE PROCESSING.";
+
+            const isEarlyShoe = nonTies.length < 15;
+            document.getElementById('stat-meta-layer').innerText = metaConsensus !== "NEUTRAL" ? `ACTIVE (${metaConsensus})` : "SCANNING";
+            document.getElementById('stat-meta-layer').style.color = metaConsensus !== "NEUTRAL" ? "var(--accent)" : "#71717a";
+
+            if (isTransitioning) {
+                document.getElementById('stat-state').innerText = "TRANSITION TRIGGER";
+                document.getElementById('stat-state').style.color = "var(--alert)";
+
+                if (isEarlyShoe) {
+                    document.getElementById('early-shoe-warning').style.display = 'block';
+                    finalAction = engineFinalDecision;
+                    statusText = "EARLY SHOE BYPASS: ENGINES FORCED AS SOLE DECISION MAKER.";
+                } else {
+                    document.getElementById('early-shoe-warning').style.display = 'none';
+                    
+                    if (metaConsensus !== "NEUTRAL" && engineFinalDecision !== metaConsensus) {
+                        if (showdownState.phase === "NORMAL") {
+                            showdownState.phase = "SHOWDOWN_WAIT";
+                            showdownState.enginePrediction = engineFinalDecision; showdownState.derivedPrediction = metaConsensus;
+                            finalAction = "WAIT"; finalColor = "var(--wait)"; statusText = "DUAL CONFLICT! WAITING 1 HAND TO TEST MATRIX WINNER.";
+                        } else if (showdownState.phase === "SHOWDOWN_WAIT") {
+                            finalAction = "WAIT"; finalColor = "var(--wait)"; statusText = "SHOWDOWN ENGAGED. RE-EVALUATING CROSSOVER CLOSURE...";
+                        } else if (showdownState.phase === "RESOLVED_TRUST") {
+                            finalAction = showdownState.trustedParty === "ENGINES" ? engineFinalDecision : metaConsensus;
+                            finalColor = finalAction === 'B' ? 'var(--banker-color)' : 'var(--player-color)';
+                            statusText = `CONFLICT SOLVED: DEPLOYING TARGET ACCORDING TO TRUSTED [${showdownState.trustedParty}].`;
+                        }
+                    } else {
+                        if(metaConsensus === engineFinalDecision) {
+                            finalAction = engineFinalDecision; statusText = "DUAL-AUTH SECURE: ENGINES & META ROADS CONFIRM MATCH."; showdownState.phase = "NORMAL"; 
+                        } else {
+                            finalAction = engineFinalDecision; statusText = "TRANSITION RUNNING: DERIVED IS NEUTRAL. FALLBACK TO ENGINE MATRIX.";
+                        }
+                    }
+                }
+            } else {
+                document.getElementById('stat-state').innerText = "NORMAL RUN";
+                document.getElementById('stat-state').style.color = "var(--accent)";
+                document.getElementById('early-shoe-warning').style.display = 'none';
+                showdownState.phase = "NORMAL";
+                
+                if (metaConsensus !== "NEUTRAL") {
+                    finalAction = metaConsensus;
+                    statusText = "NORMAL RUN: LOCKED ON ACTIVE META-REGULARITY PATTERN STRATA.";
+                }
+            }
+
+            if (nonTies.length >= 3) {
+                const last3 = nonTies.slice(-3);
+                if (last3.every(x => x === last3[0])) {
+                    finalAction = last3[0];
+                    finalColor = finalAction === 'B' ? 'var(--banker-color)' : 'var(--player-color)';
+                    statusText = `🔥 DRAGON PROTOCOL ACTIVE: RIDING ${finalAction === 'B' ? 'BANKER' : 'PLAYER'} STREAK.`;
+                    document.getElementById('stat-state').innerText = "DRAGON ACTIVE";
+                    document.getElementById('stat-state').style.color = "var(--chaos-color)";
+                }
+            }
+            
+            if (nonTies.length >= 4) {
+                const last4 = nonTies.slice(-4);
+                if (last4[0] !== last4[1] && last4[1] !== last4[2] && last4[2] !== last4[3] && last4[0] === last4[2] && last4[1] === last4[3]) {
+                    finalAction = last4[3] === 'B' ? 'P' : 'B';
+                    finalColor = finalAction === 'B' ? 'var(--banker-color)' : 'var(--player-color)';
+                    statusText = `🏓 PING-PONG PROTOCOL ACTIVE: FORCING CHOP RIDE TO ${finalAction === 'B' ? 'BANKER' : 'PLAYER'}.`;
+                    document.getElementById('stat-state').innerText = "CHOP ACTIVE";
+                    document.getElementById('stat-state').style.color = "var(--chaos-color)";
+                }
+            }
+
+            const finalSide = normalizeSide(finalAction);
+            const matchingRoads = [
+                { key: 'beb', side: normalizeSide(bebTablePred), accuracy: getTrackerAccuracy('beb') },
+                { key: 'sr', side: normalizeSide(srTablePred), accuracy: getTrackerAccuracy('sr') },
+                { key: 'cp', side: normalizeSide(cpTablePred), accuracy: getTrackerAccuracy('cp') }
+            ]
+            .filter(item => item.side && finalSide && item.side === finalSide)
+            .sort((a, b) => b.accuracy - a.accuracy);
+
+            const selectedRoad = (!isEarlyShoe && matchingRoads.length) ? matchingRoads[0] : null;
+
+            updateDerivedRoadConfidence(selectedRoad?.key || null, finalSide);
+            if (selectedRoad) {
+                const betText = finalSide === 'B' ? 'BANKER' : 'PLAYER';
+                statusText = `HIGH CONFIDENCE: AI + ${getRoadLabel(selectedRoad.key)} agree. BET ${betText}.`;
+                finalColor = finalSide === 'B' ? 'var(--banker-color)' : 'var(--player-color)';
+            }
+
+            document.getElementById('stat-showdown-winner').innerText = showdownState.phase === "SHOWDOWN_WAIT" ? "WAITING..." : (showdownState.trustedParty ? `${showdownState.trustedParty} DOMINANT` : "NONE ACTIVE");
+            const finalPredictionEl = document.getElementById('final-prediction');
+            finalPredictionEl.innerText = finalAction === "B" ? "BANKER" : (finalAction === "P" ? "PLAYER" : "WAIT");
+            finalPredictionEl.style.color = finalColor;
+            if (selectedRoad && finalSide === 'B') {
+                finalPredictionEl.style.textShadow = "0 0 10px rgba(239, 68, 68, 0.9), 0 0 24px rgba(239, 68, 68, 0.75), 0 0 40px rgba(239, 68, 68, 0.45)";
+                finalPredictionEl.style.filter = "brightness(1.18)";
+            } else if (selectedRoad && finalSide === 'P') {
+                finalPredictionEl.style.textShadow = "0 0 10px rgba(59, 130, 246, 0.9), 0 0 24px rgba(59, 130, 246, 0.75), 0 0 40px rgba(59, 130, 246, 0.45)";
+                finalPredictionEl.style.filter = "brightness(1.18)";
+            } else {
+                finalPredictionEl.style.textShadow = "none";
+                finalPredictionEl.style.filter = "none";
+            }
+            document.getElementById('conflict-status').innerText = statusText;
+        }
+
+        function updateMetaDiagnosticUI(elementId, value) {
+            const node = document.getElementById(elementId);
+            node.innerText = value === "B" ? "BANKER" : (value === "P" ? "PLAYER" : "NEUTRAL");
+            if (value === "B") node.style.color = "var(--banker-color)";
+            else if (value === "P") node.style.color = "var(--player-color)";
+            else if (elementId !== 'meta-consensus-pred') node.style.color = "#71717a";
+        }
+
+        function resetUIFields() {
+            document.getElementById('final-prediction').innerText = "WAITING...";
+            document.getElementById('final-prediction').style.color = "#3f3f46";
+            document.getElementById('final-prediction').style.textShadow = "none";
+            document.getElementById('final-prediction').style.filter = "none";
+            document.getElementById('conflict-status').innerText = "System Standby";
+            updateDerivedRoadConfidence(null, null);
+            document.getElementById('sim-b').innerText = "--"; document.getElementById('sim-p').innerText = "--";
+            document.getElementById('stat-state').innerText = "NORMAL RUN";
+            document.getElementById('stat-engine-acc').innerText = "--"; document.getElementById('stat-volatility').innerText = "0%";
+            document.getElementById('stat-meta-layer').innerText = "STABLE";
+            document.getElementById('stat-showdown-winner').innerText = "NONE ACTIVE";
+            
+            const fields = ['meta-beb-pred', 'meta-sr-pred', 'meta-cp-pred', 'meta-consensus-pred'];
+            fields.forEach(f => {
+                let node = document.getElementById(f); node.innerText = "--";
+                node.style.color = f === 'meta-consensus-pred' ? "var(--accent)" : "#71717a";
+            });
+        }
+
+        function updateUIGrids() {
+            const display = document.getElementById('shoe-display'); display.innerHTML = '';
+            shoe.forEach(h => {
+                const b = document.createElement('div'); b.className = 'bead'; b.innerText = h;
+                if(h=='B') b.style.backgroundColor = 'var(--banker-color)';
+                else if(h=='P') b.style.backgroundColor = 'var(--player-color)';
+                else b.style.backgroundColor = 'var(--tie-color)';
+                display.appendChild(b);
+            });
+
+            const cleanHistory = shoe.filter(x => x === 'B' || x === 'P');
+            let cols = BaccaratVectorEngine.generateBigRoad(shoe);
+            let beb = generateHistoricalDerivedArray(cleanHistory, 1);
+            let sr = generateHistoricalDerivedArray(cleanHistory, 2);
+            let cp = generateHistoricalDerivedArray(cleanHistory, 3);
+
+            drawGrid('grid-br', buildGridArray(cols.flat(), 'br'), 'br-dot');
+            drawGrid('grid-beb', buildGridArray(beb, 'derived'), 'be-dot');
+            drawGrid('grid-sr', buildGridArray(sr, 'derived'), 'sr-dot');
+            drawGrid('grid-cr', buildGridArray(cp, 'derived'), 'cr-slash');
+        }
+
+        function buildGridArray(arr, type) {
+            let grid = Array(40).fill(null).map(() => Array(6).fill(null));
+            let col = 0; let row = 0; let last = null;
+            for(let i=0; i<arr.length; i++) {
+                if(i===0 || arr[i] === last) {
+                    if(row < 5 && grid[col][row+1] === null) row++; else col++; 
+                } else { col++; row = 0; }
+                last = arr[i]; if(col < 40 && row < 6) grid[col][row] = arr[i];
+            }
+            return grid;
+        }
+
+        function drawGrid(gridId, gridData, dotClass) {
+            const container = document.getElementById(gridId); container.innerHTML = '';
+            for(let r=0; r<6; r++) {
+                for(let c=0; c<40; c++) {
+                    let cell = document.createElement('div'); cell.className = 'road-cell';
+                    let val = gridData[c][r];
+                    if(val) {
+                        let dot = document.createElement('div'); dot.className = dotClass;
+                        if(val === 'B') { dot.style.borderColor = 'var(--banker-color)'; dot.style.color = 'var(--banker-color)'; }
+                        else if (val === 'P') { dot.style.borderColor = 'var(--player-color)'; dot.style.color = 'var(--player-color)'; }
+                        else if (val === 'RED') { dot.style.borderColor = 'var(--red-road)'; dot.style.color = 'var(--red-road)'; if(dotClass==='sr-dot' || dotClass==='cr-slash') dot.style.backgroundColor = 'var(--red-road)'; }
+                        else if (val === 'BLUE') { dot.style.borderColor = 'var(--blue-road)'; dot.style.color = 'var(--blue-road)'; if(dotClass==='sr-dot' || dotClass==='cr-slash') dot.style.backgroundColor = 'var(--blue-road)'; }
+                        cell.appendChild(dot);
+                    }
+                    container.appendChild(cell);
+                }
+            }
+        }
+        updateUIGrids();
+    </script>
+    <script>
+        // === Dashboard bridge (postMessage API) ===
+        (function () {
+            const params = new URLSearchParams(location.search);
+            const EMBEDDED = params.get('embedded') === '1';
+            if (EMBEDDED) {
+                const style = document.createElement('style');
+                style.textContent = `
+                  .controls, .action-controls { display: none !important; }
+                `;
+                document.head.appendChild(style);
+            }
+
+            // Widget mode: show ONLY the top prediction panels so the dashboard can embed them
+            // (exact same UI, just cropped).
+            const WIDGET = (params.get('widget') || '').toLowerCase();
+            if (WIDGET === 'top') {
+                const style = document.createElement('style');
+                style.textContent = `
+                  html, body { margin: 0 !important; padding: 0 !important; background: transparent !important; }
+                  body { padding: 0 !important; }
+
+                  /* Hide everything except the top dual panels */
+                  h1, .tab-nav, #early-warning, #early-shoe-warning, .bottom-dashboard, #page-roads { display: none !important; }
+                  .page { display: block !important; }
+                  .container { max-width: none !important; width: 100% !important; }
+                  #main-panel-border { margin: 0 !important; }
+                `;
+                document.head.appendChild(style);
+                document.title = 'Nexus Elite | Top Panel';
+            }
+
+            const safeText = (id) => {
+                const el = document.getElementById(id);
+                return el ? (el.innerText || '').trim() : null;
+            };
+
+            // Auto-capture: collect many prediction-related outputs without manually listing all IDs.
+            const AUTO_ID_PATTERN = /(pred|verdict|bet|target|consensus|winner|signal|prob|rate|pct|accuracy|engine|meta|shadow|apex)/i;
+            function buildAutoIdList() {
+                try {
+                    const ids = Array.from(document.querySelectorAll('[id]'))
+                        .map((el) => el.id)
+                        .filter((id) => id && AUTO_ID_PATTERN.test(id));
+                    return Array.from(new Set(ids)).slice(0, 220);
+                } catch {
+                    return [];
+                }
+            }
+            const __AUTO_ID_LIST__ = buildAutoIdList();
+            function getAutoRaw() {
+                const out = {};
+                for (const id of __AUTO_ID_LIST__) {
+                    const v = safeText(id);
+                    if (!v) continue;
+                    out[id] = v.length > 120 ? v.slice(0, 120) : v;
+                }
+                return out;
+            }
+
+            function getSnapshot() {
+                return {
+                    appId: "NEXUS_ELITE_V5_9",
+                    ts: Date.now(),
+                    shoeLen: Array.isArray(shoe) ? shoe.length : null,
+                    nextPrediction: safeText('final-prediction'),
+                    conflictStatus: safeText('conflict-status'),
+                    meta: {
+                        beb: safeText('meta-beb-pred'),
+                        sr: safeText('meta-sr-pred'),
+                        cp: safeText('meta-cp-pred'),
+                        consensus: safeText('meta-consensus-pred')
+                    },
+                    pct: {
+                        beb: safeText('pct-beb'),
+                        sr: safeText('pct-sr'),
+                        cp: safeText('pct-cp')
+                    },
+                    stats: {
+                        state: safeText('stat-state'),
+                        volatility: safeText('stat-volatility'),
+                        engineAcc: safeText('stat-engine-acc'),
+                        metaLayer: safeText('stat-meta-layer'),
+                        showdown: safeText('stat-showdown-winner')
+                    },
+                    // Extra raw fields (so dashboard can expand features later)
+                    raw: {
+                        simB: safeText('sim-b'),
+                        simP: safeText('sim-p')
+                    },
+                    autoRaw: getAutoRaw()
+                };
+            }
+
+            window.__APP_BRIDGE__ = {
+                input: (v, options) => window.recordHand?.(v, options),
+                undo: () => window.undoHand?.(),
+                reset: () => window.resetShoe?.(),
+                getSnapshot
+            };
+
+            window.addEventListener('message', (e) => {
+                const d = e.data || {};
+                if (!d || typeof d !== 'object') return;
+
+                if (d.type === 'MASTER_INPUT' && typeof d.value === 'string') {
+                    window.recordHand?.(d.value, { replay: !!d.replay });
+                } else if (d.type === 'MASTER_UNDO') {
+                    window.undoHand?.();
+                } else if (d.type === 'MASTER_RESET') {
+                    window.resetShoe?.();
+                } else if (d.type === 'GET_SNAPSHOT') {
+                    e.source?.postMessage(
+                        { type: 'SNAPSHOT', replyTo: d.id, app: 'B', snapshot: getSnapshot() },
+                        '*'
+                    );
+                } else if (d.type === 'PING') {
+                    e.source?.postMessage({ type: 'PONG', replyTo: d.id, app: 'B' }, '*');
+                }
+            });
+        })();
+    </script>
+</body>
+</html>

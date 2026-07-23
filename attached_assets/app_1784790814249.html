@@ -1,0 +1,3839 @@
+
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dual App Dashboard + Meta AI</title>
+  <style>
+    :root{
+      --bg:#07070a;
+      --panel:#0f1117;
+      --border:#232636;
+      --text:#e6e6ee;
+      --muted:#9aa0b4;
+      --p:#3b82f6;
+      --b:#ef4444;
+      --t:#10b981;
+      --gold:#f59e0b;
+    }
+    html,body{height:100%;}
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+    .wrap{max-width:1800px;margin:0 auto;padding:12px;}
+    .topbar{
+      position:sticky;top:0;z-index:50;
+      background:rgba(7,7,10,0.92);
+      backdrop-filter: blur(8px);
+      border-bottom:1px solid var(--border);
+      padding:10px 12px;
+    }
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;}
+    .dock-row{align-items:stretch;}
+    .dock-left{display:flex;flex-direction:column;gap:8px;align-items:flex-start;min-width:180px;}
+    .dock-right{flex:1;min-width:260px;max-width:680px;}
+    .mini-wrap{
+      padding:0;
+      overflow:hidden;
+      position:relative;
+      /* Height is managed by JS so the scaled iframe is never clipped */
+      height:180px;
+    }
+    .mini-wrap iframe{
+      border:0;
+      background:#000;
+      pointer-events:none;
+      display:block;
+      transform-origin:0 0;
+      /* Size + scale are controlled by JS (zoom in/out) */
+    }
+    .zoom-bar{
+      position:absolute;
+      top:8px; right:8px;
+      display:flex; gap:6px; align-items:center;
+      z-index:5;
+      padding:6px 8px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      background:rgba(7,7,10,0.75);
+      backdrop-filter: blur(6px);
+    }
+    .zoom-bar .zoom-label{
+      font-size:11px;
+      color:var(--muted);
+      min-width:64px;
+      text-align:center;
+    }
+    button.zoom-btn{
+      min-width:auto;
+      padding:6px 10px;
+      border-radius:999px;
+      font-weight:900;
+      letter-spacing:0;
+      background:rgba(154,160,180,0.10);
+      border-color:rgba(154,160,180,0.30);
+    }
+    .panel{
+      background:var(--panel);
+      border:1px solid var(--border);
+      border-radius:10px;
+      padding:10px 12px;
+    }
+    .btns{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+    button{
+      cursor:pointer;
+      border-radius:10px;
+      border:1px solid var(--border);
+      background:#0b0d13;
+      color:var(--text);
+      padding:12px 16px;
+      font-weight:800;
+      letter-spacing:0.5px;
+      min-width:110px;
+    }
+    button:hover{border-color:#3a3f55;}
+    button:disabled{opacity:.55;cursor:not-allowed;}
+    .btn-p{background:rgba(59,130,246,0.12); border-color:rgba(59,130,246,0.35);}
+    .btn-b{background:rgba(239,68,68,0.12); border-color:rgba(239,68,68,0.35);}
+    .btn-t{background:rgba(16,185,129,0.12); border-color:rgba(16,185,129,0.35);}
+    .btn-u{background:rgba(245,158,11,0.10); border-color:rgba(245,158,11,0.35);}
+    .btn-r{background:rgba(154,160,180,0.08); border-color:rgba(154,160,180,0.25);}
+   .master-ai-panel {
+      border-color: rgba(245,158,11,0.6);
+      box-shadow: 0 0 0 1px rgba(245,158,11,0.2), 0 0 32px rgba(245,158,11,0.15);
+      background: linear-gradient(180deg, rgba(245,158,11,0.08), rgba(15,17,23,1));
+      position: relative;
+    }
+    .master-ai-panel::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    }
+
+    .ai-title{font-size:11px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;}
+    .ai-main{font-size:18px;font-weight:900;line-height:1.25;}
+    .ai-sub{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.35;}
+    .ai-panel-sync{
+      transition:border-color .18s ease, box-shadow .18s ease, background .18s ease;
+    }
+    .ai-panel-sync.sync-player{
+      border-color:rgba(59,130,246,0.55);
+      box-shadow:0 0 0 1px rgba(59,130,246,0.18), 0 0 28px rgba(59,130,246,0.18);
+      background:linear-gradient(180deg, rgba(59,130,246,0.07), rgba(15,17,23,1));
+    }
+    .ai-panel-sync.sync-banker{
+      border-color:rgba(239,68,68,0.55);
+      box-shadow:0 0 0 1px rgba(239,68,68,0.18), 0 0 28px rgba(239,68,68,0.18);
+      background:linear-gradient(180deg, rgba(239,68,68,0.07), rgba(15,17,23,1));
+    }
+    .sync-panel{
+      transition:border-color .18s ease, box-shadow .18s ease, background .18s ease;
+    }
+    .sync-panel.sync-player{
+      border-color:rgba(59,130,246,0.45);
+      box-shadow:0 0 0 1px rgba(59,130,246,0.15), 0 0 24px rgba(59,130,246,0.12);
+    }
+    .sync-panel.sync-banker{
+      border-color:rgba(239,68,68,0.45);
+      box-shadow:0 0 0 1px rgba(239,68,68,0.15), 0 0 24px rgba(239,68,68,0.12);
+    }
+    .sync-summary{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      align-items:center;
+      justify-content:space-between;
+    }
+    .sync-message{
+      font-size:15px;
+      font-weight:900;
+      line-height:1.35;
+    }
+    .sync-side{
+      display:inline-block;
+      margin-left:6px;
+    }
+    .road-grid{
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:8px;
+      margin-top:10px;
+    }
+    .road-card{
+      background:#090b11;
+      border:1px solid var(--border);
+      border-radius:10px;
+      padding:10px;
+      min-height:84px;
+      transition:border-color .18s ease, box-shadow .18s ease, transform .18s ease, background .18s ease;
+    }
+    .road-card.match-player{
+      border-color:rgba(59,130,246,0.5);
+      box-shadow:0 0 0 1px rgba(59,130,246,0.14), 0 0 18px rgba(59,130,246,0.12);
+      background:rgba(59,130,246,0.08);
+    }
+    .road-card.match-banker{
+      border-color:rgba(239,68,68,0.5);
+      box-shadow:0 0 0 1px rgba(239,68,68,0.14), 0 0 18px rgba(239,68,68,0.12);
+      background:rgba(239,68,68,0.08);
+    }
+    .road-card.selected{
+      transform:translateY(-1px);
+      box-shadow:0 0 0 1px rgba(245,158,11,0.28), 0 0 24px rgba(245,158,11,0.16);
+    }
+    .road-card.selected.match-player{
+      box-shadow:0 0 0 1px rgba(245,158,11,0.32), 0 0 24px rgba(59,130,246,0.16);
+    }
+    .road-card.selected.match-banker{
+      box-shadow:0 0 0 1px rgba(245,158,11,0.32), 0 0 24px rgba(239,68,68,0.16);
+    }
+    .road-head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+      margin-bottom:8px;
+      font-size:12px;
+      color:var(--muted);
+    }
+    .road-name{font-weight:800;color:var(--text);}
+    .road-picked{
+      padding:2px 7px;
+      border-radius:999px;
+      border:1px solid rgba(245,158,11,0.35);
+      color:#fde68a;
+      font-size:10px;
+      letter-spacing:.6px;
+      text-transform:uppercase;
+    }
+    .road-side{
+      font-size:20px;
+      font-weight:900;
+      line-height:1.1;
+    }
+    .road-meta{
+      margin-top:6px;
+      display:flex;
+      justify-content:space-between;
+      gap:8px;
+      font-size:11px;
+      color:var(--muted);
+    }
+    @media (max-width:760px){
+      .road-grid{grid-template-columns:1fr;}
+    }
+    .badge{
+      display:inline-block;
+      padding:3px 8px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      font-size:11px;
+      color:var(--muted);
+      background:#090b11;
+    }
+    .badge.ok{color:#a7f3d0;border-color:rgba(16,185,129,0.35);}
+    .badge.warn{color:#fde68a;border-color:rgba(245,158,11,0.35);}
+    .badge.bad{color:#fecaca;border-color:rgba(239,68,68,0.35);}
+    details summary{cursor:pointer;list-style:none;}
+    details summary::-webkit-details-marker{display:none;}
+    .small{font-size:12px;color:var(--muted);line-height:1.45;}
+    .import-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0;}
+    .import-toolbar input[type="file"]{
+      color:var(--text);
+      background:#0b0d13;
+      border:1px solid var(--border);
+      border-radius:10px;
+      padding:8px 10px;
+      max-width:320px;
+    }
+    .import-wrap{display:grid;grid-template-columns: minmax(320px, 780px) 1fr; gap:12px; align-items:start;}
+    .import-canvas{
+      width:100%;
+      max-width:780px;
+      border:1px solid var(--border);
+      border-radius:10px;
+      background:#030407;
+      display:block;
+    }
+    .import-side{
+      background:#0b0d13;
+      border:1px solid var(--border);
+      border-radius:10px;
+      padding:10px;
+    }
+    .token-box{
+      min-height:72px;
+      background:#07090e;
+      border:1px solid var(--border);
+      border-radius:10px;
+      padding:8px;
+      display:flex;
+      flex-wrap:wrap;
+      gap:6px;
+      align-content:flex-start;
+    }
+    .tok{
+      width:28px;height:28px;border-radius:50%;
+      display:flex;align-items:center;justify-content:center;
+      color:#fff;font-size:13px;font-weight:900;
+    }
+    .tok.P{background:var(--p);}
+    .tok.B{background:var(--b);}
+    .tok.T{background:var(--t);}
+    .mono{font-family:inherit;}
+    label.inline{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px;}
+
+    .grid{
+      margin-top:12px;
+      display:grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap:12px;
+      height: calc(100vh - 170px);
+    }
+    /* Syndicate B2B alert panel */
+    .syndicate-panel {
+      transition: border-color .25s ease, box-shadow .25s ease, background .25s ease;
+    }
+    .syndicate-panel.syn-match {
+      border-color: rgba(245,158,11,0.75) !important;
+      box-shadow: 0 0 0 1px rgba(245,158,11,0.3), 0 0 32px rgba(245,158,11,0.2) !important;
+      background: linear-gradient(180deg, rgba(245,158,11,0.09), rgba(15,17,23,1)) !important;
+    }
+    .syndicate-panel.syn-active {
+      border-color: rgba(239,68,68,0.45) !important;
+      box-shadow: 0 0 0 1px rgba(239,68,68,0.15), 0 0 20px rgba(239,68,68,0.1) !important;
+      background: linear-gradient(180deg, rgba(239,68,68,0.06), rgba(15,17,23,1)) !important;
+    }
+    .syndicate-panel.syn-conflict {
+      border-color: rgba(245,158,11,0.4) !important;
+      box-shadow: 0 0 0 1px rgba(245,158,11,0.2), 0 0 16px rgba(245,158,11,0.1) !important;
+    }
+    /* ── Meta-Expert Regime Tracker ────────────────────────── */
+    .regime-tracker-panel {
+      border-color: rgba(255,200,0,0.22);
+      background: linear-gradient(180deg,rgba(255,200,0,0.04),rgba(15,17,23,1));
+      transition: border-color .35s, box-shadow .35s, background .35s;
+    }
+    .regime-tracker-panel.regime-supreme {
+      border-color: rgba(176,0,255,0.5) !important;
+      box-shadow: 0 0 0 1px rgba(176,0,255,0.2), 0 0 28px rgba(176,0,255,0.13) !important;
+      background: linear-gradient(180deg,rgba(176,0,255,0.08),rgba(15,17,23,1)) !important;
+    }
+    .regime-tracker-panel.regime-syndicate {
+      border-color: rgba(0,229,255,0.5) !important;
+      box-shadow: 0 0 0 1px rgba(0,229,255,0.2), 0 0 28px rgba(0,229,255,0.12) !important;
+      background: linear-gradient(180deg,rgba(0,229,255,0.06),rgba(15,17,23,1)) !important;
+    }
+    .regime-tracker-panel.regime-split {
+      border-color: rgba(245,158,11,0.45) !important;
+      box-shadow: 0 0 0 1px rgba(245,158,11,0.18), 0 0 20px rgba(245,158,11,0.1) !important;
+    }
+    .regime-tracker-panel.regime-both {
+      border-color: rgba(16,185,129,0.55) !important;
+      box-shadow: 0 0 0 1px rgba(16,185,129,0.22), 0 0 28px rgba(16,185,129,0.14) !important;
+      background: linear-gradient(180deg,rgba(16,185,129,0.07),rgba(15,17,23,1)) !important;
+    }
+    @keyframes regimePulse {
+      0%   { opacity:.4; letter-spacing:1px; }
+      50%  { opacity:1;  letter-spacing:2.5px; }
+      100% { opacity:1;  letter-spacing:1.5px; }
+    }
+    .regime-tracker-panel.regime-just-switched #regimeTrackerMain {
+      animation: regimePulse 0.55s ease-out;
+    }
+    .regime-score-box {
+      flex:1; min-width:130px; border-radius:8px; padding:8px;
+      transition: border-color .3s, box-shadow .3s;
+    }
+    .regime-score-box.active-expert {
+      box-shadow: 0 0 10px rgba(255,255,255,0.08) inset;
+    }
+    .frame-card{display:flex;flex-direction:column;min-height:0;}
+    .frame-head{
+      display:flex;justify-content:space-between;align-items:center;
+      padding:10px 12px;
+      border-bottom:1px solid var(--border);
+      background:rgba(0,0,0,0.15);
+    }
+    .frame-title{font-weight:900;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);}
+    iframe{
+      width:100%;
+      height:100%;
+      border:0;
+      background:#000;
+    }
+    @media (max-width:1400px){
+      .grid{grid-template-columns:1fr 1fr;height:auto;}
+      iframe{height:70vh;}
+    }
+    @media (max-width:1100px){
+      .grid{grid-template-columns:1fr;height:auto;}
+      iframe{height:70vh;}
+    }
+    /* ── Mobile (≤640 px) ───────────────────────────────────── */
+    @media (max-width:640px){
+      /* Hide mini App-B preview panel – wastes space on phone */
+      #bPanelWrap{display:none!important;}
+      /* Hide look-ahead button on mobile (rarely used on phone) */
+      #btnLookAhead{display:none!important;}
+
+      /* Fix button bar: 2-column grid, RESET spans full width — pinned at TOP */
+      .btns{
+        position:fixed;
+        top:0;left:0;right:0;
+        z-index:200;
+        display:grid;
+        grid-template-columns:1fr 1fr;
+        gap:6px;
+        padding:8px;
+        background:rgba(7,7,10,0.97);
+        backdrop-filter:blur(8px);
+        border-bottom:1px solid var(--border);
+      }
+      #btnReset{grid-column:1/-1;}
+      .btns button{min-width:0;padding:11px 6px;font-size:13px;}
+
+      /* Topbar: not sticky on mobile — offset driven by JS (setButtonBarOffset).
+         backdrop-filter on an ancestor creates a new containing block for
+         position:fixed children in Chrome/Android, which breaks top:0 pinning.
+         Removing it here lets .btns correctly anchor to the viewport. */
+      .topbar{position:relative!important;backdrop-filter:none!important;}
+
+      /* Tighten outer padding */
+      .wrap{padding:6px;}
+
+      /* Iframes: full height on phone */
+      iframe{height:80vh;}
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="wrap">
+      <div class="row">
+        <div class="btns">
+          <button class="btn-p" id="btnP">PLAYER (P)</button>
+          <button class="btn-b" id="btnB">BANKER (B)</button>
+          <button class="btn-t" id="btnT">TIE (T)</button>
+          <button class="btn-u" id="btnUndo">UNDO</button>
+          <button class="btn-r" id="btnReset">RESET (NEW SHOE)</button>
+        </div>
+      </div>
+
+      <!-- Dock row (matches your marked area): look-ahead on the left, App B top panel on the right -->
+      <div class="row dock-row" style="margin-top:10px;">
+        <div class="dock-left">
+          <button class="btn-r" id="btnLookAhead">LOOK-AHEAD: ON</button>
+          <span id="status" class="badge">waiting for frames…</span>
+        </div>
+
+      <!-- META-EXPERT REGIME TRACKER -->
+      <div class="panel regime-tracker-panel" id="regimeTrackerPanel" style="margin-top:10px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; flex-wrap:wrap; gap:6px;">
+          <div class="ai-title" style="color:#ffc800; text-shadow:0 0 10px rgba(255,200,0,0.4); margin:0; letter-spacing:1.5px;">⚡ META-EXPERT REGIME TRACKER</div>
+          <div style="display:flex; gap:5px; align-items:center;">
+            <span style="font-size:10px; color:var(--muted); letter-spacing:1px; margin-right:2px;">WIN</span>
+            <button class="badge" id="regimeWinBtn8"  onclick="RegimeSwitchTracker.setWindow(8);  updateRegimeButtons(); renderRegimeTracker();" style="cursor:pointer; border:none; padding:3px 9px;">8</button>
+            <button class="badge" id="regimeWinBtn12" onclick="RegimeSwitchTracker.setWindow(12); updateRegimeButtons(); renderRegimeTracker();" style="cursor:pointer; border:none; padding:3px 9px;">12</button>
+            <button class="badge" id="regimeWinBtn16" onclick="RegimeSwitchTracker.setWindow(16); updateRegimeButtons(); renderRegimeTracker();" style="cursor:pointer; border:none; padding:3px 9px;">16</button>
+          </div>
+        </div>
+        <div class="ai-main" id="regimeTrackerMain" style="font-size:21px; color:var(--muted);">WARMING UP…</div>
+        <div class="ai-sub" id="regimeTrackerSub" style="margin-top:4px; color:var(--muted);">Scores both engines hand-by-hand and follows whichever is currently dominant.</div>
+        <div style="display:flex; gap:7px; flex-wrap:wrap; align-items:center; margin-top:8px;">
+          <span class="badge" id="regimeExpertBadge">expert: —</span>
+          <span class="badge" id="regimeConfBadge">conf: —</span>
+          <span class="badge" id="regimeAgeBadge">regime: —</span>
+          <span class="badge" id="regimeSwitchBadge">switches: 0</span>
+          <span class="badge" id="regimeLockBadge" style="display:none;">🔒 locked</span>
+        </div>
+        <!-- Score bars -->
+        <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
+          <div class="regime-score-box" id="regimeSupremeBox" style="background:rgba(176,0,255,0.06); border:1px solid rgba(176,0,255,0.2);">
+            <div style="font-size:10px; color:rgba(176,0,255,0.8); font-weight:700; letter-spacing:1.2px; margin-bottom:4px;">SUPREME BAYESIAN</div>
+            <div style="font-size:20px; font-weight:900; transition:color .3s;" id="regimeSupremeWr">—</div>
+            <div style="font-size:11px; color:var(--muted);" id="regimeSupremeCount">0 scored</div>
+            <div style="height:4px; background:rgba(176,0,255,0.12); border-radius:2px; margin-top:6px;">
+              <div id="regimeSupremeBar" style="height:100%; width:0%; background:#b000ff; border-radius:2px; transition:width 0.5s;"></div>
+            </div>
+          </div>
+          <div class="regime-score-box" id="regimeSyndicateBox" style="background:rgba(0,229,255,0.04); border:1px solid rgba(0,229,255,0.2);">
+            <div style="font-size:10px; color:rgba(0,229,255,0.8); font-weight:700; letter-spacing:1.2px; margin-bottom:4px;">SYNDICATE B2B</div>
+            <div style="font-size:20px; font-weight:900; transition:color .3s;" id="regimeSyndicateWr">—</div>
+            <div style="font-size:11px; color:var(--muted);" id="regimeSyndicateCount">0 scored</div>
+            <div style="height:4px; background:rgba(0,229,255,0.08); border-radius:2px; margin-top:6px;">
+              <div id="regimeSyndicateBar" style="height:100%; width:0%; background:#00e5ff; border-radius:2px; transition:width 0.5s;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+            <div class="panel master-ai-panel" id="supremeBayesianPanel" style="margin-top:10px; border-color: #b000ff; box-shadow: 0 0 0 1px rgba(176,0,255,0.2), 0 0 32px rgba(176,0,255,0.15); background: linear-gradient(180deg, rgba(176,0,255,0.08), rgba(15,17,23,1));">
+  <div class="ai-title" style="color: #b000ff; text-shadow: 0 0 8px rgba(176,0,255,0.5);">Supreme Bayesian Engine (Markov + EWMA)</div>
+  <div class="ai-main" id="supremeVerdictMain" style="font-size: 26px; color: #b000ff; font-weight: 900; letter-spacing: 1px;">INITIALIZING MATRICES...</div>
+  <div class="ai-sub" id="supremeVerdictSub" style="color: #b000ff; font-weight: bold; margin-bottom: 8px;">Awaiting sequence DNA...</div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top: 8px; font-size: 11px;">
+    <span class="badge" id="weightAppA" style="border-color: rgba(176,0,255,0.4);">App A: 1.00</span>
+    <span class="badge" id="weightAppB" style="border-color: rgba(176,0,255,0.4);">App B: 1.00</span>
+    <span class="badge" id="weightLookAhead" style="border-color: rgba(176,0,255,0.4);">Look-Ahead: 1.00</span>
+    <span class="badge" id="weightObserver" style="border-color: rgba(176,0,255,0.4);">Observer: 1.00</span>
+    <span class="badge" id="weightMetaAI" style="border-color: rgba(176,0,255,0.4);">Meta AI: 1.00</span>
+    <span class="badge" id="weightBeb" style="border-color: rgba(176,0,255,0.4);">BEB: 1.00</span>
+    <span class="badge" id="weightSr" style="border-color: rgba(176,0,255,0.4);">SR: 1.00</span>
+    <span class="badge" id="weightCp" style="border-color: rgba(176,0,255,0.4);">CP: 1.00</span>
+  </div>
+ </div>
+
+        <div class="panel mini-wrap dock-right" id="bPanelWrap" aria-label="App B quick view (top panel)">
+          <div class="zoom-bar" aria-label="Zoom controls">
+            <button class="zoom-btn" id="zoomOut" title="Zoom out">-</button>
+            <div class="zoom-label" id="zoomLabel">zoom</div>
+            <button class="zoom-btn" id="zoomIn" title="Zoom in">+</button>
+          </div>
+          <iframe id="frameBPanel" title="App B top panel (mirrored)" src="about:blank"></iframe>
+        </div>
+      </div>
+
+      <!-- SHADOW SYNDICATE B2B ALERT PANEL -->
+      <div class="panel syndicate-panel" id="syndicateAlertPanel" style="margin-top:10px; border-color:rgba(0,229,255,0.25); background:linear-gradient(180deg,rgba(0,229,255,0.04),rgba(15,17,23,1));">
+        <div class="ai-title" style="color:#00e5ff; text-shadow:0 0 8px rgba(0,229,255,0.4); letter-spacing:2px;">Shadow Syndicate — B2B Tracker Cross-Check</div>
+        <div class="ai-main" id="syndicateAlertMain" style="font-size:17px; color:var(--muted);">STANDBY — Monitoring 11 players for B2B ≥5 threshold</div>
+        <div class="ai-sub" id="syndicateAlertSub" style="color:var(--muted);">Alert activates when any player reaches 5+ consecutive back-to-back misses. Supreme Bayesian cross-checks only on consensus match.</div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:8px;">
+          <span class="badge" id="syndicateMatchBadge">match: standby</span>
+          <span class="badge" id="syndicateB2BBadge">max B2B: 0</span>
+          <span class="badge" id="syndicatePlayerBadge">players: monitoring</span>
+          <span class="badge" id="syndicateXBadge">App X: offline</span>
+        </div>
+      </div>
+
+
+      <div class="panel master-ai-panel" id="ultimateMasterAiPanel" style="margin-top:10px;">
+        <div class="ai-title" style="color: var(--gold); text-shadow: 0 0 8px rgba(245,158,11,0.5);">Observer Master AI (Self-Learning Layer)</div>
+        <div class="ai-main" id="ultimateVerdictMain" style="font-size: 24px; color: var(--gold);">GATHERING DATA...</div>
+        <div class="ai-sub" id="ultimateVerdictSub" style="color: var(--gold); font-weight: bold; margin-bottom: 8px;">Awaiting sufficient hand data...</div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+          <span class="badge" id="masterMetaBadge">Meta: --%</span>
+          <span class="badge" id="masterLookAheadBadge">Look-Ahead: --%</span>
+          <span class="badge" id="masterDerivedBadge">Derived: --%</span>
+        </div>
+      </div>
+
+      <div class="panel ai-panel-sync" id="metaAiPanel" style="margin-top:10px;">
+        <div class="ai-title">Meta AI (Learns from both apps)</div>
+        <div class="ai-main" id="aiMain">Loading…</div>
+        <div class="ai-sub" id="aiSub">This model trains only on outcomes you input in this dashboard. Accuracy is not guaranteed.</div>
+        <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+          <span class="badge" id="guardBadge">guard: standby</span>
+          <span class="badge" id="recentAccBadge">recent: --</span>
+          <span class="badge" id="probBadge">P -- / B --</span>
+          <span class="badge" id="lookAheadBadge">look-ahead: offline</span>
+        </div>
+      </div>
+
+      <div class="panel sync-panel" id="derivedSyncPanel" style="margin-top:10px;">
+        <div class="ai-title">Derived road sync</div>
+        <div class="sync-summary">
+          <div class="sync-message" id="derivedSyncMessage">Waiting for Meta AI and App B derived roads…</div>
+          <span class="badge" id="derivedSyncBadge">standby</span>
+        </div>
+        <div class="small" id="derivedSyncSub" style="margin-top:6px;">
+          When Meta AI and the derived roads point to the same side, the matching boxes will highlight and the strongest road will be selected.
+        </div>
+        <div class="road-grid" style="margin-top:10px;">
+          <div class="road-card" id="roadCardBeb">
+            <div class="road-head">
+              <span class="road-name">Big Eye Boy</span>
+              <span class="road-picked" id="roadPickBeb" hidden>selected</span>
+            </div>
+            <div class="road-side" id="roadSideBeb">--</div>
+            <div class="road-meta">
+              <span id="roadMatchBeb">waiting</span>
+              <span id="roadPctBeb">--%</span>
+            </div>
+          </div>
+          <div class="road-card" id="roadCardSr">
+            <div class="road-head">
+              <span class="road-name">Small Road</span>
+              <span class="road-picked" id="roadPickSr" hidden>selected</span>
+            </div>
+            <div class="road-side" id="roadSideSr">--</div>
+            <div class="road-meta">
+              <span id="roadMatchSr">waiting</span>
+              <span id="roadPctSr">--%</span>
+            </div>
+          </div>
+          <div class="road-card" id="roadCardCp">
+            <div class="road-head">
+              <span class="road-name">Cockroach</span>
+              <span class="road-picked" id="roadPickCp" hidden>selected</span>
+            </div>
+            <div class="road-side" id="roadSideCp">--</div>
+            <div class="road-meta">
+              <span id="roadMatchCp">waiting</span>
+              <span id="roadPctCp">--%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <details class="panel" id="featDetails" style="margin-top:10px;">
+        <summary>
+          <div class="row">
+            <div>
+              <div class="ai-title">Feature monitor (read-only)</div>
+              <div style="font-weight:800;">Shows which hidden outputs are influencing the Meta AI. This does not change AI decisions.</div>
+            </div>
+            <span class="badge" id="featMonStatus">idle</span>
+          </div>
+        </summary>
+        <div class="small" style="margin:8px 0;">
+          Use this to diagnose low performance shoes. When performance drops, the guard shows advisory warnings so you can review weak conditions without blocking the AI pick.
+        </div>
+        <div class="import-wrap" style="grid-template-columns: 1fr 1fr;">
+          <div class="import-side">
+            <div class="ai-title">Top signals (App A)</div>
+            <div id="featA" class="small mono">-</div>
+          </div>
+          <div class="import-side">
+            <div class="ai-title">Top signals (App B)</div>
+            <div id="featB" class="small mono">-</div>
+          </div>
+        </div>
+      </details>
+
+      <details class="panel" style="margin-top:10px;">
+        <summary>
+          <div class="row">
+            <div>
+              <div class="ai-title">Screenshot import</div>
+              <div style="font-weight:800;">Upload baccarat screenshot, mark bead-road area, auto-detect `B / P / T`, then import.</div>
+            </div>
+            <span class="badge warn" id="importStatus">idle</span>
+          </div>
+        </summary>
+
+        <div class="import-toolbar">
+          <input id="shotFile" type="file" accept="image/*" />
+          <button id="btnAutoLocate" type="button">AUTO LOCATE</button>
+          <button id="btnClearCrop" type="button">CLEAR MARKS</button>
+          <button id="btnAnalyzeShot" type="button">ANALYZE SCREENSHOT</button>
+          <button id="btnImportShot" type="button">IMPORT TO BOTH APPS</button>
+          <label class="inline"><input id="chkResetBeforeImport" type="checkbox" checked /> reset current shoe before import</label>
+        </div>
+
+        <div class="small" style="margin-bottom:10px;">
+          Default flow: upload screenshot and click <b>AUTO LOCATE</b>. Manual fallback is still available:
+          click 2 points on the screenshot preview, first the <b>top-left</b> corner of the bead-road grid, then the <b>bottom-right</b> corner.
+          Try to click inside the real grid area, not on the blue marker lines.
+        </div>
+
+        <div class="import-wrap">
+          <canvas id="shotCanvas" class="import-canvas" width="780" height="320"></canvas>
+
+          <div class="import-side">
+            <div class="ai-title">Detected sequence</div>
+            <div id="importMeta" class="small" style="margin-bottom:10px;">No image loaded.</div>
+            <div id="detectedTokens" class="token-box"></div>
+            <div id="detectedRaw" class="small mono" style="margin-top:10px; word-break:break-word;">-</div>
+          </div>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="grid">
+      <div class="panel frame-card">
+        <div class="frame-head">
+          <div class="frame-title">App B (Nexus Elite)</div>
+          <span class="badge" id="badgeB">offline</span>
+        </div>
+        <iframe id="frameB" src="about:blank"></iframe>
+      </div>
+
+      <div class="panel frame-card">
+        <div class="frame-head">
+          <div class="frame-title">App A (AAA)</div>
+          <span class="badge" id="badgeA">offline</span>
+        </div>
+        <iframe id="frameA" src="about:blank"></iframe>
+      </div>
+
+      <div class="panel frame-card">
+        <div class="frame-head">
+          <div class="frame-title" style="color:#00e5ff;">App X (Shadow Syndicate)</div>
+          <span class="badge" id="badgeX">offline</span>
+        </div>
+        <iframe id="frameX" src="about:blank"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:none;">
+    <iframe id="frameASim"></iframe>
+    <iframe id="frameBSim"></iframe>
+  </div>
+
+  <script>
+    // =========================================================
+    // 1) postMessage RPC helper
+    // =========================================================
+    const frames = {
+      A: document.getElementById('frameA'),
+      B: document.getElementById('frameB'),
+    };
+    const frameBPanel = document.getElementById('frameBPanel');
+    const bPanelWrap = document.getElementById('bPanelWrap');
+    const zoomInBtn = document.getElementById('zoomIn');
+    const zoomOutBtn = document.getElementById('zoomOut');
+    const zoomLabel = document.getElementById('zoomLabel');
+    const ENABLE_LOOKAHEAD = true;
+    const simFrames = {
+      A: document.getElementById('frameASim'),
+      B: document.getElementById('frameBSim'),
+    };
+    // Sim frames are loaded/unloaded at runtime by the look-ahead toggle.
+    const badgeA = document.getElementById('badgeA');
+    const badgeB = document.getElementById('badgeB');
+    const statusEl = document.getElementById('status');
+
+    // ---------------------------------------------------------
+    // Robust iframe URL resolver:
+    // - Works when hosted as `.../dashboard.html`
+    // - Works when hosted as a route like `.../dashbc` (no trailing slash)
+    // ---------------------------------------------------------
+    function computeBasePath() {
+      const p = String(location.pathname || '/');
+      if (p.endsWith('/')) return p;
+      // If it looks like a file path, use its directory
+      if (/\.[a-zA-Z0-9]+$/.test(p)) return p.replace(/[^/]*$/, '');
+      // Otherwise treat it as a "directory route" (common for SPA-style servers)
+      return p + '/';
+    }
+    const __BASE_PATH__ = computeBasePath();
+    function resolveEmbedUrl(rel) {
+      try {
+        return new URL(rel, location.origin + __BASE_PATH__).toString();
+      } catch {
+        return rel;
+      }
+    }
+
+    // Set live frame sources using the robust base path
+    try { frames.A.src = resolveEmbedUrl('appA.html?embedded=1'); } catch {}
+    try { frames.B.src = resolveEmbedUrl('appB.html?embedded=1'); } catch {}
+    // Mini embedded panel (same App B, but cropped to the top 50/50 + diagnostics panels)
+    try { if (frameBPanel) frameBPanel.src = resolveEmbedUrl('appB.html?embedded=1&widget=top'); } catch {}
+
+    // App X — Shadow Syndicate (independent engine, B2B tracker)
+    const frameX = document.getElementById('frameX');
+    const badgeX = document.getElementById('badgeX');
+    const syndicateXBadge = document.getElementById('syndicateXBadge');
+    try { if (frameX) frameX.src = resolveEmbedUrl('appX.html?embedded=1'); } catch {}
+
+    // =========================================================
+    // 1b) Mini App B panel zoom (prevents clipping; user-controlled)
+    // =========================================================
+    const BPANEL_STORE = 'B_PANEL_ZOOM_V1';
+    const BPANEL_BASE_W = 980;  // intrinsic iframe width (px)
+    const BPANEL_BASE_H = 360;  // intrinsic iframe height (px)
+    const BPANEL_MIN = 0.35;
+    const BPANEL_MAX = 1.00;
+    const BPANEL_STEP = 0.05;
+    let bPanelZoom = null;
+
+    function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
+
+    function computeFitZoom() {
+      if (!bPanelWrap) return 0.55;
+      const w = bPanelWrap.clientWidth || 0;
+      if (!w) return 0.55;
+      // Leave some room for padding/zoom bar.
+      const usable = Math.max(220, w - 16);
+      return clamp(usable / BPANEL_BASE_W, BPANEL_MIN, 0.70);
+    }
+
+    function applyBPanelZoom(z, persist = true) {
+      if (!frameBPanel || !bPanelWrap) return;
+      const zoom = clamp(z, BPANEL_MIN, BPANEL_MAX);
+      bPanelZoom = zoom;
+
+      // Set intrinsic size, then scale it.
+      frameBPanel.style.width = BPANEL_BASE_W + 'px';
+      frameBPanel.style.height = BPANEL_BASE_H + 'px';
+      frameBPanel.style.transform = `scale(${zoom})`;
+
+      // Ensure wrapper height matches scaled iframe so nothing is clipped.
+      // +16 keeps breathing room under the zoom bar.
+      bPanelWrap.style.height = Math.round(BPANEL_BASE_H * zoom + 16) + 'px';
+
+      if (zoomLabel) zoomLabel.textContent = `zoom ${Math.round(zoom * 100)}%`;
+      if (persist) {
+        try { localStorage.setItem(BPANEL_STORE, String(zoom)); } catch {}
+      }
+    }
+
+    function loadBPanelZoom() {
+      let z = null;
+      try {
+        const raw = localStorage.getItem(BPANEL_STORE);
+        if (raw) z = Number(raw);
+      } catch {}
+      if (!z || !Number.isFinite(z)) z = computeFitZoom();
+      applyBPanelZoom(z, false);
+    }
+
+    function bumpBPanelZoom(delta) {
+      const current = (bPanelZoom && Number.isFinite(bPanelZoom)) ? bPanelZoom : computeFitZoom();
+      applyBPanelZoom(current + delta, true);
+    }
+
+    if (zoomInBtn) zoomInBtn.addEventListener('click', () => bumpBPanelZoom(+BPANEL_STEP));
+    if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => bumpBPanelZoom(-BPANEL_STEP));
+    window.addEventListener('resize', () => {
+      // Respect user's stored zoom if present; otherwise re-fit on resize.
+      try {
+        const raw = localStorage.getItem(BPANEL_STORE);
+        if (!raw) applyBPanelZoom(computeFitZoom(), false);
+        else applyBPanelZoom(Number(raw) || computeFitZoom(), false);
+      } catch {
+        applyBPanelZoom(computeFitZoom(), false);
+      }
+    });
+
+    // Initialize immediately (no need to wait for frames)
+    loadBPanelZoom();
+
+    let _msgSeq = 0;
+    const pending = new Map();
+
+    function rpc(frameKey, type, payload = {}) {
+      return new Promise((resolve, reject) => {
+        const id = `${Date.now()}-${++_msgSeq}`;
+        const win = frames[frameKey]?.contentWindow;
+        if (!win) return reject(new Error(`Missing frame ${frameKey}`));
+
+        const t = setTimeout(() => {
+          pending.delete(id);
+          reject(new Error(`Timeout: ${type} (${frameKey})`));
+        }, 2500);
+
+        pending.set(id, { resolve, reject, t });
+        win.postMessage({ type, id, ...payload }, '*');
+      });
+    }
+    function rpcToFrame(frameEl, type, payload = {}) {
+      return new Promise((resolve, reject) => {
+        const id = `${Date.now()}-${++_msgSeq}`;
+        const win = frameEl?.contentWindow;
+        if (!win) return reject(new Error(`Missing frame`));
+
+        const t = setTimeout(() => {
+          pending.delete(id);
+          reject(new Error(`Timeout: ${type}`));
+        }, 5000);
+
+        pending.set(id, { resolve, reject, t });
+        win.postMessage({ type, id, ...payload }, '*');
+      });
+    }
+
+    function post(frameKey, type, payload = {}) {
+      const win = frames[frameKey]?.contentWindow;
+      if (!win) return;
+      win.postMessage({ type, ...payload }, '*');
+    }
+    function postToFrame(frameEl, type, payload = {}) {
+      const win = frameEl?.contentWindow;
+      if (!win) return;
+      win.postMessage({ type, ...payload }, '*');
+    }
+
+    window.addEventListener('message', (e) => {
+      const d = e.data || {};
+      if (!d || typeof d !== 'object') return;
+      if (d.type === 'SNAPSHOT' && d.replyTo && pending.has(d.replyTo)) {
+        const p = pending.get(d.replyTo);
+        clearTimeout(p.t);
+        pending.delete(d.replyTo);
+        p.resolve(d.snapshot);
+      }
+      if (d.type === 'PONG' && d.replyTo && pending.has(d.replyTo)) {
+        const p = pending.get(d.replyTo);
+        clearTimeout(p.t);
+        pending.delete(d.replyTo);
+        p.resolve(true);
+      }
+    });
+
+    async function pingAll() {
+      try { await rpc('A', 'PING'); badgeA.textContent = 'online'; badgeA.className = 'badge ok'; } catch { badgeA.textContent = 'offline'; badgeA.className = 'badge bad'; }
+      try { await rpc('B', 'PING'); badgeB.textContent = 'online'; badgeB.className = 'badge ok'; } catch { badgeB.textContent = 'offline'; badgeB.className = 'badge bad'; }
+      // App X is optional — does not block dashboard readiness
+      try {
+        await rpcToFrame(frameX, 'PING');
+        if (badgeX) { badgeX.textContent = 'online'; badgeX.className = 'badge ok'; }
+        if (syndicateXBadge) { syndicateXBadge.textContent = 'App X: online'; syndicateXBadge.className = 'badge ok'; }
+      } catch {
+        if (badgeX) { badgeX.textContent = 'offline'; badgeX.className = 'badge bad'; }
+        if (syndicateXBadge) { syndicateXBadge.textContent = 'App X: offline'; syndicateXBadge.className = 'badge bad'; }
+      }
+      const aOk = badgeA.textContent === 'online';
+      const bOk = badgeB.textContent === 'online';
+      statusEl.textContent = (aOk && bOk) ? 'ready' : 'waiting for frames…';
+      statusEl.className = `badge ${(aOk && bOk) ? 'ok' : 'warn'}`;
+      return aOk && bOk;
+    }
+
+    function delay(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function waitForFrameLoad(frameEl, timeoutMs = 6000) {
+      return new Promise((resolve) => {
+        if (!frameEl) return resolve(false);
+
+        try {
+          const href = frameEl.contentWindow?.location?.href;
+          const doc = frameEl.contentDocument;
+          if (doc?.readyState === 'complete' && href && href !== 'about:blank') {
+            return resolve(true);
+          }
+        } catch {}
+
+        let settled = false;
+        const finish = (ok) => {
+          if (settled) return;
+          settled = true;
+          frameEl.removeEventListener('load', onLoad);
+          clearTimeout(timer);
+          resolve(ok);
+        };
+        const onLoad = () => setTimeout(() => finish(true), 60);
+        const timer = setTimeout(() => finish(false), timeoutMs);
+
+        frameEl.addEventListener('load', onLoad, { once: true });
+      });
+    }
+
+    async function waitForFrameGroup(frameGroup, timeoutMs = 6000) {
+      const results = await Promise.all(Object.values(frameGroup).map(frameEl => waitForFrameLoad(frameEl, timeoutMs)));
+      return results.every(Boolean);
+    }
+
+    async function waitForLiveFrames(retries = 10, intervalMs = 500) {
+      for (let i = 0; i < retries; i++) {
+        if (await pingAll()) return true;
+        await delay(intervalMs);
+      }
+      return false;
+    }
+
+    // =========================================================
+    // 2) Feature extraction
+    // =========================================================
+    const masterHistory = []; // stores 'P','B','T'
+    function normPB(text) {
+      if (!text) return 0;
+      const t = String(text).toUpperCase();
+      if (t.includes('PLAYER') || t.includes('BET PLAYER') || t.trim() === 'P') return 1;
+      if (t.includes('BANKER') || t.includes('BET BANKER') || t.trim() === 'B') return -1;
+      return 0;
+    }
+    function parsePct(text) {
+      if (!text) return null;
+      const m = String(text).match(/(-?\d+(\.\d+)?)\s*%/);
+      return m ? Number(m[1]) : null;
+    }
+    function parseNumber(text) {
+      if (!text) return null;
+      const m = String(text).match(/-?\d+(\.\d+)?/);
+      return m ? Number(m[0]) : null;
+    }
+    // Stable hash for feature hashing (FNV-1a 32-bit)
+    function hash32(str) {
+      let h = 0x811c9dc5;
+      for (let i = 0; i < str.length; i++) {
+        h ^= str.charCodeAt(i);
+        h = Math.imul(h, 0x01000193);
+      }
+      return h >>> 0;
+    }
+    function lastKSignals(k, historyRef = masterHistory) {
+      // Avoid O(n) filter over full shoe every update (gets slow as shoe grows).
+      const out = new Array(k).fill(0);
+      let found = 0;
+      for (let i = historyRef.length - 1; i >= 0 && found < k; i--) {
+        const v = historyRef[i];
+        if (v !== 'P' && v !== 'B') continue;
+        out[found++] = (v === 'P' ? 1 : -1);
+      }
+      return out;
+    }
+    function signalAgreement(a, b) {
+      if (!a || !b) return 0;
+      return Math.sign(a) === Math.sign(b) ? 1 : -1;
+    }
+    function activeMean(arr) {
+      const vals = arr.filter(v => v !== 0);
+      if (!vals.length) return 0;
+      return vals.reduce((s, v) => s + v, 0) / vals.length;
+    }
+
+    // Pattern approach: auto-capture many DOM outputs and compress to fixed size using feature hashing.
+    const HASH_DIM = 64;
+    function hashAutoSignals(autoRaw, prefix) {
+      const buckets = new Array(HASH_DIM).fill(0);
+      if (!autoRaw || typeof autoRaw !== 'object') return buckets;
+
+      const keys = Object.keys(autoRaw);
+      // Cap so huge pages don't slow down the dashboard
+      const capped = keys.slice(0, 220);
+
+      for (const id of capped) {
+        const raw = autoRaw[id];
+        if (raw == null) continue;
+
+        const text = String(raw);
+        let v = 0;
+        const pb = normPB(text);
+        if (pb !== 0) v = pb;
+        else {
+          const pct = parsePct(text);
+          if (pct !== null) v = Math.max(-2, Math.min(2, (pct - 50) / 25)); // stronger if far from 50%
+          else {
+            const num = parseNumber(text);
+            if (num !== null) v = Math.max(-2, Math.min(2, Math.tanh(num / 10)));
+            else v = 0;
+          }
+        }
+        if (v === 0) continue;
+
+        // Light semantic weighting (still learned by model, this is just scaling)
+        let w = 0.8;
+        const lid = id.toLowerCase();
+        if (lid.includes('confidence') || lid.includes('prob') || lid.includes('rate') || lid.includes('pct')) w = 0.6;
+        if (lid.includes('apex') || lid.includes('beb') || lid.includes('sr') || lid.includes('cp')) w = 1.0;
+
+        const key = `${prefix}|${id}`;
+        const h = hash32(key);
+        const idx = h % HASH_DIM;
+        const sign = (hash32(key + '|s') & 1) ? 1 : -1;
+        buckets[idx] += sign * v * w;
+      }
+
+      // Clamp to keep stable training
+      for (let i = 0; i < buckets.length; i++) {
+        buckets[i] = Math.max(-3, Math.min(3, buckets[i]));
+      }
+      return buckets;
+    }
+    function buildFeatures(snapA, snapB, historyRef = masterHistory) {
+      const a = snapA?.raw || {};
+      const b = snapB || {};
+
+      // Feature boosters: give higher initial influence to the most trusted fast-transition signals
+      // (You requested extra weight for: apex-verdict-display, meta-beb-pred, meta-sr-pred, meta-cp-pred)
+      const BOOST_APEX = 2.0;
+      const BOOST_DERIVED = 2.0;
+
+      // --- App A (AAA) primary signals ---
+      const aMasterSignal = normPB(a['master-ai-target-prediction']); // MasterOrchestratorAI banner
+      const aApexSignal = normPB(a['apex-verdict-display']) * BOOST_APEX; // APEX SUPERVISOR verdict (boosted)
+      const aAiSignal = normPB(a['ai-verdict']);                      // App A "AI Panel" verdict
+      const aMetaSignal = normPB(a['meta-verdict']);                  // App A "Meta Classifier" verdict
+      const aEnv2Signal = normPB(a['env2-verdict-banner']);           // App A env 2 verdict
+      const aEnv3Signal = normPB(a['env3-verdict-banner']);           // App A env 3 verdict
+      const aCircleSignal = normPB(a['circle-action-display']);       // App A circle tracker action
+      const aShadowUcb = normPB(a['shadow-ucb-bet']);                 // App A shadow AI: UCB
+      const aShadowSmm = normPB(a['shadow-smm-bet']);                 // App A shadow AI: short momentum
+      const aShadowAhi = normPB(a['shadow-ahi-bet']);                 // App A shadow AI: anti-hero invert
+      const aShadowChop = normPB(a['shadow-chop-bet']);               // App A shadow AI: chop radar
+
+      // --- App B (Elite v5.9) primary signals ---
+      const bFinalSignal = normPB(b?.nextPrediction);                 // final-prediction (post 1000 engines + meta logic)
+      const bBebSignal = normPB(b?.meta?.beb) * BOOST_DERIVED;        // derived road: BEB (boosted)
+      const bSrSignal = normPB(b?.meta?.sr) * BOOST_DERIVED;          // derived road: SR (boosted)
+      const bCpSignal = normPB(b?.meta?.cp) * BOOST_DERIVED;          // derived road: CP (boosted)
+      const bConsensusSignal = normPB(b?.meta?.consensus);            // derived consensus
+
+      const probP = parsePct(a['prob-p']);
+      const probB = parsePct(a['prob-b']);
+      const aProbDiff = (probP !== null && probB !== null) ? (probP - probB) / 100 : 0;
+
+      const vol = parsePct(b?.stats?.volatility);
+      const bVol = (vol !== null) ? Math.max(0, Math.min(1, vol / 100)) : 0;
+
+      const engAcc = parsePct(b?.stats?.engineAcc);
+      const bEngAcc = (engAcc !== null) ? Math.max(0, Math.min(1, engAcc / 100)) : 0;
+
+      const pctBeb = parsePct(b?.pct?.beb);
+      const pctSr = parsePct(b?.pct?.sr);
+      const pctCp = parsePct(b?.pct?.cp);
+      // Normalize accuracy trackers to roughly [-1..+1] around 50%
+      const bPctBeb = (pctBeb !== null) ? Math.max(-1, Math.min(1, (pctBeb - 50) / 50)) : 0;
+      const bPctSr  = (pctSr  !== null) ? Math.max(-1, Math.min(1, (pctSr  - 50) / 50)) : 0;
+      const bPctCp  = (pctCp  !== null) ? Math.max(-1, Math.min(1, (pctCp  - 50) / 50)) : 0;
+
+      const synergyText = String(a['track-synergy'] || '').toUpperCase();
+      const aSynergy =
+        synergyText.includes('MAXIMUM') ? 1.0 :
+        synergyText.includes('HIGH') ? 0.75 :
+        synergyText.includes('MODERATE') ? 0.5 :
+        synergyText.includes('FRAGMENTED') ? 0.25 :
+        0.35;
+
+      const cntP = Number(a['cnt-p'] || 0);
+      const cntB = Number(a['cnt-b'] || 0);
+      const total = Math.max(1, cntP + cntB);
+      const countBias = (cntP - cntB) / total;
+
+      const [l1, l2, l3, l4] = lastKSignals(4, historyRef);
+
+      // Transition-aware composites:
+      // not simple agree/disagree logic for final decision, only extra learned features.
+      const coreTransitionPack = [aApexSignal, bBebSignal, bSrSignal, bCpSignal];
+      const coreTransitionMean = activeMean(coreTransitionPack);
+      const coreTransitionAgreement =
+        signalAgreement(aApexSignal, bBebSignal) +
+        signalAgreement(aApexSignal, bSrSignal) +
+        signalAgreement(aApexSignal, bCpSignal);
+
+      const shadowPackMean = activeMean([aShadowUcb, aShadowSmm, aShadowAhi, aShadowChop]);
+      const envPackMean = activeMean([aEnv2Signal, aEnv3Signal, aMasterSignal, aAiSignal, aMetaSignal]);
+
+      // Auto-pattern capture (many extra outputs compressed into fixed buckets)
+      const autoA = hashAutoSignals(snapA?.autoRaw, 'A');
+      const autoB = hashAutoSignals(snapB?.autoRaw, 'B');
+      const autoCountA = snapA?.autoRaw ? Math.min(220, Object.keys(snapA.autoRaw).length) : 0;
+      const autoCountB = snapB?.autoRaw ? Math.min(220, Object.keys(snapB.autoRaw).length) : 0;
+
+      // Feature vector (fixed dimension)
+      const x = [
+        1,             // bias
+        aMasterSignal, // App A: MasterOrchestratorAI decision
+        aApexSignal,   // App A: APEX SUPERVISOR decision
+        aAiSignal,     // App A: AI panel decision
+        aMetaSignal,   // App A: meta-classifier decision
+        aEnv2Signal,   // App A: env 2 verdict
+        aEnv3Signal,   // App A: env 3 verdict
+        aCircleSignal, // App A: circle strategy action
+        aShadowUcb,    // App A: UCB shadow branch
+        aShadowSmm,    // App A: short momentum branch
+        aShadowAhi,    // App A: anti-hero invert branch
+        aShadowChop,   // App A: chop radar branch
+
+        bFinalSignal,     // App B: final decision (the "1000 engines final output" path ends here)
+        bBebSignal,       // App B: derived road BEB
+        bSrSignal,        // App B: derived road SR
+        bCpSignal,        // App B: derived road CP
+        bConsensusSignal, // App B: derived consensus
+
+        bPctBeb,       // App B: BEB tracker performance (normalized)
+        bPctSr,        // App B: SR tracker performance (normalized)
+        bPctCp,        // App B: CP tracker performance (normalized)
+
+        bVol,          // App B volatility
+        bEngAcc,       // App B engine accuracy
+
+        aProbDiff,     // App A P-B probability difference (if present)
+        aSynergy,      // App A synergy state proxy
+        coreTransitionMean,      // composite of APEX + elite derived roads
+        coreTransitionAgreement, // agreement pressure around the 4 boosted signals
+        shadowPackMean,          // App A shadow ensemble composite
+        envPackMean,             // App A environment composite
+        countBias,     // imbalance in P/B counts
+        l1, l2, l3, l4, // last outcomes (P=+1, B=-1)
+        (autoCountA / 220),      // how many auto signals are active (A)
+        (autoCountB / 220),      // how many auto signals are active (B)
+        ...autoA,                // hashed auto features (A)
+        ...autoB                 // hashed auto features (B)
+      ];
+
+      return {
+        x,
+        meta: {
+          aMasterSignal,
+          aApexSignal,
+          aAiSignal,
+          aMetaSignal,
+          aEnv2Signal,
+          aEnv3Signal,
+          aCircleSignal,
+          aShadowUcb,
+          aShadowSmm,
+          aShadowAhi,
+          aShadowChop,
+          bFinalSignal,
+          bBebSignal,
+          bSrSignal,
+          bCpSignal,
+          bConsensusSignal,
+          bVol,
+          bEngAcc,
+          bPctBeb,
+          bPctSr,
+          bPctCp,
+          aSynergy,
+          coreTransitionMean,
+          coreTransitionAgreement,
+          shadowPackMean,
+          envPackMean
+        }
+      };
+    }
+
+    // =========================================================
+    // 3) Online logistic model (2-class: P vs B)
+    // =========================================================
+    // Bumped version because feature set changed again (pattern auto capture + hashing buckets)
+    const STORE_KEY = 'dual_dashboard_meta_ai_v5';
+
+    const MetaAI = {
+      w: null,
+      samples: [], // {x:[...], y:0|1}
+      stats: { seen: 0, correct: 0 },
+      recent: [], // rolling correctness for last N predictions (1=correct, 0=wrong)
+      lr: 0.08,
+      l2: 0.001,
+      revision: 0,
+
+      init(dim) {
+        this.w = new Array(dim).fill(0);
+        this.load();
+        // Safety: if stored w mismatches dim, reset.
+        if (!Array.isArray(this.w) || this.w.length !== dim) {
+          this.w = new Array(dim).fill(0);
+          this.samples = [];
+          this.stats = { seen: 0, correct: 0 };
+          this.save();
+          return;
+        }
+        this.w = this.w.map(v => Number.isFinite(v) ? v : 0);
+        this.samples = Array.isArray(this.samples)
+          ? this.samples.map((s) => ({
+              x: Array.isArray(s?.x) ? s.x.map(v => Number.isFinite(v) ? v : 0) : [],
+              y: s?.y === 1 ? 1 : 0
+            })).filter((s) => s.x.length === dim)
+          : [];
+        this.stats = {
+          seen: Number.isFinite(this.stats?.seen) ? this.stats.seen : 0,
+          correct: Number.isFinite(this.stats?.correct) ? this.stats.correct : 0
+        };
+        this.recent = Array.isArray(this.recent) ? this.recent.map(v => v ? 1 : 0).slice(-20) : [];
+      },
+
+      sigmoid(z) { return 1 / (1 + Math.exp(-z)); },
+      dot(a, b) {
+        let s = 0;
+        for (let i = 0; i < a.length; i++) {
+          const av = Number.isFinite(a[i]) ? a[i] : 0;
+          const bv = Number.isFinite(b[i]) ? b[i] : 0;
+          s += av * bv;
+        }
+        return Number.isFinite(s) ? s : 0;
+      },
+
+      predictProba(x) {
+        const z = this.dot(this.w, x);
+        return this.sigmoid(Number.isFinite(z) ? z : 0);
+      },
+
+      predict(x) {
+        const p = this.predictProba(x);
+        return { pPlayer: p, decision: (p >= 0.5 ? 'P' : 'B') };
+      },
+      predictPartial(x) {
+        // Used by look-ahead branch scoring before augmented features are appended.
+        let z = 0;
+        const max = Math.min(x.length, Array.isArray(this.w) ? this.w.length : 0);
+        for (let i = 0; i < max; i++) z += x[i] * this.w[i];
+        const p = this.sigmoid(z);
+        return { pPlayer: p, decision: (p >= 0.5 ? 'P' : 'B') };
+      },
+
+      learnOne(x, y) {
+        const p = this.predictProba(x);
+        const err = (p - y); // gradient for BCE
+        for (let i = 0; i < this.w.length; i++) {
+          const xi = Number.isFinite(x[i]) ? x[i] : 0;
+          const wi = Number.isFinite(this.w[i]) ? this.w[i] : 0;
+          const grad = err * xi + this.l2 * wi;
+          this.w[i] -= this.lr * grad;
+        }
+      },
+
+      trainFromSamples(epochs = 6) {
+        // Re-train from scratch for undo support
+        this.w.fill(0);
+        for (let e = 0; e < epochs; e++) {
+          for (const s of this.samples) this.learnOne(s.x, s.y);
+        }
+      },
+
+      onLabeled(x, actual) {
+        if (actual !== 'P' && actual !== 'B') return;
+        const y = actual === 'P' ? 1 : 0;
+
+        const predNow = this.predict(x).decision;
+        this.stats.seen++;
+        if (predNow === actual) this.stats.correct++;
+        this.recent.push(predNow === actual ? 1 : 0);
+        if (this.recent.length > 20) this.recent.shift();
+
+        this.samples.push({ x: [...x], y });
+        if (this.samples.length > 500) this.samples.shift();
+
+        this.learnOne(x, y);
+        this.revision++;
+        this.save();
+      },
+
+      undoLast() {
+        if (this.samples.length === 0) return;
+        this.samples.pop();
+        // recompute stats from scratch
+        this.stats = { seen: 0, correct: 0 };
+        this.recent = [];
+        // rebuild stats by replaying (predict before learn) to mimic runtime
+        this.w.fill(0);
+        for (const s of this.samples) {
+          const pred = this.predict(s.x).decision;
+          this.stats.seen++;
+          const actual = (s.y === 1) ? 'P' : 'B';
+          if (pred === actual) this.stats.correct++;
+          this.recent.push(pred === actual ? 1 : 0);
+          if (this.recent.length > 20) this.recent.shift();
+          this.learnOne(s.x, s.y);
+        }
+        this.revision++;
+        this.save();
+      },
+
+      resetAll() {
+        this.samples = [];
+        this.stats = { seen: 0, correct: 0 };
+        this.recent = [];
+        this.w.fill(0);
+        this.revision++;
+        this.save();
+      },
+
+      save() {
+        try {
+          localStorage.setItem(STORE_KEY, JSON.stringify({
+            w: this.w,
+            samples: this.samples,
+            stats: this.stats,
+            recent: this.recent
+          }));
+        } catch {}
+      },
+
+      load() {
+        try {
+          const raw = localStorage.getItem(STORE_KEY);
+          if (!raw) return;
+          const obj = JSON.parse(raw);
+          if (obj && Array.isArray(obj.w)) this.w = obj.w;
+          if (obj && Array.isArray(obj.samples)) this.samples = obj.samples;
+          if (obj && obj.stats) this.stats = obj.stats;
+          if (obj && Array.isArray(obj.recent)) this.recent = obj.recent;
+        } catch {}
+      }
+    };
+
+    // =========================================================
+    // 3b) Look-ahead imagination engine
+    // =========================================================
+    const LookAheadAI = {
+      enabled: ENABLE_LOOKAHEAD,
+      depth: 1,
+      cache: new Map(),
+      maxCacheEntries: 48,
+      seen: 0,
+      correct: 0,
+      recent: [],
+      lastVerdict: null, // prediction for the NEXT actual hand generated before that hand happens
+      simReady: false,
+      requestToken: 0,
+      debounceTimer: null,
+      debounceMs: 20,
+      maxReplayHands: 45,
+
+      recordActual(actual) {
+        if (!this.lastVerdict || (actual !== 'P' && actual !== 'B')) return;
+        this.seen++;
+        const ok = this.lastVerdict === actual ? 1 : 0;
+        if (ok) this.correct++;
+        this.recent.push(ok);
+        if (this.recent.length > 20) this.recent.shift();
+      },
+      reset() {
+        this.seen = 0;
+        this.correct = 0;
+        this.recent = [];
+        this.lastVerdict = null;
+        this.cache.clear();
+      },
+      getRecentAccuracy() {
+        if (!this.recent.length) return null;
+        return this.recent.reduce((a, b) => a + b, 0) / this.recent.length;
+      }
+    };
+
+    function historyKey(historyRef = masterHistory) {
+      // Bound key cost for long shoes (we only need recent state for caching / UI keys).
+      return historyRef.slice(-140).join('');
+    }
+
+    function buildLookAheadCacheKey(historyRef) {
+      return `${MetaAI.revision}|${LookAheadAI.depth}|${historyKey(historyRef)}`;
+    }
+
+    function rememberLookAhead(cacheKey, value) {
+      if (!cacheKey) return;
+      LookAheadAI.cache.set(cacheKey, value);
+      if (LookAheadAI.cache.size <= LookAheadAI.maxCacheEntries) return;
+      const oldestKey = LookAheadAI.cache.keys().next().value;
+      if (oldestKey) LookAheadAI.cache.delete(oldestKey);
+    }
+
+    async function pingSimFrames() {
+      if (!LookAheadAI.enabled) {
+        LookAheadAI.simReady = false;
+        return false;
+      }
+      try {
+        await Promise.all([
+          rpcToFrame(simFrames.A, 'PING'),
+          rpcToFrame(simFrames.B, 'PING')
+        ]);
+        LookAheadAI.simReady = true;
+      } catch {
+        LookAheadAI.simReady = false;
+      }
+      return LookAheadAI.simReady;
+    }
+
+    function setLookAheadToggleUI() {
+      if (!btnLookAhead) return;
+      btnLookAhead.textContent = `LOOK-AHEAD: ${LookAheadAI.enabled ? 'ON' : 'OFF'}`;
+      btnLookAhead.className = `btn-r${LookAheadAI.enabled ? '' : ''}`;
+    }
+
+    function disableLookAheadRuntime() {
+      LookAheadAI.enabled = false;
+      LookAheadAI.simReady = false;
+      LookAheadAI.requestToken++; // cancel in-flight refresh
+      if (LookAheadAI.debounceTimer) {
+        clearTimeout(LookAheadAI.debounceTimer);
+        LookAheadAI.debounceTimer = null;
+      }
+      LookAheadAI.cache.clear();
+      // unload sim frames to reduce work
+      try { simFrames.A.src = 'about:blank'; } catch {}
+      try { simFrames.B.src = 'about:blank'; } catch {}
+      setLookAheadToggleUI();
+    }
+
+    function enableLookAheadRuntime() {
+      LookAheadAI.enabled = true;
+      LookAheadAI.simReady = false;
+      LookAheadAI.requestToken++; // invalidate old requests
+      // load sim frames (if previously unloaded)
+      try { simFrames.A.src = resolveEmbedUrl('appA.html?embedded=1&sim=1'); } catch {}
+      try { simFrames.B.src = resolveEmbedUrl('appB.html?embedded=1&sim=1'); } catch {}
+      setLookAheadToggleUI();
+      // bring look-ahead online in the background (do not block input)
+      void (async () => {
+        await waitForFrameGroup(simFrames, 8000);
+        await waitForSimFrames(10, 250);
+        // refresh display once sim frames respond
+        try { await updateAiFromCurrentState(); } catch {}
+      })();
+    }
+
+    function toggleLookAhead() {
+      if (LookAheadAI.enabled) disableLookAheadRuntime();
+      else enableLookAheadRuntime();
+      // Immediately refresh UI using current setting (fast path)
+      try { void updateAiFromCurrentState(); } catch {}
+    }
+
+    async function waitForSimFrames(retries = 10, intervalMs = 500) {
+      if (!LookAheadAI.enabled) return false;
+      for (let i = 0; i < retries; i++) {
+        if (await pingSimFrames()) return true;
+        await delay(intervalMs);
+      }
+      return false;
+    }
+
+    function enumerateBranches(depth) {
+      if (depth <= 0) return [[]];
+      const prev = enumerateBranches(depth - 1);
+      const out = [];
+      for (const p of prev) {
+        out.push([...p, 'P']);
+        out.push([...p, 'B']);
+      }
+      return out;
+    }
+
+    async function replayHistoryToSim(frameEl, historySeq) {
+  postToFrame(frameEl, 'MASTER_RESET');
+  
+  // Blast all historical hands into the message queue instantly.
+  // We pass 'replay: true' so the child apps skip heavy UI rendering for these hidden hands.
+  for (const v of historySeq) {
+    postToFrame(frameEl, 'MASTER_INPUT', { value: v, replay: true });
+  }
+  
+  // Yield the event loop just once at the end to allow the iframe to process the entire queue.
+  await new Promise(r => setTimeout(r, 15));
+}
+
+
+    async function simulateBranchOutcome(historyRef, branchSeq) {
+      // Big speed win: only replay a bounded recent tail into sim frames.
+      // This keeps look-ahead usable without shoe-length slowdowns.
+      const tail = historyRef.slice(-LookAheadAI.maxReplayHands);
+      const fullSeq = [...tail, ...branchSeq];
+      await Promise.all([
+        replayHistoryToSim(simFrames.A, fullSeq),
+        replayHistoryToSim(simFrames.B, fullSeq)
+      ]);
+      const [snapA, snapB] = await Promise.all([
+        rpcToFrame(simFrames.A, 'GET_SNAPSHOT'),
+        rpcToFrame(simFrames.B, 'GET_SNAPSHOT')
+      ]);
+      const feat = buildFeatures(snapA, snapB, fullSeq);
+      const pred = MetaAI.predictPartial(feat.x);
+      const conf = Math.max(pred.pPlayer, 1 - pred.pPlayer);
+      const score = conf + Math.abs(feat.meta.coreTransitionMean || 0) * 0.08 + Math.abs(feat.meta.envPackMean || 0) * 0.04;
+      return {
+        branchSeq,
+        nextFirst: branchSeq[0],
+        snapA,
+        snapB,
+        feat,
+        pred,
+        conf,
+        score
+      };
+    }
+
+    async function runLookAhead(historyRef, baseMeta) {
+      if (!LookAheadAI.enabled) {
+        return { active: false, verdict: null, bias: 0, strength: 0, recentAcc: null, avgP: 0, avgB: 0 };
+      }
+      if (!LookAheadAI.simReady) {
+        const ok = await pingSimFrames();
+        if (!ok) return { active: false, verdict: null, bias: 0, strength: 0, recentAcc: null, avgP: 0, avgB: 0 };
+      }
+
+      const clash = (baseMeta && typeof baseMeta.coreTransitionAgreement === 'number' && baseMeta.coreTransitionAgreement <= -2) ? 1 : 0;
+      const cacheKey = buildLookAheadCacheKey(historyRef);
+      const cached = LookAheadAI.cache.get(cacheKey);
+      if (cached) {
+        return { ...cached, active: true, clash };
+      }
+
+      const branches = enumerateBranches(LookAheadAI.depth);
+      const results = [];
+      for (const seq of branches) {
+        results.push(await simulateBranchOutcome(historyRef, seq));
+      }
+
+      const pList = results.filter(r => r.nextFirst === 'P');
+      const bList = results.filter(r => r.nextFirst === 'B');
+      const avgP = pList.length ? pList.reduce((s, r) => s + r.score, 0) / pList.length : 0;
+      const avgB = bList.length ? bList.reduce((s, r) => s + r.score, 0) / bList.length : 0;
+      const bias = avgP - avgB;
+      const strength = Math.max(avgP, avgB);
+      const verdict = bias === 0 ? null : (bias > 0 ? 'P' : 'B');
+      const recentAcc = LookAheadAI.getRecentAccuracy() ?? 0;
+      const output = {
+        active: true,
+        verdict,
+        bias,
+        strength,
+        recentAcc,
+        avgP,
+        avgB
+      };
+      rememberLookAhead(cacheKey, output);
+      return { ...output, clash };
+    }
+
+    function getDefaultLookAheadState(baseMeta = {}) {
+      const clash = (baseMeta && typeof baseMeta.coreTransitionAgreement === 'number' && baseMeta.coreTransitionAgreement <= -2) ? 1 : 0;
+      return {
+        active: false,
+        verdict: null,
+        bias: 0,
+        strength: 0,
+        recentAcc: LookAheadAI.getRecentAccuracy(),
+        avgP: 0,
+        avgB: 0,
+        clash
+      };
+    }
+ // ============================================================================
+// SUPREME BAYESIAN APEX: DUAL-BAND MOMENTUM & DYNAMIC GRADIENT DESCENT
+// ============================================================================
+const SupremeBayesianAI = {
+  // Global Base Configuration
+  baseLearningRate: 0.25, 
+  history: [],
+  lastPredictions: null,
+  lastContextType: 'NEUTRAL',
+    // Context-Locked Weight Repositories
+  contextWeights: {
+    STREAK:  { appA: 1.0, appB: 1.0, lookAhead: 1.0, observer: 1.0, metaAI: 1.0, beb: 1.0, sr: 1.0, cp: 1.0 },
+    CHOP:    { appA: 1.0, appB: 1.0, lookAhead: 1.0, observer: 1.0, metaAI: 1.0, beb: 1.0, sr: 1.0, cp: 1.0 },
+    NEUTRAL: { appA: 1.0, appB: 1.0, lookAhead: 1.0, observer: 1.0, metaAI: 1.0, beb: 1.0, sr: 1.0, cp: 1.0 }
+  },
+
+  // Telemetry arrays
+  rollingVariance: { appA: 0.5, appB: 0.5, lookAhead: 0.5, observer: 0.5, metaAI: 0.5, beb: 0.5, sr: 0.5, cp: 0.5 },
+  markovMatrixOrder2: {},
+  markovMatrixOrder3: {},
+
+  // New: Dual-Band Structural Memory
+  emaFast: 0.5, // High Alpha (Aggressive reaction)
+  emaSlow: 0.5, // Low Alpha (Macro memory)
+
+  // Apex Optimization: MACD-Style Structural Blending
+  getContextMetrics(isSwitch = null) {
+    // If a new hand just resolved, update the continuous structural momentum
+    if (isSwitch !== null) {
+      const switchVal = isSwitch ? 1.0 : 0.0;
+      this.emaFast = (this.emaFast * 0.6) + (switchVal * 0.4); 
+      this.emaSlow = (this.emaSlow * 0.85) + (switchVal * 0.15);
+    }
+
+    // Blend the two bands. 65% bias to immediate action, 35% bias to macro history
+    const structuralIndex = (this.emaFast * 0.65) + (this.emaSlow * 0.35);
+
+    let streakW = 0, chopW = 0, neutralW = 0;
+
+    // Fractional gating based on the blended structural index
+    if (structuralIndex > 0.55) {
+      chopW = Math.min(1.0, (structuralIndex - 0.50) * 2.5);
+      neutralW = 1.0 - chopW;
+    } else if (structuralIndex < 0.45) {
+      streakW = Math.min(1.0, (0.50 - structuralIndex) * 2.5);
+      neutralW = 1.0 - streakW;
+    } else {
+      neutralW = 1.0;
+    }
+
+    let dominant = 'NEUTRAL';
+    if (streakW > chopW && streakW > neutralW) dominant = 'STREAK';
+    if (chopW > streakW && chopW > neutralW) dominant = 'CHOP';
+
+    return { streakW, chopW, neutralW, dominant, structuralIndex };
+  },
+
+  evaluateOutcome(actualOutcome) {
+    if (actualOutcome !== 'P' && actualOutcome !== 'B') return;
+
+    const len = this.history.length;
+    let isSwitch = null;
+    if (len >= 1) {
+      isSwitch = (this.history[len - 1] !== actualOutcome);
+    }
+
+    // Update the Dual-Band EMA with the new structural data
+    const ctxMetrics = this.getContextMetrics(isSwitch);
+    this.lastContextType = ctxMetrics.dominant;
+
+    // A. Track gradients BEFORE updating history to match prediction state
+    if (this.lastPredictions) {
+      for (const engine in this.rollingVariance) {
+        const pred = this.lastPredictions[engine];
+        if (pred === 'P' || pred === 'B') {
+          const isCorrect = (pred === actualOutcome) ? 1.0 : 0.0;
+          const errorGradient = isCorrect - 0.5; 
+          
+          this.rollingVariance[engine] = (this.rollingVariance[engine] * 0.8) + (Math.abs(errorGradient) * 0.2);
+          const dynamicLR = this.baseLearningRate * (1.0 - this.rollingVariance[engine]);
+
+          ['STREAK', 'CHOP', 'NEUTRAL'].forEach(matrixKey => {
+            let inf = 0;
+            if (matrixKey === 'STREAK') inf = ctxMetrics.streakW;
+            if (matrixKey === 'CHOP') inf = ctxMetrics.chopW;
+            if (matrixKey === 'NEUTRAL') inf = ctxMetrics.neutralW;
+
+            if (inf > 0.02) {
+              this.contextWeights[matrixKey][engine] += dynamicLR * errorGradient * inf;
+              this.contextWeights[matrixKey][engine] = Math.max(0.15, Math.min(this.contextWeights[matrixKey][engine], 2.75));
+            }
+          });
+        }
+      }
+    }
+
+    // B. Safely append to history sequence array
+    this.history.push(actualOutcome);
+    const newLen = this.history.length;
+
+    // C. Update Multi-Order Markov Deep Chains
+    if (newLen >= 3) {
+      const state2 = this.history.slice(-3, -1).join('');
+      if (!this.markovMatrixOrder2[state2]) this.markovMatrixOrder2[state2] = { P: 0, B: 0 };
+      this.markovMatrixOrder2[state2][actualOutcome]++;
+    }
+    if (newLen >= 4) {
+      const state3 = this.history.slice(-4, -1).join('');
+      if (!this.markovMatrixOrder3[state3]) this.markovMatrixOrder3[state3] = { P: 0, B: 0 };
+      this.markovMatrixOrder3[state3][actualOutcome]++;
+    }
+  },
+
+  predict(currentPreds, extendedMeta = {}) {
+    this.lastPredictions = currentPreds;
+    const ctxMetrics = this.getContextMetrics(); // Read-only evaluation
+    this.lastContextType = ctxMetrics.dominant;
+    const activeWeights = { appA: 0, appB: 0, lookAhead: 0, observer: 0, metaAI: 0, beb: 0, sr: 0, cp: 0 };
+    for (const engine in activeWeights) {
+      activeWeights[engine] = 
+        (this.contextWeights.STREAK[engine] * ctxMetrics.streakW) +
+        (this.contextWeights.CHOP[engine] * ctxMetrics.chopW) +
+        (this.contextWeights.NEUTRAL[engine] * ctxMetrics.neutralW);
+    }
+
+    let scoreP = 0;
+    let scoreB = 0;
+
+    for (const engine in activeWeights) {
+      const vote = currentPreds[engine];
+      if (vote === 'P') scoreP += activeWeights[engine];
+      if (vote === 'B') scoreB += activeWeights[engine];
+    }
+
+    // Markov Adaptive Overlays
+    const momentumStr = Math.round(ctxMetrics.structuralIndex * 100);
+    let structuralBiasText = `Ctx: ${ctxMetrics.dominant} [Idx: ${momentumStr}]`;
+    const len = this.history.length;
+    let markovP = 0, markovB = 0, totalMarkovWeight = 0;
+
+    if (len >= 3) {
+      const state3 = this.history.slice(-3).join('');
+      const mData3 = this.markovMatrixOrder3[state3];
+      if (mData3) {
+        const total = mData3.P + mData3.B;
+        if (total >= 1) {
+          markovP += (mData3.P / total) * 1.8;
+          markovB += (mData3.B / total) * 1.8;
+          totalMarkovWeight += 1.8;
+          structuralBiasText += ` +O3`;
+        }
+      }
+    }
+
+    if (len >= 2) {
+      const state2 = this.history.slice(-2).join('');
+      const mData2 = this.markovMatrixOrder2[state2];
+      if (mData2) {
+        const total = mData2.P + mData2.B;
+        if (total >= 1) {
+          const order2Weight = totalMarkovWeight > 0 ? 0.7 : 1.4;
+          markovP += (mData2.P / total) * order2Weight;
+          markovB += (mData2.B / total) * order2Weight;
+          totalMarkovWeight += order2Weight;
+          if (order2Weight === 1.4) structuralBiasText += ` +O2`;
+        }
+      }
+    }
+
+    if (totalMarkovWeight > 0) {
+      scoreP += markovP;
+      scoreB += markovB;
+    }
+
+    // Stable Softmax Math
+    const maxScore = Math.max(scoreP, scoreB);
+    const expP = Math.exp(scoreP - maxScore);
+    const expB = Math.exp(scoreB - maxScore);
+    const softmaxP = expP / (expP + expB);
+    const softmaxB = expB / (expP + expB);
+
+    let entropy = 0;
+    if (softmaxP > 0 && softmaxB > 0) {
+      entropy = -(softmaxP * Math.log2(softmaxP) + softmaxB * Math.log2(softmaxB));
+    }
+
+    const appBVol = extendedMeta.bVol ?? 0.30;
+    const adaptiveThreshold = Math.max(0.65, Math.min(0.77, 0.69 + (appBVol * 0.1)));
+
+    let decision = 'WAIT';
+    let confidence = 0;
+    let diagnostics = `${structuralBiasText} | E: ${entropy.toFixed(2)}`;
+
+    if (scoreP === 0 && scoreB === 0) {
+      decision = 'WAIT';
+      diagnostics = 'No Signal Balance';
+    } else if (entropy > 0.88) { 
+      decision = 'WAIT';
+      diagnostics = `Conflict Drop [E: ${entropy.toFixed(2)}]`;
+    } else if (softmaxP > adaptiveThreshold) {
+      decision = 'P';
+      confidence = softmaxP * 100;
+    } else if (softmaxB > adaptiveThreshold) {
+      decision = 'B';
+      confidence = softmaxB * 100;
+    } else {
+      decision = 'WAIT';
+      diagnostics = `Building Edge (Req: ${Math.round(adaptiveThreshold * 100)}%)`;
+    }
+
+    return { decision, confidence, diagnostics, activeWeights };
+  },
+
+  renderUI(result) {
+    const mainEl = document.getElementById('supremeVerdictMain');
+    const subEl = document.getElementById('supremeVerdictSub');
+    if (!mainEl) return;
+
+    if (result.decision === 'P') {
+      mainEl.innerHTML = `SUPREME VERDICT: <span style="color:var(--p); text-shadow: 0 0 10px rgba(59,130,246,0.6);">PLAYER</span> [${result.confidence.toFixed(1)}%]`;
+    } else if (result.decision === 'B') {
+      mainEl.innerHTML = `SUPREME VERDICT: <span style="color:var(--b); text-shadow: 0 0 10px rgba(239,68,68,0.6);">BANKER</span> [${result.confidence.toFixed(1)}%]`;
+    } else {
+      mainEl.innerHTML = `SUPREME VERDICT: <span style="color:var(--muted);">WAIT (STABLE ENTRY)</span>`;
+    }
+    subEl.textContent = `${result.diagnostics}`;
+
+    const w = result.activeWeights;
+    const setWeightText = (id, label, val) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = `${label}: ${val.toFixed(2)}`;
+    };
+    setWeightText('weightAppA', 'AppA', w.appA);
+    setWeightText('weightAppB', 'AppB', w.appB);
+    setWeightText('weightLookAhead', 'LookAhead', w.lookAhead);
+    setWeightText('weightObserver', 'Observer', w.observer);
+    setWeightText('weightMetaAI', 'MetaAI', w.metaAI);
+    setWeightText('weightBeb', 'BEB', w.beb);
+    setWeightText('weightSr', 'SR', w.sr);
+    setWeightText('weightCp', 'CP', w.cp);
+  },
+
+  reset() {
+    this.contextWeights = {
+      STREAK:  { appA: 1.0, appB: 1.0, lookAhead: 1.0, observer: 1.0, metaAI: 1.0, beb: 1.0, sr: 1.0, cp: 1.0 },
+      CHOP:    { appA: 1.0, appB: 1.0, lookAhead: 1.0, observer: 1.0, metaAI: 1.0, beb: 1.0, sr: 1.0, cp: 1.0 },
+      NEUTRAL: { appA: 1.0, appB: 1.0, lookAhead: 1.0, observer: 1.0, metaAI: 1.0, beb: 1.0, sr: 1.0, cp: 1.0 }
+    };
+    this.rollingVariance = { appA: 0.5, appB: 0.5, lookAhead: 0.5, observer: 0.5, metaAI: 0.5, beb: 0.5, sr: 0.5, cp: 0.5 };
+    this.markovMatrixOrder2 = {};
+    this.markovMatrixOrder3 = {};
+    this.history = [];
+    this.lastPredictions = null;
+    this.lastContextType = 'NEUTRAL';
+    this.emaFast = 0.5;
+    this.emaSlow = 0.5;
+    this.renderUI({ decision: 'WAIT', confidence: 0, diagnostics: 'All Weight-Matrices Cleared', activeWeights: this.contextWeights.NEUTRAL });
+  },
+
+  undoLast() {
+    if (this.history.length > 0) this.history.pop();
+    // Note: EMA is slightly complex to rewind perfectly without deep caching,
+    // pulling toward neutral 0.5 is the safest mathematical reset on a typo.
+    this.emaFast = (this.emaFast + 0.5) / 2;
+    this.emaSlow = (this.emaSlow + 0.5) / 2;
+  }
+};
+
+    // =========================================================
+    // OBSERVER MASTER AI (Self-Learning Layer)
+    // =========================================================
+    const ObserverMasterAI = {
+      memory: {
+        meta: { hits: 0, total: 0, history: [], lastPred: null, winRate: 0 },
+        lookAhead: { hits: 0, total: 0, history: [], lastPred: null, winRate: 0 },
+        derived: { hits: 0, total: 0, history: [], lastPred: null, winRate: 0 }
+      },
+      
+      capturePredictions(snapB, guarded, lookAheadVerdict) {
+        // 1. Meta AI
+        this.memory.meta.lastPred = guarded?.decision || null;
+        
+        // 2. Look-Ahead
+        this.memory.lookAhead.lastPred = lookAheadVerdict || null;
+        
+        // 3. Derived Consensus
+        let derivedPred = snapB?.meta?.consensus || null;
+        if (!derivedPred || derivedPred === '--' || derivedPred === 'NEUTRAL') {
+           // Fallback: Strongest matching derived road
+           let highestPct = -1;
+           let bestRoad = null;
+           ['beb', 'sr', 'cp'].forEach(key => {
+               let pct = parsePct(snapB?.pct?.[key]);
+               if (pct !== null && pct > highestPct) {
+                   highestPct = pct;
+                   bestRoad = snapB?.meta?.[key];
+               }
+           });
+           if (bestRoad && highestPct >= 50) derivedPred = bestRoad;
+        }
+        this.memory.derived.lastPred = normalizeRoadSide(derivedPred);
+      },
+      
+      evaluateOutcome(actualOutcome) {
+        if (actualOutcome !== 'P' && actualOutcome !== 'B') return;
+        
+        const updateMem = (sys, actual) => {
+          if (sys.lastPred === 'P' || sys.lastPred === 'B') {
+            const isHit = sys.lastPred === actual ? 1 : 0;
+            sys.history.push(isHit);
+            if (sys.history.length > 10) sys.history.shift(); // 10-hand rolling window
+            sys.hits = sys.history.reduce((a, b) => a + b, 0);
+            sys.total = sys.history.length;
+            sys.winRate = sys.total > 0 ? sys.hits / sys.total : 0;
+          }
+        };
+        
+        updateMem(this.memory.meta, actualOutcome);
+        updateMem(this.memory.lookAhead, actualOutcome);
+        updateMem(this.memory.derived, actualOutcome);
+      },
+      
+      getUltimateVerdict() {
+        let bestSysKey = null;
+        let maxWR = -1;
+        let votes = { P: 0, B: 0 };
+        
+        ['meta', 'lookAhead', 'derived'].forEach(key => {
+          const sys = this.memory[key];
+          if (sys.total >= 3 && sys.lastPred && (sys.lastPred === 'P' || sys.lastPred === 'B')) {
+            if (sys.winRate > maxWR) {
+              maxWR = sys.winRate;
+              bestSysKey = key;
+            }
+            votes[sys.lastPred]++;
+          }
+        });
+        
+        if (bestSysKey && maxWR >= 0.5) {
+          const sysNames = { meta: 'Meta AI', lookAhead: 'Look-Ahead', derived: 'Derived Roads' };
+          return {
+            decision: this.memory[bestSysKey].lastPred,
+            wr: maxWR,
+            reasoning: `Siding with ${sysNames[bestSysKey]} (${Math.round(maxWR * 100)}% WR)`,
+            isFallback: false
+          };
+        }
+        
+        // Democratic Fallback
+        if (votes.P > votes.B) return { decision: 'P', wr: null, reasoning: 'Democratic Consensus (P)', isFallback: true };
+        if (votes.B > votes.P) return { decision: 'B', wr: null, reasoning: 'Democratic Consensus (B)', isFallback: true };
+        
+        return { decision: 'WAIT', wr: null, reasoning: 'Insufficient Data or Tie', isFallback: true };
+      },
+
+      reset() {
+          this.memory.meta = { hits: 0, total: 0, history: [], lastPred: null, winRate: 0 };
+          this.memory.lookAhead = { hits: 0, total: 0, history: [], lastPred: null, winRate: 0 };
+          this.memory.derived = { hits: 0, total: 0, history: [], lastPred: null, winRate: 0 };
+      },
+      
+      undoLast() {
+          ['meta', 'lookAhead', 'derived'].forEach(key => {
+              const sys = this.memory[key];
+              if (sys.history.length > 0) {
+                  sys.history.pop();
+                  sys.hits = sys.history.reduce((a, b) => a + b, 0);
+                  sys.total = sys.history.length;
+                  sys.winRate = sys.total > 0 ? sys.hits / sys.total : 0;
+              }
+          });
+      }
+    };
+
+    // =========================================================
+    // META-EXPERT REGIME TRACKER
+    // After every hand it scores Supreme Bayesian and the active
+    // Syndicate B2B consensus, detects which engine is currently
+    // dominant (regime), and outputs a next-bet prediction by
+    // following the hot engine.  Regime switches are flagged.
+    // =========================================================
+    const RegimeSwitchTracker = {
+      cfg: {
+        window: 12,          // rolling window (adjustable: 8 / 12 / 16)
+        minSupreme:   6,     // min scored hands before Supreme is trusted
+        minSyndicate: 4,     // min scored hands before Syndicate is trusted
+        decayFactor:  0.88,  // exponential recency weight (newest = 1.0)
+        lockHands:    5,     // hands to stay locked after a regime switch
+        splitThreshold: 0.06 // |wrA − wrB| < this → SPLIT (too close)
+      },
+
+      experts: {
+        supreme:   { history: [], lastPred: null, wwr: 0, rawWr: 0, predCount: 0 },
+        syndicate: { history: [], lastPred: null, wwr: 0, rawWr: 0, predCount: 0 }
+      },
+
+      dominant:         null,  // 'supreme' | 'syndicate' | null
+      dominantLockCount: 0,    // hands remaining in regime lock
+      lastDominant:     null,
+      regimeAge:        0,
+      switchCount:      0,
+      justSwitched:     false,
+
+      // Call after Supreme Bayesian produces a new prediction
+      captureSupreme(decision) {
+        const exp = this.experts.supreme;
+        exp.lastPred = (decision === 'P' || decision === 'B') ? decision : null;
+        if (exp.lastPred) {
+          exp.history.push({ pred: exp.lastPred, actual: null });
+          if (exp.history.length > this.cfg.window + 8) exp.history.shift();
+        }
+      },
+
+      // Call after Syndicate alert updates
+      captureSyndicate(alert) {
+        const exp = this.experts.syndicate;
+        if (alert && alert.active && !alert.hasConflict && alert.consensusSide) {
+          exp.lastPred = alert.consensusSide;
+          exp.history.push({ pred: exp.lastPred, actual: null });
+          if (exp.history.length > this.cfg.window + 8) exp.history.shift();
+        } else {
+          exp.lastPred = null;
+          // No prediction this hand — no slot added
+        }
+      },
+
+      // Call after each B/P outcome resolves — scores pending predictions
+      evaluateOutcome(actual) {
+        if (actual !== 'P' && actual !== 'B') return;
+        ['supreme', 'syndicate'].forEach(key => {
+          const hist = this.experts[key].history;
+          for (let i = hist.length - 1; i >= 0; i--) {
+            if (hist[i].actual === null) { hist[i].actual = actual; break; }
+          }
+        });
+        this._recompute();
+        this._updateDominant();
+      },
+
+      _recompute() {
+        ['supreme', 'syndicate'].forEach(key => {
+          const exp = this.experts[key];
+          const scored = exp.history.filter(h => h.actual !== null).slice(-this.cfg.window);
+          exp.predCount = scored.length;
+          if (!scored.length) { exp.wwr = 0; exp.rawWr = 0; return; }
+          let wH = 0, wT = 0, rH = 0;
+          scored.forEach((h, i) => {
+            const age = scored.length - 1 - i;
+            const w   = Math.pow(this.cfg.decayFactor, age);
+            const hit = h.pred === h.actual ? 1 : 0;
+            wH += hit * w; wT += w; rH += hit;
+          });
+          exp.wwr   = wT > 0 ? wH / wT : 0;
+          exp.rawWr = scored.length > 0 ? rH / scored.length : 0;
+        });
+      },
+
+      _updateDominant() {
+        const sup = this.experts.supreme;
+        const syn = this.experts.syndicate;
+
+        // Honour lock period — don't switch during stability window
+        if (this.dominantLockCount > 0) {
+          this.dominantLockCount--;
+          this.regimeAge++;
+          this.justSwitched = false;
+          return;
+        }
+
+        const supReady = sup.predCount >= this.cfg.minSupreme;
+        const synReady = syn.predCount >= this.cfg.minSyndicate;
+        let newDom = null;
+
+        if (!supReady && !synReady) {
+          newDom = null;
+        } else if (supReady && !synReady) {
+          newDom = 'supreme';
+        } else if (!supReady && synReady) {
+          newDom = 'syndicate';
+        } else {
+          const gap = Math.abs(sup.wwr - syn.wwr);
+          newDom = gap < this.cfg.splitThreshold
+            ? (this.dominant || 'supreme')   // keep current to avoid micro-flip
+            : (sup.wwr >= syn.wwr ? 'supreme' : 'syndicate');
+        }
+
+        if (newDom !== this.dominant) {
+          this.lastDominant = this.dominant;
+          this.dominant     = newDom;
+          this.regimeAge    = 0;
+          this.justSwitched = this.lastDominant !== null;
+          this.dominantLockCount = this.cfg.lockHands;
+          if (this.lastDominant !== null) this.switchCount++;
+        } else {
+          this.regimeAge++;
+          this.justSwitched = false;
+        }
+      },
+
+      getVerdict() {
+        const sup = this.experts.supreme;
+        const syn = this.experts.syndicate;
+        const dom = this.dominant;
+        const base = {
+          supremeWr: sup.rawWr, supremeWwr: sup.wwr, supremeCount: sup.predCount,
+          syndicateWr: syn.rawWr, syndicateWwr: syn.wwr, syndicateCount: syn.predCount,
+          regimeAge: this.regimeAge, switchCount: this.switchCount,
+          isLocked: this.dominantLockCount > 0, lockRemain: this.dominantLockCount,
+          justSwitched: this.justSwitched, lastDominant: this.lastDominant
+        };
+        if (!dom) return { ...base, status: 'WARMING_UP', decision: 'WAIT', expert: null, confidence: 'NONE', isSplit: false, gap: 0, bothAgree: false };
+
+        const domExp = this.experts[dom];
+        const altExp = this.experts[dom === 'supreme' ? 'syndicate' : 'supreme'];
+        const gap    = Math.abs(domExp.wwr - altExp.wwr);
+        const isSplit= gap < this.cfg.splitThreshold && altExp.predCount >= this.cfg.minSyndicate;
+
+        let confidence = 'LOW';
+        if (gap >= 0.15) confidence = 'HIGH';
+        else if (gap >= 0.08) confidence = 'MED';
+
+        const supLast = sup.lastPred;
+        const synLast = syn.lastPred;
+        const bothAgree = !!(supLast && synLast && supLast === synLast
+                             && sup.predCount >= 4 && syn.predCount >= 4);
+
+        return {
+          ...base,
+          status: isSplit ? 'SPLIT' : 'TRACKING',
+          decision: domExp.lastPred,
+          expert: dom,
+          confidence, isSplit, gap, bothAgree,
+          bothAgreeSide: bothAgree ? supLast : null
+        };
+      },
+
+      setWindow(n) {
+        this.cfg.window = n;
+        this._recompute();
+        this.dominantLockCount = 0;
+        this._updateDominant();
+      },
+
+      undoLast() {
+        ['supreme', 'syndicate'].forEach(key => {
+          const h = this.experts[key].history;
+          if (h.length) h.pop();
+        });
+        this._recompute();
+        this.dominantLockCount = 0;
+        this._updateDominant();
+      },
+
+      reset() {
+        this.experts.supreme   = { history: [], lastPred: null, wwr: 0, rawWr: 0, predCount: 0 };
+        this.experts.syndicate = { history: [], lastPred: null, wwr: 0, rawWr: 0, predCount: 0 };
+        this.dominant = null; this.dominantLockCount = 0; this.lastDominant = null;
+        this.regimeAge = 0; this.switchCount = 0; this.justSwitched = false;
+      }
+    };
+
+    // =========================================================
+    // RENDER SYNDICATE B2B ALERT
+    // Reads SyndicateMirror state and cross-checks Supreme verdict.
+    // Called after every Supreme prediction update.
+    // =========================================================
+    function renderSyndicateAlert(supremeResult) {
+      const alert = SyndicateMirror.getB2BAlert();
+      const mainEl = document.getElementById('syndicateAlertMain');
+      const subEl = document.getElementById('syndicateAlertSub');
+      const matchBadge = document.getElementById('syndicateMatchBadge');
+      const b2bBadge = document.getElementById('syndicateB2BBadge');
+      const playerBadge = document.getElementById('syndicatePlayerBadge');
+      const panel = document.getElementById('syndicateAlertPanel');
+      if (!mainEl || !panel) return;
+
+      b2bBadge.textContent = `max B2B: ${alert.maxMiss}`;
+
+      if (!alert.active) {
+        // --- STANDBY ---
+        panel.className = 'panel syndicate-panel';
+        panel.style.borderColor = 'rgba(0,229,255,0.25)';
+        panel.style.boxShadow = 'none';
+        panel.style.background = 'linear-gradient(180deg,rgba(0,229,255,0.04),rgba(15,17,23,1))';
+        mainEl.innerHTML = `<span style="color:var(--muted);">STANDBY — No player has reached B2B ≥5 threshold</span>`;
+        subEl.textContent = `Monitoring 11 players. Current max B2B miss: ${alert.maxMiss}. Alert activates when any player hits 5+ consecutive back-to-back misses.`;
+        matchBadge.textContent = 'match: standby';
+        matchBadge.className = 'badge';
+        playerBadge.textContent = `0 players qualified`;
+        playerBadge.className = 'badge';
+        return;
+      }
+
+      // At least one player qualifies (B2B ≥5)
+      playerBadge.textContent = `${alert.qualifyingCount} player${alert.qualifyingCount > 1 ? 's' : ''} ≥5 B2B`;
+      playerBadge.className = 'badge warn';
+
+      if (alert.hasConflict) {
+        // --- CONFLICT: highest B2B players disagree on side ---
+        panel.className = 'panel syndicate-panel syn-conflict';
+        panel.style.borderColor = '';
+        panel.style.boxShadow = '';
+        panel.style.background = '';
+        const fmtStrk = s => s > 0 ? `<span style="color:var(--p);">STRK:+${s}</span>` : s < 0 ? `<span style="color:var(--b);">STRK:${s}</span>` : `<span style="color:var(--muted);">STRK:0</span>`;
+        const playerIds = alert.highestPlayers.map(p => {
+          const sideClr2 = p.nextBet === 'P' ? 'var(--p)' : 'var(--b)';
+          return `#${p.id} <span style="color:${sideClr2};">${p.nextBet === 'P' ? 'PLY' : 'BNK'}</span> B2B:${p.b2bMisses} ${fmtStrk(p.currentStreak)}`;
+        }).join(' &nbsp;|&nbsp; ');
+        mainEl.innerHTML = `<span style="color:var(--gold);">ACTIVE — CONFLICT</span> — ${playerIds} &nbsp;<span style="color:var(--muted); font-size:12px;">(mixed sides — no cross-check)</span>`;
+        subEl.textContent = `The highest-B2B players disagree on the next bet side. No cross-check possible. Supreme Bayesian runs as normal.`;
+        matchBadge.textContent = 'conflict — no cross-check';
+        matchBadge.className = 'badge warn';
+        return;
+      }
+
+      // --- CONSENSUS: all highest-B2B players agree on one side ---
+      const side = alert.consensusSide;
+      const sideLabel = side === 'P' ? 'PLAYER' : 'BANKER';
+      const sideClr = side === 'P' ? 'var(--p)' : 'var(--b)';
+      const fmtStrk = s => s > 0 ? `<span style="color:var(--p);">STRK:+${s}</span>` : s < 0 ? `<span style="color:var(--b);">STRK:${s}</span>` : `<span style="color:var(--muted);">STRK:0</span>`;
+      const playerIds = alert.highestPlayers.map(p => `#${p.id} B2B:${p.b2bMisses} ${fmtStrk(p.currentStreak)}`).join(' &nbsp;|&nbsp; ');
+      const supremeDecision = supremeResult?.decision || 'WAIT';
+      const isMatch = supremeDecision !== 'WAIT' && supremeDecision === side;
+
+      panel.style.borderColor = '';
+      panel.style.boxShadow = '';
+      panel.style.background = '';
+
+      if (isMatch) {
+        // --- MATCH ---
+        panel.className = 'panel syndicate-panel syn-match';
+        mainEl.innerHTML = `⚡ <span style="color:var(--gold); font-weight:900;">SUPREME MATCH</span> — Player${alert.highestPlayers.length > 1 ? 's' : ''} ${playerIds} → <span style="color:${sideClr};">${sideLabel}</span> <span style="color:var(--muted); font-size:13px;">aligns with Supreme Bayesian</span>`;
+        subEl.textContent = `Shadow Syndicate B2B alert (${alert.qualifyingCount} player${alert.qualifyingCount > 1 ? 's' : ''} with ≥5 misses) predicts ${sideLabel} — matching Supreme Bayesian's verdict. This is a reinforced confidence signal.`;
+        matchBadge.textContent = '✓ MATCHING';
+        matchBadge.className = 'badge ok';
+      } else {
+        // --- NO MATCH ---
+        panel.className = 'panel syndicate-panel syn-active';
+        const supremeLabel = supremeDecision === 'P' ? 'PLAYER' : (supremeDecision === 'B' ? 'BANKER' : 'WAIT');
+        const supremeClr = supremeDecision === 'P' ? 'var(--p)' : (supremeDecision === 'B' ? 'var(--b)' : 'var(--muted)');
+        mainEl.innerHTML = `<span style="color:var(--b);">ACTIVE — NO MATCH</span> — Player${alert.highestPlayers.length > 1 ? 's' : ''} ${playerIds} → <span style="color:${sideClr};">${sideLabel}</span> &nbsp;|&nbsp; Supreme: <span style="color:${supremeClr};">${supremeLabel}</span>`;
+        subEl.textContent = `B2B alert is active but does not match Supreme Bayesian's current prediction. Supreme continues its normal calculation without modification.`;
+        matchBadge.textContent = '✗ NO MATCH';
+        matchBadge.className = 'badge bad';
+      }
+    }
+
+    // =========================================================
+    // RENDER META-EXPERT REGIME TRACKER
+    // =========================================================
+    function renderRegimeTracker() {
+      const panel     = document.getElementById('regimeTrackerPanel');
+      const mainEl    = document.getElementById('regimeTrackerMain');
+      const subEl     = document.getElementById('regimeTrackerSub');
+      const expertBdg = document.getElementById('regimeExpertBadge');
+      const confBdg   = document.getElementById('regimeConfBadge');
+      const ageBdg    = document.getElementById('regimeAgeBadge');
+      const swBdg     = document.getElementById('regimeSwitchBadge');
+      const lockBdg   = document.getElementById('regimeLockBadge');
+      if (!panel || !mainEl) return;
+
+      const v = RegimeSwitchTracker.getVerdict();
+      const cfg = RegimeSwitchTracker.cfg;
+
+      // ── Score bars ─────────────────────────────────────────
+      const supPct = Math.round((v.supremeWr  || 0) * 100);
+      const synPct = Math.round((v.syndicateWr || 0) * 100);
+      const supWwr = Math.round((v.supremeWwr  || 0) * 100);
+      const synWwr = Math.round((v.syndicateWwr || 0) * 100);
+
+      const supWrEl  = document.getElementById('regimeSupremeWr');
+      const synWrEl  = document.getElementById('regimeSyndicateWr');
+      const supCntEl = document.getElementById('regimeSupremeCount');
+      const synCntEl = document.getElementById('regimeSyndicateCount');
+      const supBar   = document.getElementById('regimeSupremeBar');
+      const synBar   = document.getElementById('regimeSyndicateBar');
+      const supBox   = document.getElementById('regimeSupremeBox');
+      const synBox   = document.getElementById('regimeSyndicateBox');
+
+      if (supWrEl) {
+        supWrEl.textContent = v.supremeCount >= 2 ? `${supPct}%` : '—';
+        supWrEl.style.color = v.expert === 'supreme' ? '#b000ff' : 'var(--muted)';
+      }
+      if (synWrEl) {
+        synWrEl.textContent = v.syndicateCount >= 2 ? `${synPct}%` : '—';
+        synWrEl.style.color = v.expert === 'syndicate' ? '#00e5ff' : 'var(--muted)';
+      }
+      if (supCntEl) supCntEl.textContent = `${v.supremeCount} scored · w${supWwr}%`;
+      if (synCntEl) synCntEl.textContent = `${v.syndicateCount} scored · w${synWwr}%`;
+      if (supBar)   supBar.style.width  = `${supPct}%`;
+      if (synBar)   synBar.style.width  = `${synPct}%`;
+
+      // Highlight active box
+      if (supBox) supBox.classList.toggle('active-expert', v.expert === 'supreme');
+      if (synBox) synBox.classList.toggle('active-expert', v.expert === 'syndicate');
+
+      // ── Badges ─────────────────────────────────────────────
+      swBdg.textContent = `switches: ${v.switchCount}`;
+      ageBdg.textContent = v.regimeAge > 0 ? `regime: ${v.regimeAge}h` : 'new regime';
+      if (lockBdg) {
+        lockBdg.style.display = v.isLocked ? 'inline' : 'none';
+        lockBdg.textContent   = v.isLocked ? `🔒 ${v.lockRemain}h lock` : '';
+      }
+
+      // ── Panel class ────────────────────────────────────────
+      panel.classList.remove('regime-supreme','regime-syndicate','regime-split','regime-both','regime-just-switched');
+
+      if (v.status === 'WARMING_UP') {
+        mainEl.innerHTML = `<span style="color:var(--muted);">WARMING UP</span>`;
+        subEl.textContent = `Supreme: ${v.supremeCount}/${cfg.minSupreme} hands · Syndicate: ${v.syndicateCount}/${cfg.minSyndicate} hands · waiting for warm-up.`;
+        expertBdg.textContent = 'warming up'; expertBdg.className = 'badge';
+        expertBdg.style.color = ''; expertBdg.style.borderColor = '';
+        confBdg.textContent = 'conf: —'; confBdg.className = 'badge';
+        return;
+      }
+
+      // Both agree — highest-confidence state
+      if (v.bothAgree && v.bothAgreeSide) {
+        const bSide  = v.bothAgreeSide;
+        const bClr   = bSide === 'P' ? 'var(--p)' : 'var(--b)';
+        const bLabel = bSide === 'P' ? 'PLAYER' : 'BANKER';
+        panel.classList.add('regime-both');
+        if (v.justSwitched) panel.classList.add('regime-just-switched');
+        mainEl.innerHTML = `✦ <span style="color:#10b981; font-weight:900;">BOTH AGREE</span> → <span style="color:${bClr}; font-weight:900;">${bLabel}</span>`;
+        subEl.textContent = `Supreme Bayesian & Syndicate B2B both predict ${bLabel}. Highest-confidence signal available.`;
+        expertBdg.textContent = 'DUAL CONFIRM'; expertBdg.className = 'badge ok';
+        expertBdg.style.color = '#10b981'; expertBdg.style.borderColor = 'rgba(16,185,129,0.45)';
+        confBdg.textContent = 'conf: MAX'; confBdg.className = 'badge ok'; confBdg.style.color = '#10b981';
+        return;
+      }
+
+      const domColor = v.expert === 'supreme' ? '#b000ff' : '#00e5ff';
+      const domLabel = v.expert === 'supreme' ? 'SUPREME BAYESIAN' : 'SYNDICATE B2B';
+      const domWr    = v.expert === 'supreme' ? v.supremeWr : v.syndicateWr;
+      const domCount = v.expert === 'supreme' ? v.supremeCount : v.syndicateCount;
+
+      if (v.isSplit) {
+        panel.classList.add('regime-split');
+        const dec   = v.decision;
+        const dClr  = dec === 'P' ? 'var(--p)' : (dec === 'B' ? 'var(--b)' : 'var(--muted)');
+        const dLbl  = dec === 'P' ? 'PLAYER' : (dec === 'B' ? 'BANKER' : 'WAIT');
+        mainEl.innerHTML = `<span style="color:var(--gold);">SPLIT</span> — <span style="color:${domColor};">${domLabel}</span> → <span style="color:${dClr};">${dLbl}</span>`;
+        subEl.textContent = `Both engines within ${Math.round((v.gap || 0) * 100)}% of each other — too close to confirm dominance. Following ${domLabel} as tiebreaker.`;
+        expertBdg.textContent = `tiebreak: ${v.expert === 'supreme' ? 'SUPREME' : 'SYNDICATE'}`;
+        expertBdg.className = 'badge warn'; expertBdg.style.color = ''; expertBdg.style.borderColor = '';
+        confBdg.textContent = 'conf: SPLIT'; confBdg.className = 'badge warn'; confBdg.style.color = '';
+        return;
+      }
+
+      // Normal regime tracking
+      panel.classList.add(v.expert === 'supreme' ? 'regime-supreme' : 'regime-syndicate');
+      if (v.justSwitched) panel.classList.add('regime-just-switched');
+
+      const decision = v.decision;
+      const sideClr  = decision === 'P' ? 'var(--p)' : (decision === 'B' ? 'var(--b)' : 'var(--muted)');
+      const sideLabel= decision === 'P' ? 'PLAYER'   : (decision === 'B' ? 'BANKER'   : 'WAIT');
+
+      if (v.justSwitched) {
+        const fromLabel = v.lastDominant === 'supreme' ? 'SUPREME' : 'SYNDICATE';
+        mainEl.innerHTML = `🔄 <span style="color:var(--gold);">REGIME SWITCH</span> — <span style="color:${domColor};">${domLabel}</span> → <span style="color:${sideClr}; font-weight:900;">${sideLabel}</span>`;
+        subEl.textContent = `Engine dominance shifted from ${fromLabel} → ${domLabel}. Lock active for ${cfg.lockHands} hands to prevent micro-flipping.`;
+      } else if (!decision || decision === 'WAIT') {
+        mainEl.innerHTML = `<span style="color:${domColor};">${domLabel}</span> <span style="color:var(--muted);">— no signal yet</span>`;
+        subEl.textContent = `${domLabel} is dominant but has no prediction for this hand.`;
+      } else {
+        mainEl.innerHTML = `<span style="color:${domColor};">${domLabel}</span> → <span style="color:${sideClr}; font-weight:900;">${sideLabel}</span>`;
+        const wrPct = Math.round(domWr * 100);
+        subEl.textContent = `Following ${domLabel} (${wrPct}% WR · ${domCount} scored · window ${cfg.window}). Regime age: ${v.regimeAge} hands.`;
+      }
+
+      expertBdg.textContent  = `expert: ${v.expert === 'supreme' ? 'SUPREME' : 'SYNDICATE'}`;
+      expertBdg.className    = 'badge';
+      expertBdg.style.color  = domColor;
+      expertBdg.style.borderColor = v.expert === 'supreme' ? 'rgba(176,0,255,0.4)' : 'rgba(0,229,255,0.4)';
+
+      const confColorMap = { HIGH: '#a7f3d0', MED: '#fde68a', LOW: '#fecaca' };
+      confBdg.textContent = `conf: ${v.confidence}`;
+      confBdg.className   = 'badge';
+      confBdg.style.color = confColorMap[v.confidence] || 'var(--muted)';
+    }
+
+    function updateRegimeButtons() {
+      const w = RegimeSwitchTracker.cfg.window;
+      [8, 12, 16].forEach(n => {
+        const btn = document.getElementById(`regimeWinBtn${n}`);
+        if (!btn) return;
+        if (n === w) {
+          btn.style.background   = 'rgba(255,200,0,0.18)';
+          btn.style.color        = '#ffc800';
+          btn.style.borderColor  = 'rgba(255,200,0,0.45)';
+          btn.style.fontWeight   = '900';
+        } else {
+          btn.style.background   = '';
+          btn.style.color        = '';
+          btn.style.borderColor  = '';
+          btn.style.fontWeight   = '';
+        }
+      });
+    }
+
+    function renderUltimateMasterAi() {
+        const ultimateMain = document.getElementById('ultimateVerdictMain');
+        const ultimateSub = document.getElementById('ultimateVerdictSub');
+        const badgeMeta = document.getElementById('masterMetaBadge');
+        const badgeLA = document.getElementById('masterLookAheadBadge');
+        const badgeDer = document.getElementById('masterDerivedBadge');
+        
+        if (!ultimateMain) return;
+
+        const verdict = ObserverMasterAI.getUltimateVerdict();
+        const mem = ObserverMasterAI.memory;
+
+        const fmtWR = (sys) => sys.total >= 3 ? `${Math.round(sys.winRate * 100)}%` : 'WAIT';
+        badgeMeta.textContent = `Meta: ${fmtWR(mem.meta)}`;
+        badgeLA.textContent = `Look-Ahead: ${fmtWR(mem.lookAhead)}`;
+        badgeDer.textContent = `Derived: ${fmtWR(mem.derived)}`;
+        
+        [badgeMeta, badgeLA, badgeDer].forEach(b => b.className = 'badge');
+        if (!verdict.isFallback && verdict.decision !== 'WAIT') {
+            if (verdict.reasoning.includes('Meta')) badgeMeta.className = 'badge ok';
+            if (verdict.reasoning.includes('Look-Ahead')) badgeLA.className = 'badge ok';
+            if (verdict.reasoning.includes('Derived')) badgeDer.className = 'badge ok';
+        }
+
+        if (verdict.decision === 'P') {
+            ultimateMain.innerHTML = `ULTIMATE VERDICT: <span style="color:var(--p);">PLAYER</span>`;
+        } else if (verdict.decision === 'B') {
+            ultimateMain.innerHTML = `ULTIMATE VERDICT: <span style="color:var(--b);">BANKER</span>`;
+        } else {
+            ultimateMain.innerHTML = `ULTIMATE VERDICT: <span style="color:var(--muted);">WAIT</span>`;
+        }
+        
+        ultimateSub.textContent = verdict.reasoning;
+    }
+
+    function buildFeaturePacket(snapA, snapB, historyRef = masterHistory) {
+      const base = buildFeatures(snapA, snapB, historyRef);
+      const cached = LookAheadAI.enabled ? LookAheadAI.cache.get(buildLookAheadCacheKey(historyRef)) : null;
+      const future = cached ? { ...cached, active: true } : getDefaultLookAheadState(base.meta);
+      const lookVerdict = future.verdict === 'P' ? 1 : (future.verdict === 'B' ? -1 : 0);
+      return {
+        x: base.x.map(v => Number.isFinite(v) ? v : 0),
+        meta: {
+          ...base.meta,
+          lookVerdict,
+          lookBias: future.bias,
+          lookStrength: future.strength,
+          lookRecentAcc: future.recentAcc,
+          lookAvgP: future.avgP,
+          lookAvgB: future.avgB,
+          lookActive: !!future.active,
+          lookClash: future.clash
+        }
+      };
+    }
+
+    async function refreshLookAheadState(historyRef, baseMeta, packetKey, snapA, snapB, baseX) {
+      if (!LookAheadAI.enabled) return;
+      const token = ++LookAheadAI.requestToken;
+      try {
+        const future = await runLookAhead(historyRef, baseMeta);
+        if (token !== LookAheadAI.requestToken) return;
+
+        const liveKey = `${MetaAI.revision}|${historyKey(masterHistory)}`;
+        if (packetKey !== liveKey) return;
+
+        const lookVerdict = future.verdict === 'P' ? 1 : (future.verdict === 'B' ? -1 : 0);
+        const meta = {
+          ...baseMeta,
+          lookVerdict,
+          lookBias: future.bias,
+          lookStrength: future.strength,
+          lookRecentAcc: future.recentAcc,
+          lookAvgP: future.avgP,
+          lookAvgB: future.avgB,
+          lookActive: !!future.active,
+          lookClash: future.clash
+        };
+        const rawPred = MetaAI.predict(baseX);
+        const displayPred = buildDisplayPrediction(rawPred, meta);
+        LookAheadAI.lastVerdict = future.verdict || displayPred.decision;
+        const guarded = applyPerformanceGuard(displayPred, meta);
+        renderAiDecision(guarded);
+        renderProbabilityBadges(guarded, meta);
+      renderDerivedRoadSync(snapB, guarded);
+      ObserverMasterAI.capturePredictions(snapB, guarded, LookAheadAI.lastVerdict);
+        renderUltimateMasterAi();
+               // --- SUPREME EXPANDED ASYNC SYNC ---
+      try {
+          let obsDecision = 'WAIT';
+          if (typeof ObserverMasterAI.getUltimateVerdict === 'function') {
+              obsDecision = ObserverMasterAI.getUltimateVerdict()?.decision || 'WAIT';
+          } else if (ObserverMasterAI.lastVerdict) {
+              obsDecision = ObserverMasterAI.lastVerdict;
+          }
+
+             const qPreds = {
+              appA: meta.aApexSignal > 0 ? 'P' : (meta.aApexSignal < 0 ? 'B' : 'WAIT'),
+              appB: meta.bFinalSignal > 0 ? 'P' : (meta.bFinalSignal < 0 ? 'B' : 'WAIT'),
+              lookAhead: meta.lookVerdict > 0 ? 'P' : (meta.lookVerdict < 0 ? 'B' : 'WAIT'),
+              observer: obsDecision,
+              metaAI: guarded.decision || 'WAIT',
+              beb: meta.bBebSignal > 0 ? 'P' : (meta.bBebSignal < 0 ? 'B' : 'WAIT'),
+              sr: meta.bSrSignal > 0 ? 'P' : (meta.bSrSignal < 0 ? 'B' : 'WAIT'),
+              cp: meta.bCpSignal > 0 ? 'P' : (meta.bCpSignal < 0 ? 'B' : 'WAIT')
+          };
+
+
+
+          const supremeResult = SupremeBayesianAI.predict(qPreds, meta);
+          SupremeBayesianAI.renderUI(supremeResult);
+          renderSyndicateAlert(supremeResult);
+          RegimeSwitchTracker.captureSupreme(supremeResult?.decision);
+          RegimeSwitchTracker.captureSyndicate(SyndicateMirror.getB2BAlert());
+          renderRegimeTracker();
+      } catch (err) {
+          console.error("Supreme AI Async Pipeline Error:", err);
+      }
+
+        latestAiState = {
+          key: packetKey,
+          snapA,
+          snapB,
+          feat: { x: baseX, meta },
+          rawPred,
+          guarded
+        };
+      } catch {}
+    }
+
+    function scheduleLookAheadRefresh(historyRef, baseMeta, packetKey, snapA, snapB, baseX) {
+  if (!LookAheadAI.enabled) return;
+  if (LookAheadAI.debounceTimer) clearTimeout(LookAheadAI.debounceTimer);
+  
+  LookAheadAI.debounceTimer = setTimeout(() => {
+    LookAheadAI.debounceTimer = null;
+    // Use requestAnimationFrame to sync the heavy calculation perfectly with the browser's paint cycle
+    requestAnimationFrame(() => {
+        void refreshLookAheadState(historyRef, baseMeta, packetKey, snapA, snapB, baseX);
+    });
+  }, LookAheadAI.debounceMs);
+}
+
+
+    // =========================================================
+    // 4) Screenshot import helper
+    // =========================================================
+    const shotFile = document.getElementById('shotFile');
+    const shotCanvas = document.getElementById('shotCanvas');
+    const shotCtx = shotCanvas.getContext('2d', { willReadFrequently: true });
+    const btnAutoLocate = document.getElementById('btnAutoLocate');
+    const btnClearCrop = document.getElementById('btnClearCrop');
+    const btnAnalyzeShot = document.getElementById('btnAnalyzeShot');
+    const btnImportShot = document.getElementById('btnImportShot');
+    const chkResetBeforeImport = document.getElementById('chkResetBeforeImport');
+    const importStatus = document.getElementById('importStatus');
+    const importMeta = document.getElementById('importMeta');
+    const detectedTokens = document.getElementById('detectedTokens');
+    const detectedRaw = document.getElementById('detectedRaw');
+
+    const shotState = {
+      img: null,
+      points: [],
+      seq: []
+    };
+
+    function setImportStatus(text, cls = 'warn') {
+      importStatus.textContent = text;
+      importStatus.className = `badge ${cls}`;
+    }
+
+    function drawShotCanvas() {
+      shotCtx.clearRect(0, 0, shotCanvas.width, shotCanvas.height);
+      if (!shotState.img) {
+        shotCtx.fillStyle = '#11141d';
+        shotCtx.fillRect(0, 0, shotCanvas.width, shotCanvas.height);
+        shotCtx.fillStyle = '#9aa0b4';
+        shotCtx.font = '16px monospace';
+        shotCtx.fillText('Load a screenshot here', 22, 34);
+        return;
+      }
+      shotCtx.drawImage(shotState.img, 0, 0, shotCanvas.width, shotCanvas.height);
+
+      shotCtx.lineWidth = 2;
+      shotCtx.strokeStyle = '#00e5ff';
+      shotCtx.fillStyle = '#00e5ff';
+      shotState.points.forEach((p, idx) => {
+        shotCtx.beginPath();
+        shotCtx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+        shotCtx.fill();
+        shotCtx.fillText(String(idx + 1), p.x + 8, p.y - 8);
+      });
+
+      if (shotState.points.length === 2) {
+        const rect = normalizeRect(shotState.points[0], shotState.points[1]);
+        shotCtx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+        shotCtx.fillStyle = 'rgba(0,229,255,0.08)';
+        shotCtx.fillRect(rect.x, rect.y, rect.w, rect.h);
+      }
+    }
+
+    function normalizeRect(a, b) {
+      const x1 = Math.min(a.x, b.x), y1 = Math.min(a.y, b.y);
+      const x2 = Math.max(a.x, b.x), y2 = Math.max(a.y, b.y);
+      return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+    }
+
+    function renderDetectedSequence(seq) {
+      detectedTokens.innerHTML = '';
+      for (const s of seq) {
+        const el = document.createElement('div');
+        el.className = `tok ${s}`;
+        el.textContent = s;
+        detectedTokens.appendChild(el);
+      }
+      detectedRaw.textContent = seq.length ? seq.join(' ') : '-';
+    }
+
+    function longestDenseSpan(counts, threshold) {
+      let best = null;
+      let start = -1;
+      for (let i = 0; i < counts.length; i++) {
+        const ok = counts[i] >= threshold;
+        if (ok && start === -1) start = i;
+        if ((!ok || i === counts.length - 1) && start !== -1) {
+          const end = ok && i === counts.length - 1 ? i : i - 1;
+          if (!best || (end - start) > (best.end - best.start)) best = { start, end };
+          start = -1;
+        }
+      }
+      return best;
+    }
+
+    function autoLocateGrid() {
+      if (!shotState.img) {
+        importMeta.textContent = 'Load a screenshot first.';
+        setImportStatus('no image', 'bad');
+        return false;
+      }
+
+      drawShotCanvas();
+
+      const W = shotCanvas.width;
+      const H = shotCanvas.height;
+      const scanY1 = Math.floor(H * 0.12);
+      const scanY2 = Math.floor(H * 0.58);
+      const scanX1 = Math.floor(W * 0.03);
+      const scanX2 = Math.floor(W * 0.97);
+      const img = shotCtx.getImageData(scanX1, scanY1, scanX2 - scanX1, scanY2 - scanY1).data;
+
+      const colCounts = new Array(scanX2 - scanX1).fill(0);
+      const rowCounts = new Array(scanY2 - scanY1).fill(0);
+
+      for (let y = 0; y < (scanY2 - scanY1); y++) {
+        for (let x = 0; x < (scanX2 - scanX1); x++) {
+          const i = (y * (scanX2 - scanX1) + x) * 4;
+          const r = img[i], g = img[i + 1], b = img[i + 2], a = img[i + 3];
+          if (a < 200) continue;
+          const maxv = Math.max(r, g, b);
+          const minv = Math.min(r, g, b);
+          const bright = r + g + b;
+          const sat = maxv - minv;
+
+          // Target the pale/white road-board background, not the colored circles.
+          const isRoadBg = bright > 470 && sat < 55;
+          if (!isRoadBg) continue;
+
+          colCounts[x]++;
+          rowCounts[y]++;
+        }
+      }
+
+      const xSpan = longestDenseSpan(colCounts, Math.max(8, Math.floor((scanY2 - scanY1) * 0.22)));
+      const ySpan = longestDenseSpan(rowCounts, Math.max(10, Math.floor((scanX2 - scanX1) * 0.18)));
+
+      if (!xSpan || !ySpan) {
+        importMeta.textContent = 'Auto locate could not find the bead-road grid. Use manual 2-point marking.';
+        setImportStatus('auto locate failed', 'bad');
+        return false;
+      }
+
+      let rect = {
+        x: scanX1 + xSpan.start,
+        y: scanY1 + ySpan.start,
+        w: xSpan.end - xSpan.start + 1,
+        h: ySpan.end - ySpan.start + 1
+      };
+
+      // Normalize to a 6-row bead-road aspect.
+      const cell = rect.h / 6;
+      const cols = Math.max(6, Math.round(rect.w / Math.max(1, cell)));
+      rect.w = cols * cell;
+
+      // Keep inside image bounds.
+      if (rect.x + rect.w > W) rect.w = W - rect.x - 2;
+      if (rect.y + rect.h > H) rect.h = H - rect.y - 2;
+
+      // Slight inner crop to avoid borders / labels.
+      rect.x += Math.max(1, rect.w * 0.01);
+      rect.y += Math.max(1, rect.h * 0.02);
+      rect.w *= 0.985;
+      rect.h *= 0.96;
+
+      shotState.points = [
+        { x: rect.x, y: rect.y },
+        { x: rect.x + rect.w, y: rect.y + rect.h }
+      ];
+      shotState.seq = [];
+      renderDetectedSequence([]);
+      drawShotCanvas();
+      importMeta.textContent = `Auto located bead-road grid. Review the box, then analyze or import.`;
+      setImportStatus('auto located', 'ok');
+      return true;
+    }
+
+    function sampleCellClass(cx, cy, radius) {
+      const x = Math.max(0, Math.floor(cx - radius));
+      const y = Math.max(0, Math.floor(cy - radius));
+      const w = Math.max(1, Math.min(shotCanvas.width - x, Math.ceil(radius * 2)));
+      const h = Math.max(1, Math.min(shotCanvas.height - y, Math.ceil(radius * 2)));
+      const data = shotCtx.getImageData(x, y, w, h).data;
+
+      let rs = 0, gs = 0, bs = 0, n = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
+        if (a < 200) continue;
+        const maxv = Math.max(r, g, b);
+        const minv = Math.min(r, g, b);
+        const sat = maxv - minv;
+        const bright = r + g + b;
+        if (sat < 35) continue;
+        if (bright > 710) continue;
+        rs += r; gs += g; bs += b; n++;
+      }
+      if (n < 12) return null;
+
+      const r = rs / n, g = gs / n, b = bs / n;
+      if (b > r + 18 && b > g + 12) return 'P';
+      if (r > b + 14 && r > g + 12) return 'B';
+      if (g > r + 8 && g > b + 8) return 'T';
+      return null;
+    }
+
+    function analyzeScreenshot() {
+      if (!shotState.img) {
+        importMeta.textContent = 'Load a screenshot first.';
+        setImportStatus('no image', 'bad');
+        return;
+      }
+      if (shotState.points.length !== 2) {
+        importMeta.textContent = 'Mark 2 points first: top-left and bottom-right of bead grid.';
+        setImportStatus('need 2 points', 'warn');
+        return;
+      }
+
+      const rect = normalizeRect(shotState.points[0], shotState.points[1]);
+      const rows = 6;
+      const cell = rect.h / rows;
+      const cols = Math.max(1, Math.floor(rect.w / cell));
+      const seq = [];
+
+      for (let c = 0; c < cols; c++) {
+        const colVals = [];
+        for (let r = 0; r < rows; r++) {
+          const cx = rect.x + (c + 0.5) * cell;
+          const cy = rect.y + (r + 0.5) * cell;
+          const v = sampleCellClass(cx, cy, cell * 0.26);
+          if (v) colVals.push(v);
+        }
+        if (colVals.length === 0 && c > 2) break;
+        seq.push(...colVals);
+      }
+
+      shotState.seq = seq;
+      importMeta.textContent = `Detected ${seq.length} hands from screenshot. Grid model: ${rows} rows, about ${cols} columns scanned.`;
+      renderDetectedSequence(seq);
+      setImportStatus(seq.length ? 'sequence ready' : 'nothing found', seq.length ? 'ok' : 'bad');
+
+      // grid overlay
+      drawShotCanvas();
+      shotCtx.strokeStyle = 'rgba(255,255,255,0.15)';
+      for (let c = 0; c <= cols; c++) {
+        const x = rect.x + c * cell;
+        shotCtx.beginPath();
+        shotCtx.moveTo(x, rect.y);
+        shotCtx.lineTo(x, rect.y + rect.h);
+        shotCtx.stroke();
+      }
+      for (let r = 0; r <= rows; r++) {
+        const y = rect.y + r * cell;
+        shotCtx.beginPath();
+        shotCtx.moveTo(rect.x, y);
+        shotCtx.lineTo(rect.x + rect.w, y);
+        shotCtx.stroke();
+      }
+    }
+
+    async function importDetectedSequence() {
+      if (!shotState.seq.length) {
+        setImportStatus('analyze first', 'warn');
+        return;
+      }
+
+      setBusy(true);
+      try {
+        setImportStatus('importing…', 'warn');
+        if (chkResetBeforeImport.checked) {
+          await onReset();
+        }
+
+        for (const s of shotState.seq) {
+          await processImportedOutcome(s);
+        }
+        setImportStatus('history loaded', 'ok');
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    shotFile.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          shotState.img = img;
+          shotState.points = [];
+          shotState.seq = [];
+          shotCanvas.width = img.width;
+          shotCanvas.height = img.height;
+          drawShotCanvas();
+          renderDetectedSequence([]);
+          importMeta.textContent = `Loaded image ${img.width}×${img.height}. Auto locate is the default. If needed, you can still mark the grid manually with 2 clicks.`;
+          setImportStatus('image loaded', 'ok');
+          if (autoLocateGrid()) {
+            analyzeScreenshot();
+          }
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    shotCanvas.addEventListener('click', (e) => {
+      if (!shotState.img) return;
+      const rect = shotCanvas.getBoundingClientRect();
+      const scaleX = shotCanvas.width / rect.width;
+      const scaleY = shotCanvas.height / rect.height;
+      const pt = {
+        x: (e.clientX - rect.left) * scaleX,
+        y: (e.clientY - rect.top) * scaleY
+      };
+      if (shotState.points.length >= 2) shotState.points = [];
+      shotState.points.push(pt);
+      shotState.seq = [];
+      renderDetectedSequence([]);
+      drawShotCanvas();
+      setImportStatus(`mark ${shotState.points.length}/2`, 'warn');
+    });
+
+    btnAutoLocate.addEventListener('click', () => {
+      if (autoLocateGrid()) analyzeScreenshot();
+    });
+    btnClearCrop.addEventListener('click', () => {
+      shotState.points = [];
+      shotState.seq = [];
+      renderDetectedSequence([]);
+      drawShotCanvas();
+      importMeta.textContent = shotState.img
+        ? 'Marks cleared. Click top-left and bottom-right again.'
+        : 'No image loaded.';
+      setImportStatus('marks cleared', 'warn');
+    });
+
+    btnAnalyzeShot.addEventListener('click', analyzeScreenshot);
+    btnImportShot.addEventListener('click', importDetectedSequence);
+    drawShotCanvas();
+
+    // =========================================================
+    // 5) Orchestration
+    // =========================================================
+    const aiMain = document.getElementById('aiMain');
+    const aiSub = document.getElementById('aiSub');
+    const metaAiPanel = document.getElementById('metaAiPanel');
+    const guardBadge = document.getElementById('guardBadge');
+    const recentAccBadge = document.getElementById('recentAccBadge');
+    const probBadge = document.getElementById('probBadge');
+    const lookAheadBadge = document.getElementById('lookAheadBadge');
+    const derivedSyncPanel = document.getElementById('derivedSyncPanel');
+    const derivedSyncMessage = document.getElementById('derivedSyncMessage');
+    const derivedSyncBadge = document.getElementById('derivedSyncBadge');
+    const derivedSyncSub = document.getElementById('derivedSyncSub');
+    const featMonStatus = document.getElementById('featMonStatus');
+    const featAEl = document.getElementById('featA');
+    const featBEl = document.getElementById('featB');
+    const btnP = document.getElementById('btnP');
+    const btnB = document.getElementById('btnB');
+    const btnT = document.getElementById('btnT');
+    const btnUndo = document.getElementById('btnUndo');
+    const btnReset = document.getElementById('btnReset');
+    const btnLookAhead = document.getElementById('btnLookAhead');
+
+    let busyDepth = 0;
+    let appReady = false;
+    let recoveryInFlight = false;
+    let aiHasLiveState = false;
+    let latestAiState = null;
+    const inputQueue = [];
+    let queueProcessing = false;
+    function syncControlLock() {
+      const lockedMain = !appReady;
+      const lockedOps = busyDepth > 0 || !appReady || queueProcessing;
+      [btnP, btnB, btnT].forEach(b => b.disabled = lockedMain);
+      [btnUndo, btnReset, btnAutoLocate, btnClearCrop, btnAnalyzeShot, btnImportShot].forEach(b => b.disabled = lockedOps);
+      if (btnLookAhead) btnLookAhead.disabled = lockedMain;
+      shotFile.disabled = lockedOps;
+    }
+    function setBusy(isBusy) {
+      if (isBusy) busyDepth++;
+      else busyDepth = Math.max(0, busyDepth - 1);
+      syncControlLock();
+    }
+    function setAppReady(isReady) {
+      appReady = !!isReady;
+      syncControlLock();
+    }
+    function setStatusBadge(text, tone = 'warn') {
+      statusEl.textContent = text;
+      statusEl.className = `badge ${tone}`;
+    }
+    function setAiPlaceholder(title, subtitle) {
+      aiMain.textContent = title;
+      aiSub.textContent = subtitle;
+      renderDerivedRoadSync(null, null);
+    }
+
+    function clamp01(v) {
+      return Math.max(0, Math.min(1, Number.isFinite(v) ? v : 0));
+    }
+
+    function sideColor(side) {
+      return side === 'P' ? 'var(--p)' : (side === 'B' ? 'var(--b)' : 'var(--gold)');
+    }
+
+    function normalizeLookAheadProb(avgP, avgB, fallbackP) {
+      const p = Math.max(0, Number.isFinite(avgP) ? avgP : 0);
+      const b = Math.max(0, Number.isFinite(avgB) ? avgB : 0);
+      const total = p + b;
+      if (total <= 0.0001) return clamp01(fallbackP);
+      return clamp01(p / total);
+    }
+
+    function computeLookAheadWeight(featMeta) {
+      if (!LookAheadAI.enabled || !featMeta?.lookActive || !LookAheadAI.simReady) return 0;
+      let weight = 0.26;
+      if (typeof featMeta.lookRecentAcc === 'number' && LookAheadAI.seen >= 8) {
+        if (featMeta.lookRecentAcc >= 0.6) weight = 0.34;
+        else if (featMeta.lookRecentAcc < 0.45) weight = 0.14;
+      }
+      if (typeof featMeta.lookStrength === 'number') {
+        weight += Math.min(0.08, Math.max(0, featMeta.lookStrength - 0.55) * 0.18);
+      }
+      if (featMeta.lookClash) weight *= 0.85;
+      return Math.max(0, Math.min(0.38, weight));
+    }
+
+    function buildDisplayPrediction(rawPred, featMeta) {
+      const baseP = clamp01(rawPred?.pPlayer ?? 0.5);
+      const lookP = normalizeLookAheadProb(featMeta?.lookAvgP, featMeta?.lookAvgB, baseP);
+      const lookWeight = computeLookAheadWeight(featMeta);
+      const finalP = clamp01((baseP * (1 - lookWeight)) + (lookP * lookWeight));
+      const finalB = clamp01(1 - finalP);
+      const decision = finalP >= 0.5 ? 'P' : 'B';
+      return {
+        ...rawPred,
+        decision,
+        pPlayer: finalP,
+        pBanker: finalB,
+        baseP,
+        lookP,
+        lookWeight,
+        finalConfidence: Math.max(finalP, finalB)
+      };
+    }
+
+    function renderAiDecision(dec) {
+      const acc = MetaAI.stats.seen > 0 ? Math.round((MetaAI.stats.correct / MetaAI.stats.seen) * 100) : null;
+      const conf = Math.round(Math.max(dec.pPlayer, 1 - dec.pPlayer) * 100);
+      const side = dec.decision === 'P' ? 'PLAYER' : (dec.decision === 'B' ? 'BANKER' : 'WAIT');
+      const color = sideColor(dec.decision);
+      const pPct = Math.round(clamp01(dec.pPlayer) * 100);
+      const bPct = Math.round(clamp01(dec.pBanker ?? (1 - dec.pPlayer)) * 100);
+      const basePct = Math.round(clamp01(dec.baseP ?? dec.pPlayer) * 100);
+      const lookPct = Math.round(clamp01(dec.lookP ?? dec.pPlayer) * 100);
+      const lookWeightPct = Math.round(clamp01(dec.lookWeight ?? 0) * 100);
+      aiMain.innerHTML = `AI NEXT: <span style="color:${color};">${side}</span> <span style="color:var(--muted);font-size:12px;">(P ${pPct}% / B ${bPct}%)</span>`;
+      aiSub.textContent =
+        `Memory: ${MetaAI.samples.length} samples. ` +
+        (acc === null ? `Accuracy: --` : `Accuracy: ${acc}%`) +
+        `. Base P: ${basePct}%. Look-ahead P: ${lookPct}%. Blend weight: ${lookWeightPct}% (based only on your logged outcomes).`;
+      aiHasLiveState = true;
+    }
+
+    function getRecentAccuracy() {
+      if (!MetaAI.recent || MetaAI.recent.length === 0) return null;
+      const sum = MetaAI.recent.reduce((a, b) => a + b, 0);
+      return sum / MetaAI.recent.length;
+    }
+
+// =========================================================
+// 1. Short-Memory Parallel Markov Matrix
+// =========================================================
+const ShortMarkov = {
+  windowSize: 15, // Short memory window
+  history: [],
+  
+  record: function(outcome) {
+    if (outcome !== 'P' && outcome !== 'B') return;
+    this.history.push(outcome);
+    if (this.history.length > this.windowSize + 1) {
+      this.history.shift();
+    }
+  },
+  
+  predict: function() {
+    if (this.history.length < 3) return 'WAIT';
+    
+    let pp = 0, pb = 0, bp = 0, bb = 0;
+    // Tally transitions in our short memory window
+    for (let i = 0; i < this.history.length - 1; i++) {
+      const from = this.history[i];
+      const to = this.history[i+1];
+      if (from === 'P' && to === 'P') pp++;
+      if (from === 'P' && to === 'B') pb++;
+      if (from === 'B' && to === 'P') bp++;
+      if (from === 'B' && to === 'B') bb++;
+    }
+    
+    const last = this.history[this.history.length - 1];
+    if (last === 'P') {
+      if (pp === pb) return 'WAIT';
+      return pp > pb ? 'P' : 'B';
+    } else {
+      if (bb === bp) return 'WAIT';
+      return bb > bp ? 'B' : 'P';
+    }
+  },
+  
+  reset: function() {
+    this.history = [];
+  }
+};
+
+// =========================================================
+// 2. Dynamic Alpha Shock Absorber
+// =========================================================
+const ShockAbsorber = {
+  baseAlpha: 0.05,
+  minAlpha: 0.005,
+  
+  calculateDynamicAlpha: function(recentAcc, featMeta) {
+    if (recentAcc === null) return this.baseAlpha;
+    
+    const errorRate = 1 - recentAcc; // e.g., 0.4 acc = 0.6 error
+    const volatility = (featMeta && typeof featMeta.bVol === 'number') ? featMeta.bVol : 0.5;
+    
+    // Smooth out the penalty
+    const penalty = (errorRate + volatility) / 2; 
+    let dynamicAlpha = this.baseAlpha * Math.max(0.1, 1 - penalty);
+    
+    return Math.max(this.minAlpha, dynamicAlpha);
+  }
+};
+
+// =========================================================
+// SHADOW SYNDICATE MIRROR (B2B Alert — internal state copy)
+// Mirrors App X player tracking without postMessage dependency.
+// =========================================================
+const SyndicateMirror = {
+  history: [],
+  players: [],
+  _stateHistory: [],
+
+  init() {
+    this.history = [];
+    this.players = this._initPlayers();
+    this._stateHistory = [];
+  },
+
+  _initPlayers() {
+    return Array.from({ length: 11 }, (_, i) => ({
+      id: i + 1, wins: 0, losses: 0, currentStreak: 0,
+      b2bMisses: 0, consecutiveWins: 0, nextBet: null
+    }));
+  },
+
+  _getStrategyBet(id, h) {
+    const len = h.length;
+    const last = h[len - 1];
+    const first = h[0];
+    if (id <= 4) {
+      if (id === 1) return 'B';
+      if (id === 2) return 'P';
+      if (id === 3) return (len % 2 === 0) ? 'B' : 'P';
+      if (id === 4) return (len % 2 === 0) ? 'P' : 'B';
+    }
+    if (len === 0) return 'B';
+    switch (id) {
+      case 5:  return ['B','B','P','P'][len % 4];
+      case 6:  return last === 'B' ? 'P' : 'B';
+      case 7:  return last;
+      case 8:  return (first === 'P' ? ['P','P','P','B','B','B'] : ['B','B','B','P','P','P'])[len % 6];
+      case 9:  return (first === 'P' ? ['P','B','B'] : ['B','P','P'])[len % 3];
+      case 10: return (first === 'P' ? ['P','P','B','B','B'] : ['B','B','P','P','P'])[len % 5];
+      case 11: return (first === 'P' ? ['P','B','B','B'] : ['B','P','P','P'])[len % 4];
+    }
+    return 'B';
+  },
+
+  // actual must be 'P' or 'B' (ties not tracked by this engine)
+  calculateSyndicate(actual) {
+    // Save full state for undo
+    this._stateHistory.push({
+      players: JSON.parse(JSON.stringify(this.players)),
+      history: [...this.history]
+    });
+    if (this._stateHistory.length > 200) this._stateHistory.shift();
+
+    // Push outcome first (matching App X behavior)
+    this.history.push(actual);
+
+    this.players.forEach(p => {
+      // First hand: bots 5-11 are in shadow — check theoretical vs actual
+      if (this.history.length === 1 && p.id >= 5) {
+        const theoreticalBet = this._getStrategyBet(p.id, []);
+        if (theoreticalBet && theoreticalBet !== actual) p.b2bMisses++;
+      } else if (p.nextBet) {
+        if (p.nextBet === actual) {
+          p.wins++;
+          p.consecutiveWins++;
+          p.currentStreak = (p.currentStreak < 0) ? 1 : p.currentStreak + 1;
+          if (p.consecutiveWins >= 2) p.b2bMisses = 0;
+        } else {
+          p.losses++;
+          p.consecutiveWins = 0;
+          p.currentStreak = (p.currentStreak > 0) ? -1 : p.currentStreak - 1;
+          p.b2bMisses++;
+        }
+      }
+      // Set next prediction using full history (includes current outcome)
+      p.nextBet = this._getStrategyBet(p.id, this.history);
+    });
+  },
+
+  undoLast() {
+    if (this._stateHistory.length === 0) return;
+    const prev = this._stateHistory.pop();
+    this.players = prev.players;
+    this.history = prev.history;
+    // Recompute nextBet for each player using restored history
+    this.players.forEach(p => {
+      p.nextBet = this._getStrategyBet(p.id, this.history);
+    });
+  },
+
+  reset() {
+    this.history = [];
+    this.players = this._initPlayers();
+    this._stateHistory = [];
+  },
+
+  // Returns the current B2B alert state (what players predict for the NEXT hand)
+  getB2BAlert() {
+    const THRESHOLD = 5; // >4 = 5+
+    const maxMissAll = this.players.reduce((m, p) => Math.max(m, p.b2bMisses), 0);
+    const allQualified = this.players.filter(p => p.b2bMisses >= THRESHOLD && p.nextBet);
+    if (allQualified.length === 0) {
+      return { active: false, maxMiss: maxMissAll, qualifyingCount: 0 };
+    }
+    const maxMissQ = allQualified.reduce((m, p) => Math.max(m, p.b2bMisses), 0);
+    const highestPlayers = allQualified.filter(p => p.b2bMisses === maxMissQ);
+    const sides = [...new Set(highestPlayers.map(p => p.nextBet).filter(Boolean))];
+    const consensusSide = sides.length === 1 ? sides[0] : null;
+    return {
+      active: true,
+      maxMiss: maxMissAll,
+      qualifyingCount: allQualified.length,
+      highestPlayers,
+      consensusSide,
+      hasConflict: sides.length > 1
+    };
+  }
+};
+SyndicateMirror.init();
+
+    function applyPerformanceGuard(pred, featMeta) {
+      // This guard is advisory only. It does NOT retrain weights, override learning,
+      // or force WAIT. It only surfaces weak / unstable conditions to the operator.
+      const minSamples = 12;
+      const recentAcc = getRecentAccuracy(); // 0..1
+      const conf = Math.max(pred.pPlayer, 1 - pred.pPlayer); // 0.5..1
+
+      const warnings = [];
+      let reason = 'stable';
+      let tone = 'ok';
+
+      if (MetaAI.samples.length >= minSamples && recentAcc !== null && MetaAI.recent.length >= 10 && recentAcc < 0.45) {
+        warnings.push(`low recent accuracy (${Math.round(recentAcc * 100)}%)`);
+      }
+      if (featMeta && featMeta.lookActive && typeof featMeta.lookRecentAcc === 'number' && LookAheadAI.enabled && LookAheadAI.seen >= 8 && featMeta.lookRecentAcc < 0.4) {
+        warnings.push(`look-ahead weak (${Math.round(featMeta.lookRecentAcc * 100)}%)`);
+      }
+      if (featMeta && typeof featMeta.bVol === 'number' && featMeta.bVol >= 0.7 && conf < 0.58) {
+        warnings.push('high volatility + low confidence');
+      }
+      if (featMeta && typeof featMeta.coreTransitionAgreement === 'number' && featMeta.coreTransitionAgreement <= -2) {
+        warnings.push('strong transition clash');
+      }
+
+      if (warnings.length === 1) {
+        reason = warnings[0];
+        tone = 'warn';
+      } else if (warnings.length > 1) {
+        reason = warnings.slice(0, 2).join(' + ');
+        tone = 'bad';
+      }
+
+      // UI badges
+      const ra = recentAcc === null ? '--' : `${Math.round(recentAcc * 100)}%`;
+      recentAccBadge.textContent = `recent: ${ra}`;
+      recentAccBadge.className = `badge ${recentAcc !== null && recentAcc >= 0.55 ? 'ok' : (recentAcc !== null && recentAcc < 0.45 ? 'bad' : 'warn')}`;
+
+      guardBadge.textContent = `guard: ${warnings.length ? 'ADVISORY' : 'CLEAR'} (${reason})`;
+      guardBadge.className = `badge ${tone}`;
+
+      return {
+        ...pred,
+        advisoryOnly: warnings.length > 0,
+        advisoryReason: reason
+      };
+    }
+
+    function renderProbabilityBadges(dec, featMeta) {
+      const pPct = Math.round(clamp01(dec.pPlayer) * 100);
+      const bPct = Math.round(clamp01(dec.pBanker ?? (1 - dec.pPlayer)) * 100);
+      probBadge.textContent = `P ${pPct}% / B ${bPct}%`;
+      probBadge.className = `badge ${Math.abs(pPct - bPct) >= 10 ? 'ok' : 'warn'}`;
+
+      if (!LookAheadAI.enabled) {
+        lookAheadBadge.textContent = 'look-ahead: disabled';
+        lookAheadBadge.className = 'badge';
+        return;
+      }
+      if (!LookAheadAI.simReady || !featMeta?.lookActive) {
+        lookAheadBadge.textContent = 'look-ahead: syncing';
+        lookAheadBadge.className = 'badge warn';
+        return;
+      }
+
+      const lookSide = featMeta.lookVerdict === 1 ? 'P' : (featMeta.lookVerdict === -1 ? 'B' : '--');
+      const lookP = Math.round(normalizeLookAheadProb(featMeta.lookAvgP, featMeta.lookAvgB, dec.pPlayer) * 100);
+      const lookAcc = (typeof featMeta.lookRecentAcc === 'number' && LookAheadAI.seen >= 1)
+        ? `${Math.round(featMeta.lookRecentAcc * 100)}%`
+        : '--';
+      const tone =
+        (typeof featMeta.lookRecentAcc === 'number' && LookAheadAI.seen >= 8)
+          ? (featMeta.lookRecentAcc >= 0.55 ? 'ok' : (featMeta.lookRecentAcc < 0.45 ? 'bad' : 'warn'))
+          : 'warn';
+      lookAheadBadge.textContent = `look-ahead: ${lookSide} (${lookP}% P, acc ${lookAcc})`;
+      lookAheadBadge.className = `badge ${tone}`;
+    }
+
+    function normalizeRoadSide(value) {
+      const text = String(value || '').trim().toUpperCase();
+      if (!text || text === '--') return null;
+      if (text === 'P' || text.includes('PLAYER')) return 'P';
+      if (text === 'B' || text.includes('BANKER')) return 'B';
+      return null;
+    }
+
+    function sideLabel(side) {
+      return side === 'P' ? 'PLAYER' : (side === 'B' ? 'BANKER' : '--');
+    }
+
+    function renderDerivedRoadSync(snapB, aiDecision) {
+      const cards = [
+        {
+          key: 'beb',
+          label: 'Big Eye Boy',
+          card: document.getElementById('roadCardBeb'),
+          sideEl: document.getElementById('roadSideBeb'),
+          pctEl: document.getElementById('roadPctBeb'),
+          matchEl: document.getElementById('roadMatchBeb'),
+          pickEl: document.getElementById('roadPickBeb')
+        },
+        {
+          key: 'sr',
+          label: 'Small Road',
+          card: document.getElementById('roadCardSr'),
+          sideEl: document.getElementById('roadSideSr'),
+          pctEl: document.getElementById('roadPctSr'),
+          matchEl: document.getElementById('roadMatchSr'),
+          pickEl: document.getElementById('roadPickSr')
+        },
+        {
+          key: 'cp',
+          label: 'Cockroach',
+          card: document.getElementById('roadCardCp'),
+          sideEl: document.getElementById('roadSideCp'),
+          pctEl: document.getElementById('roadPctCp'),
+          matchEl: document.getElementById('roadMatchCp'),
+          pickEl: document.getElementById('roadPickCp')
+        }
+      ];
+
+      const aiSide = normalizeRoadSide(aiDecision?.decision);
+      const validCards = [];
+      for (const item of cards) {
+        const side = normalizeRoadSide(snapB?.meta?.[item.key]);
+        const pctNum = parsePct(snapB?.pct?.[item.key]);
+        const pctText = pctNum === null ? '--%' : `${Math.round(pctNum)}%`;
+        const color = side ? sideColor(side) : 'var(--muted)';
+
+        item.card.className = 'road-card';
+        item.pickEl.hidden = true;
+        item.sideEl.textContent = sideLabel(side);
+        item.sideEl.style.color = color;
+        item.pctEl.textContent = pctText;
+        item.matchEl.textContent = side ? `derived: ${sideLabel(side)}` : 'waiting';
+
+        if (side) {
+          item.side = side;
+          item.pct = pctNum === null ? 0 : pctNum;
+          validCards.push(item);
+          if (aiSide && side === aiSide) {
+            item.card.classList.add(aiSide === 'P' ? 'match-player' : 'match-banker');
+            item.matchEl.textContent = `matches Meta AI`;
+          }
+        } else {
+          item.side = null;
+          item.pct = 0;
+        }
+      }
+
+      metaAiPanel.classList.remove('sync-player', 'sync-banker');
+      derivedSyncPanel.classList.remove('sync-player', 'sync-banker');
+
+      if (!snapB || !aiSide) {
+        derivedSyncMessage.textContent = 'Waiting for Meta AI and App B derived roads…';
+        derivedSyncSub.textContent = 'When Meta AI and the derived roads point to the same side, the matching boxes will highlight and the strongest road will be selected.';
+        derivedSyncBadge.textContent = 'standby';
+        derivedSyncBadge.className = 'badge';
+        return;
+      }
+
+      const matching = validCards
+        .filter(item => item.side === aiSide)
+        .sort((a, b) => (b.pct || 0) - (a.pct || 0));
+      const selected = matching[0] || null;
+      const matchCount = matching.length;
+      const allAgree = validCards.length === 3 && matchCount === 3;
+      const highConfidence = matchCount >= 1;
+      const toneClass = aiSide === 'P' ? 'sync-player' : 'sync-banker';
+      const betSide = sideLabel(aiSide);
+
+      if (highConfidence) {
+        metaAiPanel.classList.add(toneClass);
+        derivedSyncPanel.classList.add(toneClass);
+      }
+
+      if (selected) {
+        selected.card.classList.add('selected');
+        selected.pickEl.hidden = false;
+      }
+
+      if (allAgree) {
+        derivedSyncMessage.innerHTML = `HIGH CONFIDENCE: Meta AI + all 3 derived roads agree.<span class="sync-side" style="color:${sideColor(aiSide)};">BET ${betSide}</span>`;
+        derivedSyncSub.textContent = `Big Eye Boy, Small Road, and Cockroach all point to ${betSide}. ${selected.label} is selected as the strongest matching road.`;
+        derivedSyncBadge.textContent = '3/3 match';
+        derivedSyncBadge.className = 'badge ok';
+      } else if (selected) {
+        derivedSyncMessage.innerHTML = `HIGH CONFIDENCE: Meta AI and derived road agree.<span class="sync-side" style="color:${sideColor(aiSide)};">BET ${betSide}</span>`;
+        derivedSyncSub.textContent = `${matchCount} derived road${matchCount > 1 ? 's' : ''} match Meta AI. ${selected.label} is selected and highlighted as the strongest same-side road.`;
+        derivedSyncBadge.textContent = `${matchCount}/3 match`;
+        derivedSyncBadge.className = `badge ${matchCount >= 2 ? 'ok' : 'warn'}`;
+      } else {
+        derivedSyncMessage.textContent = 'No same-side match between Meta AI and the 3 derived roads yet.';
+        derivedSyncSub.textContent = 'The boxes stay visible so you can wait for Big Eye Boy, Small Road, or Cockroach to line up with the Meta AI side before betting.';
+        derivedSyncBadge.textContent = '0/3 match';
+        derivedSyncBadge.className = 'badge bad';
+      }
+    }
+
+    function computeAutoTopList(autoRaw, prefix, w, autoStartIndex) {
+      if (!autoRaw || !w || !Array.isArray(w)) return [];
+      const out = [];
+      const keys = Object.keys(autoRaw).slice(0, 220);
+      for (const id of keys) {
+        const text = String(autoRaw[id] ?? '');
+        if (!text) continue;
+
+        let v = 0;
+        const pb = normPB(text);
+        if (pb !== 0) v = pb;
+        else {
+          const pct = parsePct(text);
+          if (pct !== null) v = Math.max(-2, Math.min(2, (pct - 50) / 25));
+          else {
+            const num = parseNumber(text);
+            if (num !== null) v = Math.max(-2, Math.min(2, Math.tanh(num / 10)));
+          }
+        }
+        if (v === 0) continue;
+
+        let localW = 0.8;
+        const lid = id.toLowerCase();
+        if (lid.includes('confidence') || lid.includes('prob') || lid.includes('rate') || lid.includes('pct')) localW = 0.6;
+        if (lid.includes('apex') || lid.includes('beb') || lid.includes('sr') || lid.includes('cp')) localW = 1.0;
+
+        const key = `${prefix}|${id}`;
+        const h = hash32(key);
+        const idx = h % HASH_DIM;
+        const sign = (hash32(key + '|s') & 1) ? 1 : -1;
+        const featIdx = autoStartIndex + idx;
+        const contrib = (w[featIdx] || 0) * sign * v * localW;
+        out.push({ id, v, contrib });
+      }
+      out.sort((a, b) => Math.abs(b.contrib) - Math.abs(a.contrib));
+      return out.slice(0, 12);
+    }
+
+    function renderFeatureMonitor(snapA, snapB, xLen) {
+      // show top influential IDs (read-only), useful for debugging low accuracy
+      try {
+        const autoAStart = xLen - (2 * HASH_DIM);
+        const autoBStart = xLen - HASH_DIM;
+
+        const topA = computeAutoTopList(snapA?.autoRaw, 'A', MetaAI.w, autoAStart);
+        const topB = computeAutoTopList(snapB?.autoRaw, 'B', MetaAI.w, autoBStart);
+
+        const fmt = (item) => {
+          const sign = item.contrib >= 0 ? '+' : '';
+          return `${sign}${item.contrib.toFixed(3)}  ${item.id}  (v:${item.v})`;
+        };
+
+        featAEl.textContent = topA.length ? topA.map(fmt).join('\n') : '-';
+        featBEl.textContent = topB.length ? topB.map(fmt).join('\n') : '-';
+        featMonStatus.textContent = 'live';
+        featMonStatus.className = 'badge ok';
+      } catch {
+        featMonStatus.textContent = 'error';
+        featMonStatus.className = 'badge bad';
+      }
+    }
+
+    async function updateAiFromCurrentState() {
+      const [snapA, snapB] = await Promise.all([
+        rpc('A', 'GET_SNAPSHOT'),
+        rpc('B', 'GET_SNAPSHOT'),
+      ]);
+      const feat = buildFeaturePacket(snapA, snapB);
+      if (!Array.isArray(MetaAI.w) || MetaAI.w.length !== feat.x.length) {
+        MetaAI.init(feat.x.length);
+      }
+      const rawPred = MetaAI.predict(feat.x);
+      const displayPred = buildDisplayPrediction(rawPred, feat.meta);
+      const guarded = applyPerformanceGuard(displayPred, feat.meta);
+      renderAiDecision(guarded);
+           renderProbabilityBadges(guarded, feat.meta);
+      renderDerivedRoadSync(snapB, guarded);
+      ObserverMasterAI.capturePredictions(snapB, guarded, LookAheadAI.lastVerdict);
+      renderUltimateMasterAi();
+
+           // --- SUPREME EXPANDED TRIGGER ---
+      try {
+          let obsDecision = 'WAIT';
+          if (typeof ObserverMasterAI.getUltimateVerdict === 'function') {
+              obsDecision = ObserverMasterAI.getUltimateVerdict()?.decision || 'WAIT';
+          } else if (ObserverMasterAI.lastVerdict) {
+              obsDecision = ObserverMasterAI.lastVerdict;
+          }
+
+             const qPreds = {
+              appA: feat.meta.aApexSignal > 0 ? 'P' : (feat.meta.aApexSignal < 0 ? 'B' : 'WAIT'),
+              appB: feat.meta.bFinalSignal > 0 ? 'P' : (feat.meta.bFinalSignal < 0 ? 'B' : 'WAIT'),
+              lookAhead: feat.meta.lookVerdict > 0 ? 'P' : (feat.meta.lookVerdict < 0 ? 'B' : 'WAIT'),
+              observer: obsDecision,
+              metaAI: guarded.decision || 'WAIT',
+              beb: feat.meta.bBebSignal > 0 ? 'P' : (feat.meta.bBebSignal < 0 ? 'B' : 'WAIT'), 
+              sr: feat.meta.bSrSignal > 0 ? 'P' : (feat.meta.bSrSignal < 0 ? 'B' : 'WAIT'),
+              cp: feat.meta.bCpSignal > 0 ? 'P' : (feat.meta.bCpSignal < 0 ? 'B' : 'WAIT'),
+              markov: ShortMarkov.predict()
+          };
+
+          const supremeResult = SupremeBayesianAI.predict(qPreds, feat.meta);
+          SupremeBayesianAI.renderUI(supremeResult);
+          renderSyndicateAlert(supremeResult);
+          RegimeSwitchTracker.captureSupreme(supremeResult?.decision);
+          RegimeSwitchTracker.captureSyndicate(SyndicateMirror.getB2BAlert());
+          renderRegimeTracker();
+      } catch (err) {
+          console.error("Supreme AI Pipeline Error:", err);
+      }
+
+
+      const featDetails = document.getElementById('featDetails');
+      if (featDetails?.open) {
+        renderFeatureMonitor(snapA, snapB, feat.x.length);
+      } else {
+        featMonStatus.textContent = 'idle';
+        featMonStatus.className = 'badge';
+      }
+
+      const packetKey = `${MetaAI.revision}|${historyKey(masterHistory)}`;
+      latestAiState = {
+        key: packetKey,
+        snapA,
+        snapB,
+        feat,
+        rawPred,
+        guarded
+      };
+      if (LookAheadAI.enabled) {
+        scheduleLookAheadRefresh([...masterHistory], feat.meta, packetKey, snapA, snapB, [...feat.x]);
+      }
+    }
+
+    async function recoverLiveDashboard() {
+      if (recoveryInFlight) return false;
+      recoveryInFlight = true;
+      setStatusBadge('reconnecting…', 'warn');
+      setAiPlaceholder(
+        'Reconnecting to embedded apps…',
+        'Controls will unlock automatically when both live panels respond again. Learned memory is kept.'
+      );
+
+      try {
+        const liveReady = await waitForLiveFrames(8, 400);
+        setAppReady(liveReady);
+
+        if (!liveReady) {
+          setStatusBadge('frames offline', 'bad');
+          setAiPlaceholder(
+            'Waiting for embedded apps…',
+            'Auto-retry is active, so you usually do not need to reload the page.'
+          );
+          return false;
+        }
+
+        const simReady = LookAheadAI.enabled ? (LookAheadAI.simReady || await waitForSimFrames(6, 250)) : false;
+        await updateAiFromCurrentState();
+        setStatusBadge((simReady || !LookAheadAI.enabled) ? 'ready' : 'live only', (simReady || !LookAheadAI.enabled) ? 'ok' : 'warn');
+        return true;
+      } catch {
+        setAppReady(false);
+        setStatusBadge('reconnecting…', 'warn');
+        return false;
+      } finally {
+        recoveryInFlight = false;
+      }
+    }
+
+    function enqueueOutcome(outcome) {
+      if (!appReady) return;
+      inputQueue.push(outcome);
+      void processOutcomeQueue();
+    }
+
+    async function processOutcomeQueue() {
+      if (queueProcessing) return;
+      queueProcessing = true;
+      syncControlLock();
+      try {
+        while (inputQueue.length) {
+          const outcome = inputQueue.shift();
+          await processOneOutcome(outcome);
+        }
+      } finally {
+        queueProcessing = false;
+        syncControlLock();
+      }
+    }
+
+    async function processOneOutcome(outcome) {
+      try {
+        // App X / Shadow Syndicate mirror (B/P only — ties not tracked by this engine)
+        if (outcome !== 'T') SyndicateMirror.calculateSyndicate(outcome);
+
+        if (outcome === 'P' || outcome === 'B') { 
+    ObserverMasterAI.evaluateOutcome(outcome);
+    SupremeBayesianAI.evaluateOutcome(outcome);
+    RegimeSwitchTracker.evaluateOutcome(outcome);
+
+          const currentKey = `${MetaAI.revision}|${historyKey(masterHistory)}`;
+          let featBefore = latestAiState && latestAiState.key === currentKey ? latestAiState.feat : null;
+
+          // Fallback only if the live state was never computed or is stale after reconnect.
+          if (!featBefore) {
+            const [snapA, snapB] = await Promise.all([
+              rpc('A', 'GET_SNAPSHOT'),
+              rpc('B', 'GET_SNAPSHOT'),
+            ]);
+            featBefore = buildFeaturePacket(snapA, snapB);
+          }
+
+          LookAheadAI.recordActual(outcome);
+          ShortMarkov.record(outcome);
+          const currentAcc = getRecentAccuracy();
+          const dAlpha = ShockAbsorber.calculateDynamicAlpha(currentAcc, featBefore.meta);
+          if (typeof MetaAI.setLearningRate === 'function') {
+              MetaAI.setLearningRate(dAlpha);
+          }
+          MetaAI.onLabeled(featBefore.x, outcome);
+        }
+
+        masterHistory.push(outcome);
+        updateHandCounts();
+        latestAiState = null;
+
+        // Feed the same master input to both apps
+        post('A', 'MASTER_INPUT', { value: outcome });
+        post('B', 'MASTER_INPUT', { value: outcome });
+        // Mirror into the tiny App B panel so it always matches without scrolling
+        postToFrame(frameBPanel, 'MASTER_INPUT', { value: outcome });
+        // App X — Shadow Syndicate (ties skipped: engine only processes B/P)
+        if (outcome !== 'T') postToFrame(frameX, 'MASTER_INPUT', { value: outcome });
+
+        // Minimal wait just to allow DOM mutation in the iframes (avoid visible lag)
+        await new Promise(r => setTimeout(r, 0));
+
+        await updateAiFromCurrentState();
+      } catch (e) {
+        aiMain.textContent = `AI error: ${e?.message || e}`;
+      }
+    }
+
+    async function processImportedOutcome(outcome) {
+      try {
+        if (outcome !== 'T') SyndicateMirror.calculateSyndicate(outcome);
+
+        masterHistory.push(outcome);
+        updateHandCounts();
+        latestAiState = null;
+
+        post('A', 'MASTER_INPUT', { value: outcome, replay: true });
+        post('B', 'MASTER_INPUT', { value: outcome, replay: true });
+        postToFrame(frameBPanel, 'MASTER_INPUT', { value: outcome, replay: true });
+        if (outcome !== 'T') postToFrame(frameX, 'MASTER_INPUT', { value: outcome, replay: true });
+
+        await new Promise(r => setTimeout(r, 0));
+        await updateAiFromCurrentState();
+      } catch (e) {
+        aiMain.textContent = `AI error: ${e?.message || e}`;
+      }
+    }
+
+    async function onUndo() {
+      setBusy(true);
+      try {
+        post('A', 'MASTER_UNDO');
+        post('B', 'MASTER_UNDO');
+        postToFrame(frameBPanel, 'MASTER_UNDO');
+        postToFrame(frameX, 'MASTER_UNDO');
+        await new Promise(r => setTimeout(r, 120));
+        // Rollback AI memory by one labeled event (ties didn't train anyway).
+        MetaAI.undoLast();
+        LookAheadAI.reset();
+        ObserverMasterAI.undoLast();
+        SupremeBayesianAI.undoLast();
+        SyndicateMirror.undoLast();
+        RegimeSwitchTracker.undoLast();
+        ShortMarkov.reset();
+        for (let i = 0; i < masterHistory.length - 1; i++) {
+            ShortMarkov.record(masterHistory[i]);
+        }
+        
+        masterHistory.pop();
+        updateHandCounts();
+        latestAiState = null;
+        await updateAiFromCurrentState();
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function onReset() {
+      setBusy(true);
+      try {
+        post('A', 'MASTER_RESET');
+        post('B', 'MASTER_RESET');
+        postToFrame(frameBPanel, 'MASTER_RESET');
+        postToFrame(frameX, 'MASTER_RESET');
+        await new Promise(r => setTimeout(r, 150));
+        MetaAI.resetAll();
+        LookAheadAI.reset();
+        ObserverMasterAI.reset();
+        SupremeBayesianAI.reset();
+        SyndicateMirror.reset();
+        RegimeSwitchTracker.reset();
+        ShortMarkov.reset();
+        masterHistory.length = 0;
+        updateHandCounts();
+        latestAiState = null;
+        await updateAiFromCurrentState();
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    // ── Button bar offset (auto-measures actual bar height) ──────
+    const _btnsEl  = document.querySelector('.btns');
+    const _topbarEl = document.querySelector('.topbar');
+    function setButtonBarOffset() {
+      if (!_btnsEl) return;
+      // Only apply on narrow viewports where the bar is fixed at top
+      if (window.innerWidth > 640) {
+        document.body.style.paddingTop = '';
+        if (_topbarEl) _topbarEl.style.marginTop = '';
+        return;
+      }
+      const h = Math.ceil(_btnsEl.getBoundingClientRect().height) + 6; // 6 px safety gap
+      document.body.style.paddingTop = h + 'px';
+    }
+    window.addEventListener('resize', setButtonBarOffset);
+
+    // ── Hand count display ────────────────────────────────────
+    function updateHandCounts() {
+      const p = masterHistory.filter(h => h === 'P').length;
+      const b = masterHistory.filter(h => h === 'B').length;
+      btnP.innerHTML = `PLAYER (P)<br><span style="font-size:18px;font-weight:900;letter-spacing:1px;color:#60a5fa;">${p}</span>`;
+      btnB.innerHTML = `BANKER (B)<br><span style="font-size:18px;font-weight:900;letter-spacing:1px;color:#f87171;">${b}</span>`;
+      // Re-measure after innerHTML change (count digits can shift row height)
+      requestAnimationFrame(setButtonBarOffset);
+    }
+    updateHandCounts();      // initialise counts at zero
+    // First measurement after layout settles
+    requestAnimationFrame(setButtonBarOffset);
+
+    btnP.addEventListener('click', () => enqueueOutcome('P'));
+    btnB.addEventListener('click', () => enqueueOutcome('B'));
+    btnT.addEventListener('click', () => enqueueOutcome('T'));
+    btnUndo.addEventListener('click', onUndo);
+    btnReset.addEventListener('click', onReset);
+    if (btnLookAhead) btnLookAhead.addEventListener('click', toggleLookAhead);
+
+    (async function boot() {
+      setBusy(true);
+      setAppReady(false);
+      setStatusBadge('loading frames…', 'warn');
+      setAiPlaceholder(
+        'Connecting to embedded apps…',
+        'Controls stay locked until both live panels finish loading and answer the dashboard handshake.'
+      );
+
+      await waitForFrameGroup(frames);
+      setLookAheadToggleUI();
+      if (LookAheadAI.enabled) {
+        // Ensure sim frames have correct src even on route-based hosting (e.g. `/dashbc`)
+        try { simFrames.A.src = resolveEmbedUrl('appA.html?embedded=1&sim=1'); } catch {}
+        try { simFrames.B.src = resolveEmbedUrl('appB.html?embedded=1&sim=1'); } catch {}
+        await waitForFrameGroup(simFrames);
+      }
+
+      const liveReady = await waitForLiveFrames(12, 500);
+      const simReady = LookAheadAI.enabled ? await waitForSimFrames(12, 500) : false;
+
+      try {
+        if (!liveReady) throw new Error('Live frames did not become ready');
+        const [snapA, snapB] = await Promise.all([
+          rpc('A', 'GET_SNAPSHOT'),
+          rpc('B', 'GET_SNAPSHOT'),
+        ]);
+        const feat = buildFeaturePacket(snapA, snapB);
+        MetaAI.init(feat.x.length);
+        const displayPred = buildDisplayPrediction(MetaAI.predict(feat.x), feat.meta);
+        const guarded = applyPerformanceGuard(displayPred, feat.meta);
+        renderAiDecision(guarded);
+        renderProbabilityBadges(guarded, feat.meta);
+        renderDerivedRoadSync(snapB, guarded);
+        renderFeatureMonitor(snapA, snapB, feat.x.length);
+      } catch {
+        // If snapshots aren't ready yet, fall back and initialize with expected dimension.
+        MetaAI.init(163);
+        setAiPlaceholder(
+          'Waiting for embedded apps…',
+          'Auto-retry is active, so the dashboard will reconnect by itself when the panels are available.'
+        );
+      }
+
+      setAppReady(liveReady);
+      if (!liveReady) {
+        setStatusBadge('frames offline', 'bad');
+      } else if (LookAheadAI.enabled && !simReady) {
+        setStatusBadge('live only', 'warn');
+      } else {
+        setStatusBadge('ready', 'ok');
+      }
+
+            setBusy(false);
+
+      // --- MOBILE OPTIMIZATION LAYER ---
+      let mobileLookAheadLock = false;
+
+      async function runMobileSafeLookAhead() {
+        if (mobileLookAheadLock || !LookAheadAI.enabled) return;
+        mobileLookAheadLock = true;
+        try {
+          // Optimized retry delay (100ms instead of 250ms) for phone responsiveness
+          const simOk = LookAheadAI.simReady || await waitForSimFrames(2, 100);
+          if (simOk && typeof LookAheadAI.run === 'function') {
+            await LookAheadAI.run();
+          }
+        } catch (err) {
+          console.error("Mobile look-ahead optimization error:", err);
+        } finally {
+          mobileLookAheadLock = false;
+        }
+      }
+
+      // Fast event-driven background triggers
+      setInterval(async () => {
+        const liveOk = await pingAll();
+        if (!liveOk) {
+          setAppReady(false);
+          setStatusBadge('reconnecting…', 'warn');
+          setAiPlaceholder(
+            'Connection lost. Retrying…',
+            'The dashboard is polling both embedded apps in the background and will recover automatically.'
+          );
+          if (!recoveryInFlight) void recoverLiveDashboard();
+          return;
+        }
+
+        if (!appReady || !aiHasLiveState) {
+          await recoverLiveDashboard();
+          return;
+        }
+
+        // Trigger prediction immediately instead of lazily waiting 2.5 seconds
+        void runMobileSafeLookAhead();
+        
+        setStatusBadge(LookAheadAI.simReady ? 'ready' : 'live only', LookAheadAI.simReady ? 'ok' : 'warn');
+      }, 800); // Polling frequency adjusted down to 800ms for fast feedback without thermal load
+    })();
+
+  </script>
+</body>
+</html>
