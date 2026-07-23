@@ -552,161 +552,6 @@ export default function DashboardPage() {
               })}
             </div>
 
-            {/* Ensemble Voting Block */}
-            <div className="mx-4 mb-3 rounded-sm p-3"
-              style={{ backgroundColor: 'rgba(234,179,8,0.05)', border: '1px solid rgba(234,179,8,0.15)' }}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold tracking-wider" style={{ color: '#eab308' }}>
-                  ⚖ ENSEMBLE VOTE
-                </span>
-                <div className="flex items-center gap-1.5">
-                  {regime.agreeCount > 0 && (
-                    <span className="text-xs" style={{ color: '#71717a' }}>
-                      {regime.agreeCount}/{totalExperts} agree
-                    </span>
-                  )}
-                  <span className="text-xs font-bold" style={{
-                    color: regime.ensembleVerdict === 'P' ? '#22d3ee'
-                      : regime.ensembleVerdict === 'B' ? '#f87171'
-                      : '#71717a',
-                  }}>
-                    {regime.ensembleVerdict === 'P' ? `PLAYER ${regime.ensemblePercent}%`
-                      : regime.ensembleVerdict === 'B' ? `BANKER ${regime.ensemblePercent}%`
-                      : 'NO LEAN'}
-                  </span>
-                </div>
-              </div>
-              {/* Blend bar */}
-              <div className="h-2 rounded-full overflow-hidden flex" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>
-                {regime.ensembleVerdict === 'P' && (
-                  <>
-                    <div className="h-full rounded-l-full transition-all duration-700"
-                      style={{ width: `${regime.ensemblePercent}%`, backgroundColor: '#22d3ee', opacity: 0.85 }} />
-                    <div className="h-full rounded-r-full flex-1" style={{ backgroundColor: '#f87171', opacity: 0.3 }} />
-                  </>
-                )}
-                {regime.ensembleVerdict === 'B' && (
-                  <>
-                    <div className="h-full rounded-l-full flex-1" style={{ backgroundColor: '#22d3ee', opacity: 0.3 }} />
-                    <div className="h-full rounded-r-full transition-all duration-700"
-                      style={{ width: `${regime.ensemblePercent}%`, backgroundColor: '#f87171', opacity: 0.85 }} />
-                  </>
-                )}
-                {!regime.ensembleVerdict && (
-                  <div className="h-full w-full rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }} />
-                )}
-              </div>
-              <div className="flex justify-between mt-1">
-                <span className="text-xs" style={{ color: 'rgba(34,211,238,0.5)' }}>P</span>
-                <span className="text-xs" style={{ color: 'rgba(248,113,113,0.5)' }}>B</span>
-              </div>
-            </div>
-
-            {/* Regime Switch Timeline */}
-            {(regime.switchTimeline?.length ?? 0) > 0 && (
-              <div className="px-4 pb-3">
-                <div className="text-xs tracking-widest mb-1.5" style={{ color: '#3f3f46' }}>TIMELINE</div>
-                <div className="flex flex-wrap items-center gap-1">
-                  {regime.switchTimeline.map((entry, i) => (
-                    <div key={i} className="flex items-center gap-1">
-                      <span className="text-xs px-1.5 py-0.5 rounded-sm tabular-nums"
-                        style={{
-                          color: expertColor(entry.expert),
-                          backgroundColor: `${expertColor(entry.expert)}12`,
-                          border: `1px solid ${expertColor(entry.expert)}25`,
-                        }}>
-                        {expertLabel(entry.expert)} {entry.hands}h
-                      </span>
-                      <span className="text-xs" style={{ color: '#3f3f46' }}>→</span>
-                    </div>
-                  ))}
-                  <span className="text-xs px-1.5 py-0.5 rounded-sm"
-                    style={{
-                      color: expertColor(regime.expert ?? ''),
-                      backgroundColor: `${expertColor(regime.expert ?? '')}18`,
-                      border: `1px solid ${expertColor(regime.expert ?? '')}35`,
-                    }}>
-                    {expertLabel(regime.expert ?? '—')} ★
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Lock countdown with shadow leader */}
-            {regime.isLocked && (
-              <div className="px-4 pb-3">
-                <LockBar
-                  lockRemain={regime.lockRemain}
-                  lockMax={regime.lockMax}
-                  shadowLeader={regime.shadowLeader}
-                  shadowLeaderPred={regime.shadowLeaderPred}
-                  shadowLeaderComposite={regime.shadowLeaderComposite}
-                  lockAccelerated={regime.lockAccelerated}
-                />
-              </div>
-            )}
-
-            {/* Both / All agree banner */}
-            {regime.bothAgree && (
-              <div className="mx-4 mb-3 text-center py-2 px-4 rounded-sm font-bold tracking-wider text-sm"
-                style={{
-                  color: '#eab308',
-                  backgroundColor: 'rgba(234,179,8,0.1)',
-                  border: '1px solid rgba(234,179,8,0.4)',
-                  boxShadow: '0 0 12px rgba(234,179,8,0.15)',
-                }}
-                data-testid="both-agree-banner">
-                ⚡ ALL {regime.agreeCount} AGREE —{' '}
-                {regime.bothAgreeSide === 'P' ? 'PLAYER' : regime.bothAgreeSide === 'B' ? 'BANKER' : 'BET'}
-              </div>
-            )}
-            {!regime.bothAgree && regime.agreeCount >= 6 && regime.ensembleVerdict && (
-              <div className="mx-4 mb-3 text-center py-2 px-4 rounded-sm font-bold tracking-wider text-sm"
-                style={{
-                  color: regime.ensembleVerdict === 'P' ? '#22d3ee' : '#f87171',
-                  backgroundColor: regime.ensembleVerdict === 'P' ? 'rgba(34,211,238,0.07)' : 'rgba(248,113,113,0.07)',
-                  border: `1px solid ${regime.ensembleVerdict === 'P' ? 'rgba(34,211,238,0.3)' : 'rgba(248,113,113,0.3)'}`,
-                }}>
-                ⚡ {regime.agreeCount}/{totalExperts} LEAN —{' '}
-                {regime.ensembleVerdict === 'P' ? 'PLAYER' : 'BANKER'}
-              </div>
-            )}
-
-            {/* MAIN DECISION */}
-            <div className="flex flex-col items-center gap-2 py-5">
-              {regime.decision === 'P' && (
-                <>
-                  <div className="text-6xl font-black tracking-wider"
-                    style={{ color: '#22d3ee', textShadow: '0 0 20px rgba(34,211,238,0.7), 0 0 40px rgba(34,211,238,0.4)' }}
-                    data-testid="decision-display">
-                    PLAYER
-                  </div>
-                  <div className="text-xs tracking-wider" style={{ color: expertColor(regime.expert ?? '') }} data-testid="following-label">
-                    Following {expertLabel(regime.expert ?? '')}
-                    {regime.isSplit && ' (split→obs)'}
-                  </div>
-                </>
-              )}
-              {regime.decision === 'B' && (
-                <>
-                  <div className="text-6xl font-black tracking-wider"
-                    style={{ color: '#f87171', textShadow: '0 0 20px rgba(248,113,113,0.7), 0 0 40px rgba(248,113,113,0.4)' }}
-                    data-testid="decision-display">
-                    BANKER
-                  </div>
-                  <div className="text-xs tracking-wider" style={{ color: expertColor(regime.expert ?? '') }} data-testid="following-label">
-                    Following {expertLabel(regime.expert ?? '')}
-                    {regime.isSplit && ' (split→obs)'}
-                  </div>
-                </>
-              )}
-              {!regime.decision && (
-                <div className="text-4xl font-black tracking-wider" style={{ color: '#71717a' }} data-testid="decision-display">
-                  — WAIT —
-                </div>
-              )}
-            </div>
-
           </div>
         )}
 
@@ -851,6 +696,168 @@ export default function DashboardPage() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── DECISION PANEL (ensemble + timeline + lock + main call) ── */}
+        {regime && (
+          <div className="rounded-sm border flex flex-col overflow-hidden"
+            style={{ backgroundColor: '#0d0d14', borderColor: 'rgba(255,255,255,0.08)' }}>
+
+            {/* Ensemble Voting Block */}
+            <div className="mx-4 mt-3 mb-2 rounded-sm p-3"
+              style={{ backgroundColor: 'rgba(234,179,8,0.05)', border: '1px solid rgba(234,179,8,0.15)' }}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold tracking-wider" style={{ color: '#eab308' }}>
+                  ⚖ ENSEMBLE VOTE
+                </span>
+                <div className="flex items-center gap-1.5">
+                  {regime.agreeCount > 0 && (
+                    <span className="text-xs" style={{ color: '#71717a' }}>
+                      {regime.agreeCount}/{totalExperts} agree
+                    </span>
+                  )}
+                  <span className="text-xs font-bold" style={{
+                    color: regime.ensembleVerdict === 'P' ? '#22d3ee'
+                      : regime.ensembleVerdict === 'B' ? '#f87171'
+                      : '#71717a',
+                  }}>
+                    {regime.ensembleVerdict === 'P' ? `PLAYER ${regime.ensemblePercent}%`
+                      : regime.ensembleVerdict === 'B' ? `BANKER ${regime.ensemblePercent}%`
+                      : 'NO LEAN'}
+                  </span>
+                </div>
+              </div>
+              <div className="h-2 rounded-full overflow-hidden flex" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>
+                {regime.ensembleVerdict === 'P' && (
+                  <>
+                    <div className="h-full rounded-l-full transition-all duration-700"
+                      style={{ width: `${regime.ensemblePercent}%`, backgroundColor: '#22d3ee', opacity: 0.85 }} />
+                    <div className="h-full rounded-r-full flex-1" style={{ backgroundColor: '#f87171', opacity: 0.3 }} />
+                  </>
+                )}
+                {regime.ensembleVerdict === 'B' && (
+                  <>
+                    <div className="h-full rounded-l-full flex-1" style={{ backgroundColor: '#22d3ee', opacity: 0.3 }} />
+                    <div className="h-full rounded-r-full transition-all duration-700"
+                      style={{ width: `${regime.ensemblePercent}%`, backgroundColor: '#f87171', opacity: 0.85 }} />
+                  </>
+                )}
+                {!regime.ensembleVerdict && (
+                  <div className="h-full w-full rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }} />
+                )}
+              </div>
+              <div className="flex justify-between mt-1">
+                <span className="text-xs" style={{ color: 'rgba(34,211,238,0.5)' }}>P</span>
+                <span className="text-xs" style={{ color: 'rgba(248,113,113,0.5)' }}>B</span>
+              </div>
+            </div>
+
+            {/* Regime Switch Timeline */}
+            {(regime.switchTimeline?.length ?? 0) > 0 && (
+              <div className="px-4 pb-2">
+                <div className="text-xs tracking-widest mb-1.5" style={{ color: '#3f3f46' }}>TIMELINE</div>
+                <div className="flex flex-wrap items-center gap-1">
+                  {regime.switchTimeline.map((entry, i) => (
+                    <div key={i} className="flex items-center gap-1">
+                      <span className="text-xs px-1.5 py-0.5 rounded-sm tabular-nums"
+                        style={{
+                          color: expertColor(entry.expert),
+                          backgroundColor: `${expertColor(entry.expert)}12`,
+                          border: `1px solid ${expertColor(entry.expert)}25`,
+                        }}>
+                        {expertLabel(entry.expert)} {entry.hands}h
+                      </span>
+                      <span className="text-xs" style={{ color: '#3f3f46' }}>→</span>
+                    </div>
+                  ))}
+                  <span className="text-xs px-1.5 py-0.5 rounded-sm"
+                    style={{
+                      color: expertColor(regime.expert ?? ''),
+                      backgroundColor: `${expertColor(regime.expert ?? '')}18`,
+                      border: `1px solid ${expertColor(regime.expert ?? '')}35`,
+                    }}>
+                    {expertLabel(regime.expert ?? '—')} ★
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Lock countdown with shadow leader */}
+            {regime.isLocked && (
+              <div className="px-4 pb-2">
+                <LockBar
+                  lockRemain={regime.lockRemain}
+                  lockMax={regime.lockMax}
+                  shadowLeader={regime.shadowLeader}
+                  shadowLeaderPred={regime.shadowLeaderPred}
+                  shadowLeaderComposite={regime.shadowLeaderComposite}
+                  lockAccelerated={regime.lockAccelerated}
+                />
+              </div>
+            )}
+
+            {/* Both / All agree banner */}
+            {regime.bothAgree && (
+              <div className="mx-4 mb-2 text-center py-2 px-4 rounded-sm font-bold tracking-wider text-sm"
+                style={{
+                  color: '#eab308',
+                  backgroundColor: 'rgba(234,179,8,0.1)',
+                  border: '1px solid rgba(234,179,8,0.4)',
+                  boxShadow: '0 0 12px rgba(234,179,8,0.15)',
+                }}
+                data-testid="both-agree-banner">
+                ⚡ ALL {regime.agreeCount} AGREE —{' '}
+                {regime.bothAgreeSide === 'P' ? 'PLAYER' : regime.bothAgreeSide === 'B' ? 'BANKER' : 'BET'}
+              </div>
+            )}
+            {!regime.bothAgree && regime.agreeCount >= 6 && regime.ensembleVerdict && (
+              <div className="mx-4 mb-2 text-center py-2 px-4 rounded-sm font-bold tracking-wider text-sm"
+                style={{
+                  color: regime.ensembleVerdict === 'P' ? '#22d3ee' : '#f87171',
+                  backgroundColor: regime.ensembleVerdict === 'P' ? 'rgba(34,211,238,0.07)' : 'rgba(248,113,113,0.07)',
+                  border: `1px solid ${regime.ensembleVerdict === 'P' ? 'rgba(34,211,238,0.3)' : 'rgba(248,113,113,0.3)'}`,
+                }}>
+                ⚡ {regime.agreeCount}/{totalExperts} LEAN —{' '}
+                {regime.ensembleVerdict === 'P' ? 'PLAYER' : 'BANKER'}
+              </div>
+            )}
+
+            {/* MAIN DECISION */}
+            <div className="flex flex-col items-center gap-2 py-5">
+              {regime.decision === 'P' && (
+                <>
+                  <div className="text-6xl font-black tracking-wider"
+                    style={{ color: '#22d3ee', textShadow: '0 0 20px rgba(34,211,238,0.7), 0 0 40px rgba(34,211,238,0.4)' }}
+                    data-testid="decision-display">
+                    PLAYER
+                  </div>
+                  <div className="text-xs tracking-wider" style={{ color: expertColor(regime.expert ?? '') }} data-testid="following-label">
+                    Following {expertLabel(regime.expert ?? '')}
+                    {regime.isSplit && ' (split→obs)'}
+                  </div>
+                </>
+              )}
+              {regime.decision === 'B' && (
+                <>
+                  <div className="text-6xl font-black tracking-wider"
+                    style={{ color: '#f87171', textShadow: '0 0 20px rgba(248,113,113,0.7), 0 0 40px rgba(248,113,113,0.4)' }}
+                    data-testid="decision-display">
+                    BANKER
+                  </div>
+                  <div className="text-xs tracking-wider" style={{ color: expertColor(regime.expert ?? '') }} data-testid="following-label">
+                    Following {expertLabel(regime.expert ?? '')}
+                    {regime.isSplit && ' (split→obs)'}
+                  </div>
+                </>
+              )}
+              {!regime.decision && (
+                <div className="text-4xl font-black tracking-wider" style={{ color: '#71717a' }} data-testid="decision-display">
+                  — WAIT —
+                </div>
+              )}
+            </div>
+
           </div>
         )}
 
