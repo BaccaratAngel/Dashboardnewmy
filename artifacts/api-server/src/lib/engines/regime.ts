@@ -40,6 +40,7 @@ interface ExpertState {
   wwr: number;          // Bayesian-adjusted weighted win rate
   rawWr: number;        // raw win rate
   predCount: number;
+  totalPreds: number;   // lifetime non-null predictions (unwindowed, for participation rate)
   streak: number;       // consecutive correct picks from most recent
   hotStreak: boolean;   // streak ≥ 4
   wwrHistory: number[]; // last 4 wwr values (for momentum)
@@ -173,6 +174,7 @@ function freshExpert(): ExpertState {
     wwr: 0,
     rawWr: 0,
     predCount: 0,
+    totalPreds: 0,
     streak: 0,
     hotStreak: false,
     wwrHistory: [],
@@ -193,6 +195,8 @@ const ALL_KEYS: ExpertKey[] = [
 // ── Main class ────────────────────────────────────────────────────────────────
 
 export class RegimeSwitchTracker {
+  private handsPlayed = 0;   // incremented every evaluateOutcome call
+
   private cfg: RegimeConfig = {
     baseWindow: 12,
     window: 12,
@@ -257,6 +261,7 @@ export class RegimeSwitchTracker {
     exp.lastPred = decision === "P" || decision === "B" ? decision : null;
     if (exp.lastPred) {
       exp.history.push({ pred: exp.lastPred, actual: null });
+      exp.totalPreds++;
       this._trimHistory(exp);
     }
   }
@@ -266,6 +271,7 @@ export class RegimeSwitchTracker {
     if (alert.active && !alert.hasConflict && alert.consensusSide) {
       exp.lastPred = alert.consensusSide;
       exp.history.push({ pred: exp.lastPred, actual: null });
+      exp.totalPreds++;
       this._trimHistory(exp);
     } else {
       exp.lastPred = null;
@@ -277,6 +283,7 @@ export class RegimeSwitchTracker {
     exp.lastPred = verdict;
     if (verdict) {
       exp.history.push({ pred: verdict, actual: null });
+      exp.totalPreds++;
       this._trimHistory(exp);
     }
   }
@@ -286,6 +293,7 @@ export class RegimeSwitchTracker {
     exp.lastPred = verdict;
     if (verdict) {
       exp.history.push({ pred: verdict, actual: null });
+      exp.totalPreds++;
       this._trimHistory(exp);
     }
   }
@@ -295,6 +303,7 @@ export class RegimeSwitchTracker {
     exp.lastPred = decision === "P" || decision === "B" ? decision : null;
     if (exp.lastPred) {
       exp.history.push({ pred: exp.lastPred, actual: null });
+      exp.totalPreds++;
       this._trimHistory(exp);
     }
   }
@@ -304,6 +313,7 @@ export class RegimeSwitchTracker {
     exp.lastPred = decision === "P" || decision === "B" ? decision : null;
     if (exp.lastPred) {
       exp.history.push({ pred: exp.lastPred, actual: null });
+      exp.totalPreds++;
       this._trimHistory(exp);
     }
   }
@@ -314,6 +324,7 @@ export class RegimeSwitchTracker {
     exp.lastPred = verdict;
     if (verdict) {
       exp.history.push({ pred: verdict, actual: null });
+      exp.totalPreds++;
       this._trimHistory(exp);
     }
   }
@@ -324,6 +335,7 @@ export class RegimeSwitchTracker {
     exp.lastPred = verdict;
     if (verdict) {
       exp.history.push({ pred: verdict, actual: null });
+      exp.totalPreds++;
       this._trimHistory(exp);
     }
   }
@@ -334,6 +346,7 @@ export class RegimeSwitchTracker {
     exp.lastPred = verdict;
     if (verdict) {
       exp.history.push({ pred: verdict, actual: null });
+      exp.totalPreds++;
       this._trimHistory(exp);
     }
   }
@@ -344,6 +357,7 @@ export class RegimeSwitchTracker {
     exp.lastPred = verdict;
     if (verdict) {
       exp.history.push({ pred: verdict, actual: null });
+      exp.totalPreds++;
       this._trimHistory(exp);
     }
   }
@@ -357,6 +371,7 @@ export class RegimeSwitchTracker {
   evaluateOutcome(actual: Side): void {
     this._save();
     if (actual !== "P" && actual !== "B") return;
+    this.handsPlayed++;
 
     ALL_KEYS.forEach((key) => {
       const hist = this.experts[key].history;
@@ -482,8 +497,15 @@ export class RegimeSwitchTracker {
     // Compute typical loss run length
     const lossRuns = profile.lossRuns;
     if (lossRuns.length === 0) {
-      // No history — use a conservative default of 3
-      return profile.currentRunLen >= 3;
+      // No completed loss runs yet — use a default scaled by participation rate.
+      // High-abstention experts (e.g. dualAuth ~30%) have fewer data points per hand,
+      // so holding them to the same flat threshold as always-active experts is unfair.
+      // Scale: participationRate=1.0 → threshold 3, ≤0.67 → threshold 2 (floor).
+      const participationRate = this.handsPlayed > 0
+        ? Math.min(1, exp.totalPreds / this.handsPlayed)
+        : 1;
+      const noHistoryThreshold = Math.max(2, Math.round(3 * participationRate));
+      return profile.currentRunLen >= noHistoryThreshold;
     }
 
     const recent = lossRuns.slice(-5);
