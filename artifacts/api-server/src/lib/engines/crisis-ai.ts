@@ -15,8 +15,14 @@ import { logger } from "../logger.js";
 type Side = "P" | "B";
 
 const CRISIS_THRESHOLD = 2;   // consecutive losses before crisis activates
+// Keep the model configurable for provider-side model changes, while using a
+// currently supported fast model by default.
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3-flash-preview";
 const GEMINI_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent";
+  `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+// Recovery must never make recording a hand feel stuck. The ensemble fallback
+// is intentionally returned after this short window.
+const GEMINI_TIMEOUT_MS = 7_000;
 
 // ── Expert label map ──────────────────────────────────────────────────────────
 
@@ -116,6 +122,8 @@ export class CrisisAI {
     if (correct) {
       // Reset crisis
       this.consecutiveLosses = 0;
+      this._lastGeminiCallAt = 0;
+      this._lastGeminiLossCount = 0;
       this._result = {
         active: false,
         prediction: null,
@@ -141,7 +149,7 @@ export class CrisisAI {
     ensembleVerdict: Side | null,
     ensemblePercent: number,
   ): Promise<void> {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY?.trim();
 
     if (!apiKey) {
       this._result = {
@@ -153,6 +161,24 @@ export class CrisisAI {
       };
       return;
     }
+
+    // A new loss in the current crisis may refresh the call, but do not make
+    // duplicate calls for the same loss count within the cooldown window.
+    const now = Date.now();
+    const sameLossCount = this._lastGeminiLossCount === this.consecutiveLosses;
+    if (sameLossCount && now - this._lastGeminiCallAt < CrisisAI.GEMINI_COOLDOWN_MS) {
+      this._result = {
+        ...this._result,
+        active: true,
+        prediction: ensembleVerdict,
+        confidence: "LOW",
+        reasoning: "Recovery cooldown — using ensemble fallback",
+        consecutiveLosses: this.consecutiveLosses,
+      };
+      return;
+    }
+    this._lastGeminiCallAt = now;
+    this._lastGeminiLossCount = this.consecutiveLosses;
 
     const recentClean = history.filter((h) => h !== "T").slice(-25);
     const histStr = recentClean.join(" ");
@@ -232,18 +258,18 @@ Respond ONLY with valid JSON, no markdown:
 {"prediction":"P or B","confidence":"LOW or MED or HIGH","reasoning":"max 90 char — name which GREEN experts agree and their shoe win rates"}`;
 
     try {
-      const response = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+      const response = await fetch(`${GEMINI_URL}?key=${encodeURIComponent(apiKey)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
             responseMimeType: "application/json",
-            maxOutputTokens: 200,
+            maxOutputTokens: 256,
             temperature: 0.2,
           },
         }),
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(GEMINI_TIMEOUT_MS),
       });
 
       if (!response.ok) {
@@ -257,7 +283,9 @@ Respond ONLY with valid JSON, no markdown:
       };
 
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-      const parsed = JSON.parse(text) as {
+      // Some direct Gemini responses still wrap JSON despite responseMimeType.
+      const jsonText = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+      const parsed = JSON.parse(jsonText) as {
         prediction?: string;
         confidence?: string;
         reasoning?: string;
@@ -278,12 +306,20 @@ Respond ONLY with valid JSON, no markdown:
         consecutiveLosses: this.consecutiveLosses,
       };
     } catch (err) {
-      logger.warn({ err }, "CrisisAI: Gemini call failed — using ensemble fallback");
+      const reason = err instanceof DOMException && err.name === "TimeoutError"
+        ? "Gemini timeout"
+        : err instanceof Error && /^Gemini HTTP \d+/.test(err.message)
+          ? err.message
+          : "Gemini request failed";
+      logger.warn(
+        { err, model: GEMINI_MODEL, timeoutMs: GEMINI_TIMEOUT_MS },
+        "CrisisAI: Gemini call failed — using ensemble fallback",
+      );
       this._result = {
         active: true,
         prediction: ensembleVerdict,
         confidence: "LOW",
-        reasoning: "AI timeout — using ensemble fallback",
+        reasoning: `${reason} — using ensemble fallback`,
         consecutiveLosses: this.consecutiveLosses,
       };
     }
@@ -324,6 +360,8 @@ Respond ONLY with valid JSON, no markdown:
       reasoning: "",
       consecutiveLosses: 0,
     };
+    this._lastGeminiCallAt = 0;
+    this._lastGeminiLossCount = 0;
     this._undoStack = [];
   }
 }

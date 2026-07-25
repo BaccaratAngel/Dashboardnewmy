@@ -295,12 +295,12 @@ export const GetSnapshotResponse = zod.object({
 })
 }).describe('Per-sub-system win rates tracked by ObserverMasterAI'),
   "crisisAI": zod.object({
-  "active": zod.boolean().describe('True when the crisis AI is actively overriding (3+ consecutive losses)'),
+  "active": zod.boolean().describe('True when the crisis AI is actively overriding (2+ consecutive losses)'),
   "prediction": zod.string().nullable().describe('\"P\", \"B\", or null'),
   "confidence": zod.string().describe('\"LOW\" | \"MED\" | \"HIGH\"'),
   "reasoning": zod.string().describe('One-sentence AI explanation for the prediction'),
   "consecutiveLosses": zod.number().describe('Current streak of consecutive main prediction losses')
-}).describe('Gemini AI recovery engine — activates after 3 consecutive main losses')
+}).describe('Gemini AI recovery engine — activates after 2 consecutive main losses')
 })
 
 
@@ -552,12 +552,12 @@ export const SubmitInputResponse = zod.object({
 })
 }).describe('Per-sub-system win rates tracked by ObserverMasterAI'),
   "crisisAI": zod.object({
-  "active": zod.boolean().describe('True when the crisis AI is actively overriding (3+ consecutive losses)'),
+  "active": zod.boolean().describe('True when the crisis AI is actively overriding (2+ consecutive losses)'),
   "prediction": zod.string().nullable().describe('\"P\", \"B\", or null'),
   "confidence": zod.string().describe('\"LOW\" | \"MED\" | \"HIGH\"'),
   "reasoning": zod.string().describe('One-sentence AI explanation for the prediction'),
   "consecutiveLosses": zod.number().describe('Current streak of consecutive main prediction losses')
-}).describe('Gemini AI recovery engine — activates after 3 consecutive main losses')
+}).describe('Gemini AI recovery engine — activates after 2 consecutive main losses')
 })
 
 
@@ -805,12 +805,12 @@ export const UndoInputResponse = zod.object({
 })
 }).describe('Per-sub-system win rates tracked by ObserverMasterAI'),
   "crisisAI": zod.object({
-  "active": zod.boolean().describe('True when the crisis AI is actively overriding (3+ consecutive losses)'),
+  "active": zod.boolean().describe('True when the crisis AI is actively overriding (2+ consecutive losses)'),
   "prediction": zod.string().nullable().describe('\"P\", \"B\", or null'),
   "confidence": zod.string().describe('\"LOW\" | \"MED\" | \"HIGH\"'),
   "reasoning": zod.string().describe('One-sentence AI explanation for the prediction'),
   "consecutiveLosses": zod.number().describe('Current streak of consecutive main prediction losses')
-}).describe('Gemini AI recovery engine — activates after 3 consecutive main losses')
+}).describe('Gemini AI recovery engine — activates after 2 consecutive main losses')
 })
 
 
@@ -1058,12 +1058,12 @@ export const ResetGameResponse = zod.object({
 })
 }).describe('Per-sub-system win rates tracked by ObserverMasterAI'),
   "crisisAI": zod.object({
-  "active": zod.boolean().describe('True when the crisis AI is actively overriding (3+ consecutive losses)'),
+  "active": zod.boolean().describe('True when the crisis AI is actively overriding (2+ consecutive losses)'),
   "prediction": zod.string().nullable().describe('\"P\", \"B\", or null'),
   "confidence": zod.string().describe('\"LOW\" | \"MED\" | \"HIGH\"'),
   "reasoning": zod.string().describe('One-sentence AI explanation for the prediction'),
   "consecutiveLosses": zod.number().describe('Current streak of consecutive main prediction losses')
-}).describe('Gemini AI recovery engine — activates after 3 consecutive main losses')
+}).describe('Gemini AI recovery engine — activates after 2 consecutive main losses')
 })
 
 
@@ -1315,12 +1315,12 @@ export const SetWindowResponse = zod.object({
 })
 }).describe('Per-sub-system win rates tracked by ObserverMasterAI'),
   "crisisAI": zod.object({
-  "active": zod.boolean().describe('True when the crisis AI is actively overriding (3+ consecutive losses)'),
+  "active": zod.boolean().describe('True when the crisis AI is actively overriding (2+ consecutive losses)'),
   "prediction": zod.string().nullable().describe('\"P\", \"B\", or null'),
   "confidence": zod.string().describe('\"LOW\" | \"MED\" | \"HIGH\"'),
   "reasoning": zod.string().describe('One-sentence AI explanation for the prediction'),
   "consecutiveLosses": zod.number().describe('Current streak of consecutive main prediction losses')
-}).describe('Gemini AI recovery engine — activates after 3 consecutive main losses')
+}).describe('Gemini AI recovery engine — activates after 2 consecutive main losses')
 })
 
 

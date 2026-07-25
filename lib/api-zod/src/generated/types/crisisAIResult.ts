@@ -7,7 +7,7 @@
  */
 
 export interface CrisisAIResult {
-  /** True when the crisis AI is actively overriding (3+ consecutive losses) */
+  /** True when the crisis AI is actively overriding (2+ consecutive losses) */
   active: boolean;
   /**
      * "P", "B", or null

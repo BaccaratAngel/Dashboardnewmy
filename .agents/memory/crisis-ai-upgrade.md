@@ -9,13 +9,13 @@ description: CrisisAI engine using Gemini free API, shadow promotion logic, and 
 
 **CrisisAI engine** (`artifacts/api-server/src/lib/engines/crisis-ai.ts`):
 - Tracks consecutive losses of the main regime prediction
-- After `CRISIS_THRESHOLD = 3` consecutive losses, calls Google Gemini REST API
-- Uses `gemini-2.0-flash` model via direct fetch (no SDK, uses `GEMINI_API_KEY` env var)
+- After `CRISIS_THRESHOLD = 2` consecutive losses, calls Google Gemini REST API
+- Uses `gemini-3-flash-preview` by default via direct fetch (no SDK, uses `GEMINI_API_KEY` env var); older `gemini-2.5-flash` was rejected for new users
 - Returns: `{ active, prediction, confidence, reasoning, consecutiveLosses }`
-- Graceful fallback to ensemble verdict on API error/timeout (9s timeout)
+- Graceful fallback to ensemble verdict on API error/timeout (7s timeout); error text distinguishes timeout from HTTP/API failures
 - Full undo stack: `_save()` called on every hand (including T), matching session undo cadence
 
-**Why:** User observed the main prediction staying "sticky" and wrong for 5-7 consecutive hands. CrisisAI provides an independent LLM-based recovery signal.
+**Why:** User observed the main prediction staying "sticky" and wrong for 5-7 consecutive hands. CrisisAI provides an independent LLM-based recovery signal. Google model availability can vary by account age, so the default must stay on a currently accepted model.
 
 **How to apply:** `crisisAI.setMainPrediction()` must be called BEFORE `regime.evaluateOutcome()`, then `await crisisAI.evaluateOutcome()` AFTER all engine scoring. This captures the prior prediction correctly.
 

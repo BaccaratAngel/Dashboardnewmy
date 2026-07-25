@@ -175,7 +175,7 @@ export interface ObserverMemory {
 }
 
 export interface CrisisAIResult {
-  /** True when the crisis AI is actively overriding (3+ consecutive losses) */
+  /** True when the crisis AI is actively overriding (2+ consecutive losses) */
   active: boolean;
   /**
      * "P", "B", or null
@@ -245,7 +245,7 @@ export interface GameSnapshot {
   observer: ObserverResult;
   /** Per-sub-system win rates tracked by ObserverMasterAI */
   observerMemory: ObserverMemory;
-  /** Gemini AI recovery engine — activates after 3 consecutive main losses */
+  /** Gemini AI recovery engine — activates after 2 consecutive main losses */
   crisisAI: CrisisAIResult;
 }
 
