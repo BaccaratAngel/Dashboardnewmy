@@ -152,6 +152,8 @@ export interface RegimeState {
   shadowLeaderComposite: number;
   /** True when lock was broken early this hand by streak analysis */
   lockAccelerated: boolean;
+  /** True when shadow leader was promoted to dominant this hand */
+  shadowPromoted: boolean;
 }
 
 export interface ObserverSubSystem {
@@ -170,6 +172,22 @@ export interface ObserverMemory {
   meta: ObserverSubSystem;
   lookAhead: ObserverSubSystem;
   derived: ObserverSubSystem;
+}
+
+export interface CrisisAIResult {
+  /** True when the crisis AI is actively overriding (3+ consecutive losses) */
+  active: boolean;
+  /**
+     * "P", "B", or null
+     * @nullable
+     */
+  prediction: string | null;
+  /** "LOW" | "MED" | "HIGH" */
+  confidence: string;
+  /** One-sentence AI explanation for the prediction */
+  reasoning: string;
+  /** Current streak of consecutive main prediction losses */
+  consecutiveLosses: number;
 }
 
 export interface LookAheadResult {
@@ -227,6 +245,8 @@ export interface GameSnapshot {
   observer: ObserverResult;
   /** Per-sub-system win rates tracked by ObserverMasterAI */
   observerMemory: ObserverMemory;
+  /** Gemini AI recovery engine — activates after 3 consecutive main losses */
+  crisisAI: CrisisAIResult;
 }
 
 export interface UserAccount {
@@ -242,26 +262,6 @@ export interface UserAccount {
      * @nullable
      */
   lastLoginAt: string | null;
-  /**
-     * ISO 8601 datetime of last heartbeat, or null
-     * @nullable
-     */
-  lastSeenAt: string | null;
-  /**
-     * IP address at last heartbeat, or null
-     * @nullable
-     */
-  lastSeenIp: string | null;
-  /**
-     * IP address of the active session, or null
-     * @nullable
-     */
-  sessionIp: string | null;
-  /**
-     * ISO 8601 datetime when account was flagged for sharing, or null
-     * @nullable
-     */
-  flaggedAt: string | null;
 }
 
 export interface UserAccountInput {
@@ -281,3 +281,4 @@ export interface UserAccountUpdate {
   /** ISO 8601 datetime */
   expiresAt?: string;
 }
+

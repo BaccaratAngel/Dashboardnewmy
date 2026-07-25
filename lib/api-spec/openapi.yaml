@@ -546,6 +546,7 @@ components:
         - shadowLeaderPred
         - shadowLeaderComposite
         - lockAccelerated
+        - shadowPromoted
       properties:
         status:
           type: string
@@ -631,6 +632,9 @@ components:
         lockAccelerated:
           type: boolean
           description: True when lock was broken early this hand by streak analysis
+        shadowPromoted:
+          type: boolean
+          description: True when shadow leader was promoted to dominant this hand
 
     ObserverSubSystem:
       type: object
@@ -657,9 +661,29 @@ components:
         derived:
           $ref: "#/components/schemas/ObserverSubSystem"
 
+    CrisisAIResult:
+      type: object
+      required: [active, prediction, confidence, reasoning, consecutiveLosses]
+      properties:
+        active:
+          type: boolean
+          description: True when the crisis AI is actively overriding (3+ consecutive losses)
+        prediction:
+          type: ["string", "null"]
+          description: '"P", "B", or null'
+        confidence:
+          type: string
+          description: '"LOW" | "MED" | "HIGH"'
+        reasoning:
+          type: string
+          description: One-sentence AI explanation for the prediction
+        consecutiveLosses:
+          type: integer
+          description: Current streak of consecutive main prediction losses
+
     GameSnapshot:
       type: object
-      required: [handCount, history, regime, lookAhead, legacyLookAhead, metaAI, observer, observerMemory]
+      required: [handCount, history, regime, lookAhead, legacyLookAhead, metaAI, observer, observerMemory, crisisAI]
       properties:
         handCount:
           type: integer
@@ -681,6 +705,9 @@ components:
         observerMemory:
           $ref: "#/components/schemas/ObserverMemory"
           description: Per-sub-system win rates tracked by ObserverMasterAI
+        crisisAI:
+          $ref: "#/components/schemas/CrisisAIResult"
+          description: Gemini AI recovery engine — activates after 3 consecutive main losses
 
     LookAheadResult:
       type: object

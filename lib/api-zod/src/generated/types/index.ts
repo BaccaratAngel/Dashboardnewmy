@@ -8,6 +8,7 @@
 
 export * from './adminCredentials';
 export * from './adminSession';
+export * from './crisisAIResult';
 export * from './errorResponse';
 export * from './expertStats';
 export * from './gameInputData';

@@ -121,6 +121,7 @@ export interface RegimeVerdict {
   shadowLeaderPred: Side | null;
   shadowLeaderComposite: number;
   lockAccelerated: boolean;          // accelerated unlock just fired this hand
+  shadowPromoted: boolean;           // shadow leader was promoted to dominant this hand
 }
 
 interface RegimeConfig {
@@ -145,6 +146,7 @@ interface RegimeStateSnap {
   volatilityIndex: number;
   shadowLeader: ExpertKey | null;
   lockAccelerated: boolean;
+  shadowPromoted: boolean;
 }
 
 // ── Option C scoring helpers ──────────────────────────────────────────────────
@@ -232,6 +234,7 @@ export class RegimeSwitchTracker {
   private volatilityIndex = 0;
   private _shadowLeader: ExpertKey | null = null;
   private _lockAccelerated = false;
+  private _shadowPromoted = false;
   private _undoStack: RegimeStateSnap[] = [];
 
   // ── Undo snapshot ───────────────────────────────────────────────────────
@@ -250,6 +253,7 @@ export class RegimeSwitchTracker {
       volatilityIndex: this.volatilityIndex,
       shadowLeader: this._shadowLeader,
       lockAccelerated: this._lockAccelerated,
+      shadowPromoted: this._shadowPromoted,
     });
     if (this._undoStack.length > 200) this._undoStack.shift();
   }
@@ -383,6 +387,7 @@ export class RegimeSwitchTracker {
     this._recompute();
     this._adjustWindow();
     this._lockAccelerated = false;
+    this._shadowPromoted = false;
     this._updateDominant();
   }
 
@@ -511,8 +516,37 @@ export class RegimeSwitchTracker {
     const recent = lossRuns.slice(-5);
     const avgLossRun = recent.reduce((a, b) => a + b, 0) / recent.length;
 
+    // Hard cap: 3+ consecutive losses always break the lock, regardless of history
+    if (profile.currentRunLen >= 3) return true;
+
     // Trigger if current loss run has reached or exceeded their typical loss-run length
     return profile.currentRunLen >= Math.max(2, Math.ceil(avgLossRun));
+  }
+
+  // ── Shadow promotion check ───────────────────────────────────────────────
+
+  /**
+   * Returns true when the shadow leader should take over from the dominant:
+   *   • Dominant has been losing for 3+ consecutive hands (while locked)
+   *   • Shadow leader has been winning for 2+ consecutive hands
+   *   • Shadow has a higher composite score than dominant
+   */
+  private _shouldPromoteShadow(dominantKey: ExpertKey, shadowKey: ExpertKey): boolean {
+    const dom = this.experts[dominantKey];
+    const shadow = this.experts[shadowKey];
+
+    // Dominant must be on an active losing run of 3+
+    if (dom.streakProfile.currentRunIsWin !== false) return false;
+    if (dom.streakProfile.currentRunLen < 3) return false;
+
+    // Shadow must be on an active winning run of 2+
+    if (shadow.streakProfile.currentRunIsWin !== true) return false;
+    if (shadow.streakProfile.currentRunLen < 2) return false;
+
+    // Shadow must actually score better
+    if (shadow.compositeScore <= dom.compositeScore) return false;
+
+    return true;
   }
 
   // ── Shadow leader (best non-locked expert) ──────────────────────────────
@@ -532,8 +566,19 @@ export class RegimeSwitchTracker {
       // Shadow leader tracking (always updated during lock)
       this._shadowLeader = this._computeShadowLeader();
 
-      // Accelerated unlock check
-      if (this.dominant && this._shouldAccelerateUnlock(this.dominant)) {
+      // Shadow promotion: outperforming shadow takes over immediately
+      if (
+        this.dominant &&
+        this._shadowLeader &&
+        this._shouldPromoteShadow(this.dominant, this._shadowLeader)
+      ) {
+        this._shadowPromoted = true;
+        this._lockAccelerated = true;
+        this.dominantLockCount = 0;
+        // Fall through to normal evaluation — shadow will win the election
+      }
+      // Accelerated unlock check (hard cap at 3 consecutive losses)
+      else if (this.dominant && this._shouldAccelerateUnlock(this.dominant)) {
         this._lockAccelerated = true;
         this.dominantLockCount = 0;
         // Fall through to normal evaluation
@@ -679,6 +724,7 @@ export class RegimeSwitchTracker {
       shadowLeaderPred,
       shadowLeaderComposite,
       lockAccelerated: this._lockAccelerated,
+      shadowPromoted: this._shadowPromoted,
     };
 
     if (!dom) {
@@ -757,6 +803,7 @@ export class RegimeSwitchTracker {
     this.volatilityIndex = prev.volatilityIndex;
     this._shadowLeader = prev.shadowLeader;
     this._lockAccelerated = prev.lockAccelerated;
+    this._shadowPromoted = prev.shadowPromoted;
   }
 
   reset(): void {
@@ -782,6 +829,7 @@ export class RegimeSwitchTracker {
     this.volatilityIndex = 0;
     this._shadowLeader = null;
     this._lockAccelerated = false;
+    this._shadowPromoted = false;
     this._undoStack = [];
   }
 }

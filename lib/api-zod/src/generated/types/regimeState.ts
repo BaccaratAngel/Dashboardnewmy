@@ -73,4 +73,6 @@ export interface RegimeState {
   shadowLeaderComposite: number;
   /** True when lock was broken early this hand by streak analysis */
   lockAccelerated: boolean;
+  /** True when shadow leader was promoted to dominant this hand */
+  shadowPromoted: boolean;
 }

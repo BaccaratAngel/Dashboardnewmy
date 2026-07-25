@@ -9,7 +9,7 @@ import {
   useSetWindow,
   useLogout,
 } from '@workspace/api-client-react';
-import type { GameSnapshot, ExpertStats } from '@workspace/api-client-react';
+import type { GameSnapshot, ExpertStats, CrisisAIResult } from '@workspace/api-client-react';
 import { cn } from '@/lib/utils';
 
 // ── Color & label helpers ─────────────────────────────────────────────────────
@@ -229,10 +229,16 @@ function LockBar({
   return (
     <div className="flex flex-col gap-1.5">
       {/* Accelerated unlock banner */}
-      {lockAccelerated && (
+      {lockAccelerated && !shadowLeader && (
         <div className="text-center py-1 px-3 rounded-sm text-xs font-bold tracking-wider"
           style={{ color: '#fb923c', backgroundColor: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.35)' }}>
           ⚡ ACCELERATED UNLOCK — Loss run exceeded profile
+        </div>
+      )}
+      {lockAccelerated && shadowLeader && (
+        <div className="text-center py-1 px-3 rounded-sm text-xs font-bold tracking-wider"
+          style={{ color: '#4ade80', backgroundColor: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.35)' }}>
+          ⬆ SHADOW PROMOTED — {expertLabel(shadowLeader)} takes command
         </div>
       )}
 
@@ -264,6 +270,89 @@ function LockBar({
             </span>
           </div>
           <SidePill pred={shadowLeaderPred} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Crisis AI Panel ───────────────────────────────────────────────────────────
+
+function CrisisAIPanel({ crisis }: { crisis: CrisisAIResult }) {
+  if (!crisis.active && crisis.consecutiveLosses === 0) return null;
+
+  const predColor = crisis.prediction === 'P' ? '#22d3ee' : crisis.prediction === 'B' ? '#f87171' : '#71717a';
+  const confColor = crisis.confidence === 'HIGH' ? '#4ade80' : crisis.confidence === 'MED' ? '#facc15' : '#fb923c';
+
+  return (
+    <div className="rounded-sm border flex flex-col overflow-hidden"
+      style={{
+        backgroundColor: '#120a00',
+        borderColor: crisis.active ? 'rgba(251,146,60,0.6)' : 'rgba(251,146,60,0.2)',
+        boxShadow: crisis.active ? '0 0 16px rgba(251,146,60,0.15)' : 'none',
+      }}>
+
+      {/* Header */}
+      <div className="px-4 py-2 flex items-center justify-between"
+        style={{
+          borderBottom: '1px solid rgba(251,146,60,0.2)',
+          backgroundColor: crisis.active ? 'rgba(251,146,60,0.08)' : 'rgba(251,146,60,0.02)',
+        }}>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold tracking-widest"
+            style={{ color: crisis.active ? '#fb923c' : 'rgba(251,146,60,0.5)' }}>
+            {crisis.active ? '⚠ CRISIS AI — GEMINI OVERRIDE' : '◈ CRISIS AI MONITOR'}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {crisis.consecutiveLosses > 0 && (
+            <span className="text-xs font-bold tabular-nums px-2 py-0.5 rounded-sm"
+              style={{
+                color: '#fb923c',
+                backgroundColor: 'rgba(251,146,60,0.12)',
+                border: '1px solid rgba(251,146,60,0.3)',
+              }}>
+              {crisis.consecutiveLosses}× LOSS STREAK
+            </span>
+          )}
+        </div>
+      </div>
+
+      {crisis.active ? (
+        <div className="flex flex-col gap-3 px-4 py-4">
+          {/* AI Prediction */}
+          <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs tracking-widest" style={{ color: '#71717a' }}>GEMINI RECOVERY CALL</span>
+              <span className="text-xs" style={{ color: '#52525b' }}>
+                {crisis.reasoning || 'Analysing pattern…'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold px-1.5 py-0.5 rounded-sm"
+                style={{ color: confColor, backgroundColor: `${confColor}15`, border: `1px solid ${confColor}40` }}>
+                {crisis.confidence}
+              </span>
+              {crisis.prediction ? (
+                <span className="text-2xl font-black tracking-wider"
+                  style={{ color: predColor, textShadow: `0 0 12px ${predColor}60` }}>
+                  {crisis.prediction === 'P' ? 'PLAYER' : 'BANKER'}
+                </span>
+              ) : (
+                <span className="text-lg font-black" style={{ color: '#71717a' }}>WAIT</span>
+              )}
+            </div>
+          </div>
+
+          {/* Separator note */}
+          <div className="text-xs text-center py-1 rounded-sm"
+            style={{ color: 'rgba(251,146,60,0.5)', backgroundColor: 'rgba(251,146,60,0.04)', border: '1px solid rgba(251,146,60,0.12)' }}>
+            Crisis AI activates after {3} consecutive losses · resets on correct prediction
+          </div>
+        </div>
+      ) : (
+        <div className="px-4 py-3 text-xs" style={{ color: '#3f3f46' }}>
+          Monitoring main prediction accuracy · activates after 3 consecutive losses
         </div>
       )}
     </div>
@@ -561,6 +650,11 @@ export default function DashboardPage() {
             style={{ backgroundColor: '#0d0d14', borderColor: 'rgba(255,255,255,0.08)', color: '#71717a' }}>
             <div className="text-sm tracking-wider">LOADING REGIME DATA...</div>
           </div>
+        )}
+
+        {/* ── CRISIS AI PANEL ──────────────────────────────────────── */}
+        {snapshot?.crisisAI && (
+          <CrisisAIPanel crisis={snapshot.crisisAI} />
         )}
 
         {/* ── LOOK-AHEAD SYSTEMS PANEL ─────────────────────────────── */}

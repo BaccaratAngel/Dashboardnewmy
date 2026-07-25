@@ -244,7 +244,8 @@ export const GetSnapshotResponse = zod.object({
   "shadowLeader": zod.string().nullable().describe('Best non-locked expert during a lock window'),
   "shadowLeaderPred": zod.string().nullable().describe('Shadow leader current prediction (P, B, or null)'),
   "shadowLeaderComposite": zod.number().describe('Shadow leader composite score'),
-  "lockAccelerated": zod.boolean().describe('True when lock was broken early this hand by streak analysis')
+  "lockAccelerated": zod.boolean().describe('True when lock was broken early this hand by streak analysis'),
+  "shadowPromoted": zod.boolean().describe('True when shadow leader was promoted to dominant this hand')
 }),
   "lookAhead": zod.object({
   "active": zod.boolean(),
@@ -292,7 +293,14 @@ export const GetSnapshotResponse = zod.object({
   "total": zod.number().describe('Total predictions evaluated'),
   "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
 })
-}).describe('Per-sub-system win rates tracked by ObserverMasterAI')
+}).describe('Per-sub-system win rates tracked by ObserverMasterAI'),
+  "crisisAI": zod.object({
+  "active": zod.boolean().describe('True when the crisis AI is actively overriding (3+ consecutive losses)'),
+  "prediction": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "confidence": zod.string().describe('\"LOW\" | \"MED\" | \"HIGH\"'),
+  "reasoning": zod.string().describe('One-sentence AI explanation for the prediction'),
+  "consecutiveLosses": zod.number().describe('Current streak of consecutive main prediction losses')
+}).describe('Gemini AI recovery engine — activates after 3 consecutive main losses')
 })
 
 
@@ -493,7 +501,8 @@ export const SubmitInputResponse = zod.object({
   "shadowLeader": zod.string().nullable().describe('Best non-locked expert during a lock window'),
   "shadowLeaderPred": zod.string().nullable().describe('Shadow leader current prediction (P, B, or null)'),
   "shadowLeaderComposite": zod.number().describe('Shadow leader composite score'),
-  "lockAccelerated": zod.boolean().describe('True when lock was broken early this hand by streak analysis')
+  "lockAccelerated": zod.boolean().describe('True when lock was broken early this hand by streak analysis'),
+  "shadowPromoted": zod.boolean().describe('True when shadow leader was promoted to dominant this hand')
 }),
   "lookAhead": zod.object({
   "active": zod.boolean(),
@@ -541,7 +550,14 @@ export const SubmitInputResponse = zod.object({
   "total": zod.number().describe('Total predictions evaluated'),
   "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
 })
-}).describe('Per-sub-system win rates tracked by ObserverMasterAI')
+}).describe('Per-sub-system win rates tracked by ObserverMasterAI'),
+  "crisisAI": zod.object({
+  "active": zod.boolean().describe('True when the crisis AI is actively overriding (3+ consecutive losses)'),
+  "prediction": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "confidence": zod.string().describe('\"LOW\" | \"MED\" | \"HIGH\"'),
+  "reasoning": zod.string().describe('One-sentence AI explanation for the prediction'),
+  "consecutiveLosses": zod.number().describe('Current streak of consecutive main prediction losses')
+}).describe('Gemini AI recovery engine — activates after 3 consecutive main losses')
 })
 
 
@@ -738,7 +754,8 @@ export const UndoInputResponse = zod.object({
   "shadowLeader": zod.string().nullable().describe('Best non-locked expert during a lock window'),
   "shadowLeaderPred": zod.string().nullable().describe('Shadow leader current prediction (P, B, or null)'),
   "shadowLeaderComposite": zod.number().describe('Shadow leader composite score'),
-  "lockAccelerated": zod.boolean().describe('True when lock was broken early this hand by streak analysis')
+  "lockAccelerated": zod.boolean().describe('True when lock was broken early this hand by streak analysis'),
+  "shadowPromoted": zod.boolean().describe('True when shadow leader was promoted to dominant this hand')
 }),
   "lookAhead": zod.object({
   "active": zod.boolean(),
@@ -786,7 +803,14 @@ export const UndoInputResponse = zod.object({
   "total": zod.number().describe('Total predictions evaluated'),
   "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
 })
-}).describe('Per-sub-system win rates tracked by ObserverMasterAI')
+}).describe('Per-sub-system win rates tracked by ObserverMasterAI'),
+  "crisisAI": zod.object({
+  "active": zod.boolean().describe('True when the crisis AI is actively overriding (3+ consecutive losses)'),
+  "prediction": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "confidence": zod.string().describe('\"LOW\" | \"MED\" | \"HIGH\"'),
+  "reasoning": zod.string().describe('One-sentence AI explanation for the prediction'),
+  "consecutiveLosses": zod.number().describe('Current streak of consecutive main prediction losses')
+}).describe('Gemini AI recovery engine — activates after 3 consecutive main losses')
 })
 
 
@@ -983,7 +1007,8 @@ export const ResetGameResponse = zod.object({
   "shadowLeader": zod.string().nullable().describe('Best non-locked expert during a lock window'),
   "shadowLeaderPred": zod.string().nullable().describe('Shadow leader current prediction (P, B, or null)'),
   "shadowLeaderComposite": zod.number().describe('Shadow leader composite score'),
-  "lockAccelerated": zod.boolean().describe('True when lock was broken early this hand by streak analysis')
+  "lockAccelerated": zod.boolean().describe('True when lock was broken early this hand by streak analysis'),
+  "shadowPromoted": zod.boolean().describe('True when shadow leader was promoted to dominant this hand')
 }),
   "lookAhead": zod.object({
   "active": zod.boolean(),
@@ -1031,7 +1056,14 @@ export const ResetGameResponse = zod.object({
   "total": zod.number().describe('Total predictions evaluated'),
   "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
 })
-}).describe('Per-sub-system win rates tracked by ObserverMasterAI')
+}).describe('Per-sub-system win rates tracked by ObserverMasterAI'),
+  "crisisAI": zod.object({
+  "active": zod.boolean().describe('True when the crisis AI is actively overriding (3+ consecutive losses)'),
+  "prediction": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "confidence": zod.string().describe('\"LOW\" | \"MED\" | \"HIGH\"'),
+  "reasoning": zod.string().describe('One-sentence AI explanation for the prediction'),
+  "consecutiveLosses": zod.number().describe('Current streak of consecutive main prediction losses')
+}).describe('Gemini AI recovery engine — activates after 3 consecutive main losses')
 })
 
 
@@ -1232,7 +1264,8 @@ export const SetWindowResponse = zod.object({
   "shadowLeader": zod.string().nullable().describe('Best non-locked expert during a lock window'),
   "shadowLeaderPred": zod.string().nullable().describe('Shadow leader current prediction (P, B, or null)'),
   "shadowLeaderComposite": zod.number().describe('Shadow leader composite score'),
-  "lockAccelerated": zod.boolean().describe('True when lock was broken early this hand by streak analysis')
+  "lockAccelerated": zod.boolean().describe('True when lock was broken early this hand by streak analysis'),
+  "shadowPromoted": zod.boolean().describe('True when shadow leader was promoted to dominant this hand')
 }),
   "lookAhead": zod.object({
   "active": zod.boolean(),
@@ -1280,7 +1313,14 @@ export const SetWindowResponse = zod.object({
   "total": zod.number().describe('Total predictions evaluated'),
   "lastPred": zod.string().nullable().describe('\"P\", \"B\", or null')
 })
-}).describe('Per-sub-system win rates tracked by ObserverMasterAI')
+}).describe('Per-sub-system win rates tracked by ObserverMasterAI'),
+  "crisisAI": zod.object({
+  "active": zod.boolean().describe('True when the crisis AI is actively overriding (3+ consecutive losses)'),
+  "prediction": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "confidence": zod.string().describe('\"LOW\" | \"MED\" | \"HIGH\"'),
+  "reasoning": zod.string().describe('One-sentence AI explanation for the prediction'),
+  "consecutiveLosses": zod.number().describe('Current streak of consecutive main prediction losses')
+}).describe('Gemini AI recovery engine — activates after 3 consecutive main losses')
 })
 
 

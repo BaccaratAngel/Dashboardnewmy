@@ -7,40 +7,36 @@ const router = Router();
 // All game routes require auth
 router.use(requireUser);
 
-function snapshotToJson(snap: ReturnType<typeof getOrCreateSession["prototype"]["getSnapshot"]>) {
-  return snap;
-}
-
 // GET /game/snapshot
 router.get("/snapshot", (req, res) => {
   const session = getOrCreateSession(req.user!.id);
-  res.json(snapshotToJson(session.getSnapshot()));
+  res.json(session.getSnapshot());
 });
 
-// POST /game/input
-router.post("/input", (req, res) => {
+// POST /game/input  (async — may call Gemini Crisis AI)
+router.post("/input", async (req, res) => {
   const { value } = req.body as { value?: string };
   if (!value || !["B", "P", "T"].includes(value.toUpperCase())) {
     res.status(400).json({ error: "value must be B, P, or T" });
     return;
   }
   const session = getOrCreateSession(req.user!.id);
-  const snap = session.handleInput(value.toUpperCase());
-  res.json(snapshotToJson(snap));
+  const snap = await session.handleInput(value.toUpperCase());
+  res.json(snap);
 });
 
 // POST /game/undo
 router.post("/undo", (req, res) => {
   const session = getOrCreateSession(req.user!.id);
   const snap = session.undo();
-  res.json(snapshotToJson(snap));
+  res.json(snap);
 });
 
 // POST /game/reset
 router.post("/reset", (req, res) => {
   const session = getOrCreateSession(req.user!.id);
   const snap = session.reset();
-  res.json(snapshotToJson(snap));
+  res.json(snap);
 });
 
 // POST /game/window
@@ -52,7 +48,7 @@ router.post("/window", (req, res) => {
   }
   const session = getOrCreateSession(req.user!.id);
   const snap = session.setWindow(Number(w));
-  res.json(snapshotToJson(snap));
+  res.json(snap);
 });
 
 export default router;

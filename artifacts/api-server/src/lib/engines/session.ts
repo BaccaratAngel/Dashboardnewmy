@@ -3,12 +3,14 @@
  * Instantiated once per user, lives in memory for the process lifetime.
  *
  * Data flow on each input(value):
- *   1. Score all engines against this actual outcome (prior predictions)
- *   2. Record the outcome in all engines
- *   3. Generate new predictions from all engines
- *   4. Run look-ahead v1 (depth=1, in-process branch simulation)
- *   5. Run look-ahead v2 / legacy (depth=2, two-step simulation)
- *   6. Capture all 6 predictions in regime tracker + observer
+ *   1. Capture prior main prediction for CrisisAI tracking
+ *   2. Score all engines against this actual outcome (prior predictions)
+ *   3. Record the outcome in all engines
+ *   4. Run CrisisAI evaluation (async — may call Gemini)
+ *   5. Generate new predictions from all engines
+ *   6. Run look-ahead v1 (depth=1, in-process branch simulation)
+ *   7. Run look-ahead v2 / legacy (depth=2, two-step simulation)
+ *   8. Capture all predictions in regime tracker + observer
  */
 
 import { SyndicateEngine } from "./syndicate.js";
@@ -18,6 +20,7 @@ import { ShortMarkov, SupremeBayesianAI, type SupremePredInput } from "./supreme
 import { RegimeSwitchTracker, type RegimeVerdict } from "./regime.js";
 import { MetaAI, buildMetaFeatures } from "./meta-ai.js";
 import { ObserverMasterAI } from "./observer.js";
+import { CrisisAI, type CrisisResult } from "./crisis-ai.js";
 
 type Side = "B" | "P";
 type HandValue = "B" | "P" | "T";
@@ -59,6 +62,7 @@ export interface GameSnapshot {
     lookAhead: { winRate: number; total: number; lastPred: Side | null };
     derived: { winRate: number; total: number; lastPred: Side | null };
   };
+  crisisAI: CrisisResult;
 }
 
 // ── Look-ahead v1 (depth=1) — in-process branch simulation ──────────────────
@@ -159,6 +163,7 @@ export class GameSession {
   private regime = new RegimeSwitchTracker();
   private metaAI = new MetaAI();
   private observer = new ObserverMasterAI();
+  private crisisAI = new CrisisAI();
   private history: HandValue[] = [];
 
   private _pendingFeatureX: number[] | null = null;
@@ -170,13 +175,18 @@ export class GameSession {
   };
 
   /** Process a new hand result */
-  handleInput(value: string): GameSnapshot {
+  async handleInput(value: string): Promise<GameSnapshot> {
     const v = value.toUpperCase() as HandValue;
     if (v !== "B" && v !== "P" && v !== "T") throw new Error(`Invalid value: ${value}`);
 
     const actual = v === "T" ? null : (v as Side);
 
-    // 1. Score all engines against this actual outcome
+    // 1. Capture what the regime currently predicts (before scoring)
+    //    — this is the "main prediction" for the hand being entered
+    const priorMainDecision = this.regime.getVerdict().decision;
+    this.crisisAI.setMainPrediction(priorMainDecision);
+
+    // 2. Score all engines against this actual outcome
     if (actual) {
       this.supreme.evaluateOutcome(actual);
       this.regime.evaluateOutcome(actual);
@@ -184,7 +194,7 @@ export class GameSession {
       if (this._pendingFeatureX) this.metaAI.onLabeled(this._pendingFeatureX, actual);
     }
 
-    // 2. Record the outcome in all engines
+    // 3. Record the outcome in all engines
     this.syndicate.calculateSyndicate(actual ?? "B");
     if (actual) {
       this.road.handleInput(actual);
@@ -193,7 +203,18 @@ export class GameSession {
     }
     this.history.push(v);
 
-    // 3. Generate new predictions
+    // 4. Run CrisisAI evaluation (async — may call Gemini on crisis)
+    const regimeNow = this.regime.getVerdict();
+    await this.crisisAI.evaluateOutcome(
+      actual,
+      [...this.history],
+      regimeNow.shadowLeader,
+      regimeNow.shadowLeaderPred,
+      regimeNow.ensembleVerdict,
+      regimeNow.ensemblePercent,
+    );
+
+    // 5. Generate new predictions
     this._captureNewPredictions();
     return this.getSnapshot();
   }
@@ -209,6 +230,7 @@ export class GameSession {
     this.regime.undoLast();
     this.metaAI.undoLast();
     this.observer.undoLast();
+    this.crisisAI.undoLast();
     this._captureNewPredictions();
     return this.getSnapshot();
   }
@@ -223,6 +245,7 @@ export class GameSession {
     this.regime.reset();
     this.metaAI.reset();
     this.observer.reset();
+    this.crisisAI.reset();
     this._pendingFeatureX = null;
     this._pendingLookAhead = { active: false, verdict: null, bias: 0, strength: 0, recentAcc: null, avgP: 0, avgB: 0 };
     this._pendingLegacyLookAhead = { active: false, verdict: null, bias: 0, strength: 0, recentAcc: null, avgP: 0, avgB: 0 };
@@ -257,6 +280,7 @@ export class GameSession {
         lookAhead: { winRate: obsMem.lookAhead.winRate, total: obsMem.lookAhead.total, lastPred: obsMem.lookAhead.lastPred },
         derived: { winRate: obsMem.derived.winRate, total: obsMem.derived.total, lastPred: obsMem.derived.lastPred },
       },
+      crisisAI: this.crisisAI.getResult(),
     };
   }
 

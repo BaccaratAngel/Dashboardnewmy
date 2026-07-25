@@ -5,6 +5,7 @@
  * Baccarat prediction dashboard API
  * OpenAPI spec version: 0.1.0
  */
+import type { CrisisAIResult } from './crisisAIResult';
 import type { LookAheadResult } from './lookAheadResult';
 import type { MetaAIResult } from './metaAIResult';
 import type { ObserverMemory } from './observerMemory';
@@ -22,4 +23,6 @@ export interface GameSnapshot {
   observer: ObserverResult;
   /** Per-sub-system win rates tracked by ObserverMasterAI */
   observerMemory: ObserverMemory;
+  /** Gemini AI recovery engine — activates after 3 consecutive main losses */
+  crisisAI: CrisisAIResult;
 }
