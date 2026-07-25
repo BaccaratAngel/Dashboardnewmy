@@ -28,6 +28,7 @@ router.post("/login", async (req, res) => {
   if (!rate.allowed) {
     const retryAfterSec = Math.ceil((rate.resetAt - Date.now()) / 1000);
     res.setHeader("Retry-After", String(retryAfterSec));
+    req.log.warn("User login rejected: rate limit exceeded");
     res.status(429).json({
       error: `Too many login attempts. Try again in ${Math.ceil(retryAfterSec / 60)} minutes.`,
     });
@@ -36,6 +37,7 @@ router.post("/login", async (req, res) => {
 
   const { username, password } = req.body as { username?: string; password?: string };
   if (!username || !password) {
+    req.log.warn("User login rejected: missing credentials");
     res.status(400).json({ error: "Username and password required" });
     return;
   }
@@ -49,17 +51,20 @@ router.post("/login", async (req, res) => {
   const user = users[0];
   if (!user) {
     // Generic message — don't reveal whether the username exists
+    req.log.warn({ username }, "User login rejected: invalid credentials");
     res.status(401).json({ error: "Invalid credentials" });
     return;
   }
 
   const match = await bcrypt.compare(password, user.passwordHash);
   if (!match) {
+    req.log.warn({ username }, "User login rejected: invalid credentials");
     res.status(401).json({ error: "Invalid credentials" });
     return;
   }
 
   if (new Date() > user.expiresAt) {
+    req.log.warn({ userId: user.id, username: user.username }, "User login rejected: account expired");
     res.status(401).json({ error: "Account expired. Contact admin." });
     return;
   }
@@ -88,6 +93,7 @@ router.post("/login", async (req, res) => {
     .where(eq(usersTable.id, user.id));
 
   res.cookie("session", token, COOKIE_OPTS);
+  req.log.info({ userId: user.id, username: user.username }, "User login accepted");
   res.json({
     id: user.id,
     username: user.username,
@@ -103,6 +109,7 @@ router.post("/logout", requireUser, async (req, res) => {
     .set({ activeSessionId: null, sessionUserAgent: null, sessionIp: null })
     .where(eq(usersTable.id, userId));
   res.clearCookie("session");
+  req.log.info({ userId }, "User logout completed");
   res.status(204).send();
 });
 
@@ -159,6 +166,7 @@ router.post("/heartbeat", requireUser, async (req, res) => {
       .where(eq(usersTable.id, userId));
 
     res.clearCookie("session");
+    req.log.warn({ userId }, "User heartbeat rejected: concurrent session detected");
     res
       .status(401)
       .json({ error: "Concurrent session detected. Account suspended. Contact admin." });

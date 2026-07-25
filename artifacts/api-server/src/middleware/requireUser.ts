@@ -35,6 +35,7 @@ export async function requireUser(
 ): Promise<void> {
   const token = req.cookies?.["session"] as string | undefined;
   if (!token) {
+    req.log.warn("User request rejected: missing session");
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -47,11 +48,13 @@ export async function requireUser(
 
   const user = users[0];
   if (!user) {
+    req.log.warn("User request rejected: invalid session");
     res.status(401).json({ error: "Session invalid" });
     return;
   }
 
   if (new Date() > user.expiresAt) {
+    req.log.warn({ userId: user.id }, "User request rejected: account expired");
     res.status(401).json({ error: "Account expired" });
     return;
   }
@@ -68,6 +71,7 @@ export async function requireUser(
         .set({ activeSessionId: null, sessionUserAgent: null, sessionIp: null })
         .where(eq(usersTable.id, user.id));
       res.clearCookie("session");
+      req.log.warn({ userId: user.id }, "User request rejected: session fingerprint mismatch");
       res.status(401).json({ error: "Session fingerprint mismatch. Please log in again." });
       return;
     }

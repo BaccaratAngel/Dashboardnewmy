@@ -40,16 +40,19 @@ router.post("/login", async (req, res) => {
   const { password } = req.body as { password?: string };
   const adminPassword = process.env["ADMIN_PASSWORD"];
   if (!adminPassword) {
+    req.log.error("Admin login unavailable: ADMIN_PASSWORD is not configured");
     res.status(500).json({ error: "Admin password not configured" });
     return;
   }
   if (!password || password !== adminPassword) {
+    req.log.warn("Admin login rejected: invalid password");
     res.status(401).json({ error: "Wrong admin password" });
     return;
   }
   const token = randomUUID();
   adminSessions.add(token);
   res.cookie("admin_session", token, ADMIN_COOKIE_OPTS);
+  req.log.info("Admin login accepted");
   res.json({ ok: true });
 });
 
@@ -58,12 +61,14 @@ router.post("/logout", requireAdmin, (req, res) => {
   const token = req.cookies?.["admin_session"] as string | undefined;
   if (token) adminSessions.delete(token);
   res.clearCookie("admin_session");
+  req.log.info("Admin logout completed");
   res.status(204).send();
 });
 
 // GET /admin/users
-router.get("/users", requireAdmin, async (_req, res) => {
+router.get("/users", requireAdmin, async (req, res) => {
   const users = await db.select().from(usersTable).orderBy(usersTable.id);
+  req.log.info({ userCount: users.length }, "Admin listed users");
   res.json(buildUserList(users));
 });
 
@@ -74,16 +79,20 @@ router.post("/users", requireAdmin, async (req, res) => {
     password?: string;
     expiresAt?: string;
   };
-  if (!username || !password || !expiresAt) {
+  const normalizedUsername = username?.trim();
+  if (!normalizedUsername || !password || !expiresAt) {
+    req.log.warn("Admin create-user rejected: missing required fields");
     res.status(400).json({ error: "username, password, and expiresAt required" });
     return;
   }
   if (password.length < 6) {
+    req.log.warn({ username: normalizedUsername }, "Admin create-user rejected: password too short");
     res.status(400).json({ error: "password must be at least 6 characters" });
     return;
   }
   const expiryDate = new Date(expiresAt);
   if (isNaN(expiryDate.getTime())) {
+    req.log.warn({ username: normalizedUsername }, "Admin create-user rejected: invalid expiry");
     res.status(400).json({ error: "Invalid expiresAt date" });
     return;
   }
@@ -91,32 +100,45 @@ router.post("/users", requireAdmin, async (req, res) => {
   const existing = await db
     .select({ id: usersTable.id })
     .from(usersTable)
-    .where(eq(usersTable.username, username))
+    .where(eq(usersTable.username, normalizedUsername))
     .limit(1);
   if (existing.length > 0) {
+    req.log.warn({ username: normalizedUsername }, "Admin create-user rejected: username already exists");
     res.status(400).json({ error: "Username already taken" });
     return;
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
-  const inserted = await db
-    .insert(usersTable)
-    .values({ username, passwordHash, expiresAt: expiryDate })
-    .returning();
+  try {
+    const inserted = await db
+      .insert(usersTable)
+      .values({ username: normalizedUsername, passwordHash, expiresAt: expiryDate })
+      .returning();
 
-  const u = inserted[0];
-  res.status(201).json({
-    id: u.id,
-    username: u.username,
-    expiresAt: u.expiresAt.toISOString(),
-    createdAt: u.createdAt.toISOString(),
-    isOnline: false,
-    lastLoginAt: null,
-    lastSeenAt: null,
-    lastSeenIp: null,
-    sessionIp: null,
-    flaggedAt: null,
-  });
+    const u = inserted[0];
+    req.log.info({ userId: u.id, username: u.username }, "Admin created user");
+    res.status(201).json({
+      id: u.id,
+      username: u.username,
+      expiresAt: u.expiresAt.toISOString(),
+      createdAt: u.createdAt.toISOString(),
+      isOnline: false,
+      lastLoginAt: null,
+      lastSeenAt: null,
+      lastSeenIp: null,
+      sessionIp: null,
+      flaggedAt: null,
+    });
+  } catch (error) {
+    const code = (error as { code?: string }).code;
+    if (code === "23505") {
+      req.log.warn({ username: normalizedUsername }, "Admin create-user rejected: concurrent duplicate username");
+      res.status(400).json({ error: "Username already taken" });
+      return;
+    }
+    req.log.error({ err: error, username: normalizedUsername }, "Admin create-user failed");
+    res.status(500).json({ error: "Unable to create user. Check the server log for details." });
+  }
 });
 
 // PATCH /admin/users/:id

@@ -4,3 +4,4 @@
 - [Look-ahead & MetaAI architecture](lookahead-metaai.md) — iframe simulation replaced with pure in-process calls; 10s→<20ms; MetaAI/Observer/LookAhead fully wired into session.
 - [6-expert regime tracker upgrade](regime-6expert.md) — regime.ts tracks 6 experts with Option C composite scoring; DashboardPage shows all panels including ensemble, sparklines, timeline strip, lock bar.
 - [Crisis AI & regime upgrades](crisis-ai-upgrade.md) — CrisisAI engine added; handleInput is now async; lock breaks hard at 3 losses; shadow promotion auto-promotes on 3L/2W condition.
+- [Secret-backed admin runtime](secret-backed-admin-runtime.md) — a stored secret can still arrive empty in a running workflow; restart after setting it and validate presence without logging its value.

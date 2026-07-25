@@ -22,6 +22,7 @@ export function requireAdmin(
 ): void {
   const token = req.cookies?.["admin_session"] as string | undefined;
   if (!token || !adminSessions.has(token)) {
+    req.log.warn("Admin request rejected: missing or invalid admin session");
     res.status(401).json({ error: "Not authenticated as admin" });
     return;
   }

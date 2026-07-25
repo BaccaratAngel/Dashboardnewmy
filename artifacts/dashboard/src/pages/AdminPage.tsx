@@ -36,6 +36,20 @@ function toDatetimeLocal(iso: string): string {
   }
 }
 
+function getApiErrorMessage(error: unknown, fallback: string): string {
+  const candidate = error as {
+    message?: unknown;
+    data?: { error?: unknown } | null;
+  };
+  if (typeof candidate?.data?.error === 'string' && candidate.data.error.trim()) {
+    return candidate.data.error;
+  }
+  if (typeof candidate?.message === 'string' && candidate.message.trim()) {
+    return candidate.message.replace(/^HTTP \d+ [^:]+:\s*/, '');
+  }
+  return fallback;
+}
+
 function UserStatusBadge({ user }: { user: UserAccount }) {
   const now = new Date();
   const expiry = new Date(user.expiresAt);
@@ -338,8 +352,8 @@ function AdminManagement() {
           setNewPassword('');
           setNewExpiresAt('');
         },
-        onError: () => {
-          setCreateError('Failed to create user.');
+        onError: (error: unknown) => {
+          setCreateError(getApiErrorMessage(error, 'Failed to create user.'));
         },
       }
     );
