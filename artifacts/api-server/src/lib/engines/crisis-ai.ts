@@ -82,9 +82,9 @@ export class CrisisAI {
   };
   private _undoStack: CrisisSnap[] = [];
 
-  // Rate-limit guard: only call Gemini once per 60s, or when loss count increases
+  // Rate-limit guard: do not call Gemini more than once per 60s during a crisis.
   private _lastGeminiCallAt = 0;
-  private _lastGeminiLossCount = 0;
+  private _geminiRateLimitedUntil = 0;
   private static readonly GEMINI_COOLDOWN_MS = 60_000;
 
   /**
@@ -123,7 +123,7 @@ export class CrisisAI {
       // Reset crisis
       this.consecutiveLosses = 0;
       this._lastGeminiCallAt = 0;
-      this._lastGeminiLossCount = 0;
+      this._geminiRateLimitedUntil = 0;
       this._result = {
         active: false,
         prediction: null,
@@ -162,11 +162,21 @@ export class CrisisAI {
       return;
     }
 
-    // A new loss in the current crisis may refresh the call, but do not make
-    // duplicate calls for the same loss count within the cooldown window.
+    // Do not make a new request on every hand while the crisis stays active.
+    // This cooldown applies even when the loss count increases.
     const now = Date.now();
-    const sameLossCount = this._lastGeminiLossCount === this.consecutiveLosses;
-    if (sameLossCount && now - this._lastGeminiCallAt < CrisisAI.GEMINI_COOLDOWN_MS) {
+    if (now < this._geminiRateLimitedUntil) {
+      this._result = {
+        ...this._result,
+        active: true,
+        prediction: ensembleVerdict,
+        confidence: "LOW",
+        reasoning: "Gemini rate-limit cooldown — using ensemble fallback",
+        consecutiveLosses: this.consecutiveLosses,
+      };
+      return;
+    }
+    if (now - this._lastGeminiCallAt < CrisisAI.GEMINI_COOLDOWN_MS) {
       this._result = {
         ...this._result,
         active: true,
@@ -178,7 +188,6 @@ export class CrisisAI {
       return;
     }
     this._lastGeminiCallAt = now;
-    this._lastGeminiLossCount = this.consecutiveLosses;
 
     const recentClean = history.filter((h) => h !== "T").slice(-25);
     const histStr = recentClean.join(" ");
@@ -273,6 +282,9 @@ Respond ONLY with valid JSON, no markdown:
       });
 
       if (!response.ok) {
+        if (response.status === 429) {
+          this._geminiRateLimitedUntil = Date.now() + CrisisAI.GEMINI_COOLDOWN_MS;
+        }
         throw new Error(`Gemini HTTP ${response.status}`);
       }
 
@@ -361,7 +373,7 @@ Respond ONLY with valid JSON, no markdown:
       consecutiveLosses: 0,
     };
     this._lastGeminiCallAt = 0;
-    this._lastGeminiLossCount = 0;
+    this._geminiRateLimitedUntil = 0;
     this._undoStack = [];
   }
 }
