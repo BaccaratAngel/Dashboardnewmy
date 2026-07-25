@@ -123,13 +123,20 @@ function ExpertRow({
   const runIcon = stats.currentRunIsWin === true ? '▲' : stats.currentRunIsWin === false ? '▼' : '';
   const runColor = stats.currentRunIsWin === true ? '#4ade80' : stats.currentRunIsWin === false ? '#f87171' : '#52525b';
 
+  // Shoe W/L record from raw win rate × pred count
+  const shoeW = stats.predCount > 0 ? Math.round(stats.rawWr * stats.predCount) : 0;
+  const shoeL = stats.predCount - shoeW;
+  const shoeTotal = stats.predCount;
+  const shoeWinPct = shoeTotal > 0 ? Math.round((shoeW / shoeTotal) * 100) : 0;
+  const shoeColor = shoeWinPct >= 60 ? '#4ade80' : shoeWinPct >= 50 ? '#facc15' : '#f87171';
+
   return (
     <div className="flex flex-col gap-1 py-2.5"
       style={{
         borderBottom: '1px solid rgba(255,255,255,0.04)',
         ...(isShadow ? { backgroundColor: `${color}06`, borderLeft: `2px solid ${color}50`, paddingLeft: 6 } : {}),
       }}>
-      {/* Row 1: label + arrows + pill + delta */}
+      {/* Row 1: label + badges + arrows */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           <span className="text-xs font-bold tracking-wider" style={{ color: isActive ? color : isShadow ? `${color}cc` : `${color}80` }}>
@@ -164,23 +171,56 @@ function ExpertRow({
         </div>
       </div>
 
-      {/* Row 2: composite bar + wwr% */}
+      {/* Row 2: shoe W/L record — most prominent decision aid */}
+      {shoeTotal > 0 ? (
+        <div className="flex items-center gap-2">
+          {/* W count */}
+          <span className="text-xs font-black tabular-nums" style={{ color: '#4ade80', fontFamily: 'monospace', minWidth: 28 }}>
+            {shoeW}W
+          </span>
+          {/* Mini bar showing win/loss split */}
+          <div className="flex-1 h-2 rounded-full overflow-hidden flex" style={{ backgroundColor: '#1c1c1e' }}>
+            <div className="h-full transition-all duration-700"
+              style={{ width: `${shoeWinPct}%`, backgroundColor: shoeColor, boxShadow: isActive ? `0 0 4px ${shoeColor}80` : 'none' }} />
+          </div>
+          {/* L count */}
+          <span className="text-xs font-black tabular-nums" style={{ color: '#f87171', fontFamily: 'monospace', minWidth: 28, textAlign: 'right' }}>
+            {shoeL}L
+          </span>
+          {/* Win% badge */}
+          <span className="text-xs font-bold tabular-nums px-1.5 py-0.5 rounded-sm"
+            style={{
+              color: shoeColor,
+              backgroundColor: `${shoeColor}14`,
+              border: `1px solid ${shoeColor}35`,
+              fontFamily: 'monospace',
+              minWidth: 36,
+              textAlign: 'center',
+            }}>
+            {shoeWinPct}%
+          </span>
+        </div>
+      ) : (
+        <div className="text-xs" style={{ color: '#3f3f46', fontFamily: 'monospace' }}>— warming up</div>
+      )}
+
+      {/* Row 3: composite score bar */}
       <div className="flex items-center gap-2">
-        <div className="flex-1 h-1.5 rounded-full overflow-hidden"
-          style={{ backgroundColor: `${color}18` }}>
+        <div className="flex-1 h-1 rounded-full overflow-hidden"
+          style={{ backgroundColor: `${color}14` }}>
           <div className="h-full rounded-full transition-all duration-700"
             style={{
               width: `${pct}%`,
               backgroundColor: color,
-              boxShadow: isActive ? `0 0 6px ${color}80` : 'none',
+              boxShadow: isActive ? `0 0 4px ${color}60` : 'none',
             }} />
         </div>
-        <span className="text-xs font-bold tabular-nums" style={{ color: isActive ? color : `${color}90`, minWidth: 36, textAlign: 'right' }}>
-          {wwrPct}%
+        <span className="text-xs tabular-nums" style={{ color: `${color}70`, fontFamily: 'monospace', fontSize: 9, minWidth: 44, textAlign: 'right' }}>
+          COMP {pct}%
         </span>
       </div>
 
-      {/* Row 3: sparkline */}
+      {/* Row 4: sparkline + run profile */}
       <div className="flex items-center gap-0.5" style={{ minHeight: 14 }}>
         {(stats.sparkline?.length ?? 0) > 0
           ? stats.sparkline.map((hit, i) => (
@@ -188,14 +228,13 @@ function ExpertRow({
                 {hit ? '●' : '○'}
               </span>
             ))
-          : <span className="text-xs" style={{ color: '#3f3f46' }}>— warming up</span>
+          : null
         }
         {stats.streak > 1 && (
           <span className="text-xs ml-1.5" style={{ color: '#71717a' }}>
             {stats.streak}×
           </span>
         )}
-        {/* Avg run profile */}
         {(stats.avgWinRun > 0 || stats.avgLossRun > 0) && (
           <span className="text-xs ml-auto" style={{ color: '#3f3f46', fontFamily: 'monospace', fontSize: 9 }}>
             W{stats.avgWinRun.toFixed(1)}/L{stats.avgLossRun.toFixed(1)}
