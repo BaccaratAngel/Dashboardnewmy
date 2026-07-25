@@ -16,7 +16,7 @@ type Side = "P" | "B";
 
 const CRISIS_THRESHOLD = 2;   // consecutive losses before crisis activates
 const GEMINI_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent";
 
 // ── Expert label map ──────────────────────────────────────────────────────────
 
@@ -75,6 +75,11 @@ export class CrisisAI {
     consecutiveLosses: 0,
   };
   private _undoStack: CrisisSnap[] = [];
+
+  // Rate-limit guard: only call Gemini once per 60s, or when loss count increases
+  private _lastGeminiCallAt = 0;
+  private _lastGeminiLossCount = 0;
+  private static readonly GEMINI_COOLDOWN_MS = 60_000;
 
   /**
    * Call BEFORE regime.evaluateOutcome() — captures what the main regime
@@ -238,7 +243,7 @@ Respond ONLY with valid JSON, no markdown:
             temperature: 0.2,
           },
         }),
-        signal: AbortSignal.timeout(9000),
+        signal: AbortSignal.timeout(15000),
       });
 
       if (!response.ok) {
