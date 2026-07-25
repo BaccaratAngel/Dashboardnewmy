@@ -19,6 +19,12 @@ description: CrisisAI engine using Gemini free API, shadow promotion logic, and 
 
 **How to apply:** `crisisAI.setMainPrediction()` must be called BEFORE `regime.evaluateOutcome()`, then `await crisisAI.evaluateOutcome()` AFTER all engine scoring. This captures the prior prediction correctly.
 
+**Gemini reliability:** Gemini 3 uses thinking by default and may return output across multiple parts, including thought metadata. Crisis classification requests should use minimal thinking, parse non-thought parts together, and retain the ensemble fallback for transient provider failures.
+
+**Why:** The recovery prompt intermittently timed out or parsed only the first word of a multi-part response even while simple Gemini requests succeeded.
+
+**How to apply:** Keep the recovery prompt compact, use `responseSchema` plus `thinkingConfig: { thinkingLevel: "minimal" }`, and enforce a total request budget with limited transient-error retry.
+
 ## Regime upgrades (`regime.ts`)
 
 **Shadow promotion** — `_shouldPromoteShadow()`:

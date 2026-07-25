@@ -21,8 +21,9 @@ const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3-flash-preview";
 const GEMINI_URL =
   `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 // Recovery must never make recording a hand feel stuck. The ensemble fallback
-// is intentionally returned after this short window.
-const GEMINI_TIMEOUT_MS = 7_000;
+// is intentionally returned after this total budget, including one retry.
+const GEMINI_TIMEOUT_MS = 3_500;
+const GEMINI_RETRY_DELAY_MS = 350;
 
 // ── Expert label map ──────────────────────────────────────────────────────────
 
@@ -213,16 +214,13 @@ export class CrisisAI {
         return b.winPct - a.winPct;
       });
 
-    const expertLines = withRate.map((e) => {
-      const runDir = e.currentRunIsWin === true ? "WIN" : e.currentRunIsWin === false ? "LOSS" : "—";
-      const runStr = e.currentRunLen > 0 && e.currentRunIsWin !== null
-        ? `${runDir}×${e.currentRunLen}`
-        : "—";
-      const pred = e.lastPred ?? "—";
-      const label = (EXPERT_LABELS[e.key] ?? e.key).padEnd(18);
-      const barTier = e.tier === "GREEN" ? "🟢" : e.tier === "YELLOW" ? "🟡" : "🔴";
-      return `  ${barTier} ${label}  shoe:${String(e.wins).padStart(2)}W/${String(e.losses).padStart(2)}L(${String(e.winPct).padStart(3)}%)  run:${runStr.padEnd(8)}  next:${pred}`;
-    }).join("\n");
+    // Keep the recovery request small. Sending all ten full run records made
+    // the free endpoint slow and increased the chance of non-JSON replies.
+    const expertLines = withRate
+      .filter((e) => e.tier !== "RED")
+      .slice(0, 6)
+      .map((e) => `${EXPERT_LABELS[e.key] ?? e.key}: ${e.winPct}% -> ${e.lastPred ?? "WAIT"}`)
+      .join("\n") || "No reliable expert data yet";
 
     // ── Weighted vote from GREEN experts only ─────────────────────────────
     const greenExperts = withRate.filter((e) => e.tier === "GREEN");
@@ -238,49 +236,71 @@ export class CrisisAI {
       : `SPLIT (P-weight:${weightP} vs B-weight:${weightB})`;
 
     const greenNames = greenExperts
+      .slice(0, 6)
       .map((e) => `${EXPERT_LABELS[e.key] ?? e.key}(${e.winPct}%→${e.lastPred ?? "—"})`)
       .join(", ") || "none";
 
-    const prompt = `You are a baccarat crisis recovery AI. The main system has lost ${n} consecutive hands.
+    const prompt = `Act as a baccarat recovery signal. The main prediction lost ${n} hands in a row.
 
-Recent hands (B=Banker P=Player, oldest→newest, last 25 non-tie):
-${histStr}
+Recent hands, oldest to newest (B=Banker, P=Player):
+${recentClean.slice(-12).join(" ")}
 
-ALL EXPERTS — sorted by shoe split bar colour (🟢 GREEN ≥60% = most reliable THIS shoe):
+Most reliable experts this shoe (60%+):
 ${expertLines}
 
-GREEN experts (≥60% shoe win rate) and their next prediction:
-  ${greenNames}
+Green expert vote: ${greenNames}
 
-Weighted GREEN vote: ${greenVoteStr}
+Weighted green vote: ${greenVoteStr}
 
-Ensemble vote: ${ensembleVerdict ?? "none"} at ${ensemblePercent}%
-Shadow leader (${shadowLeader ?? "none"}) predicts: ${shadowPred ?? "none"}
+Ensemble: ${ensembleVerdict ?? "none"} (${ensemblePercent}%)
+Shadow: ${shadowPred ?? "none"}
 
-DECISION RULES (follow in order):
-1. If ≥3 GREEN experts agree on one side → call that side, HIGH confidence.
-2. If ≥2 GREEN experts agree on one side → call that side, MED confidence.
-3. If GREEN experts are split or there is only 1 → check recent hand sequence for a streak or alternating pattern, then use ensemble vote as tiebreaker.
-4. Ignore RED experts (≤50% shoe win rate) entirely.
+Choose P or B. Prefer 3+ green experts = HIGH, 2 = MED, otherwise LOW and use the ensemble as tiebreaker.
 
 Respond ONLY with valid JSON, no markdown:
 {"prediction":"P or B","confidence":"LOW or MED or HIGH","reasoning":"max 90 char — name which GREEN experts agree and their shoe win rates"}`;
 
     try {
-      const response = await fetch(`${GEMINI_URL}?key=${encodeURIComponent(apiKey)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            responseMimeType: "application/json",
-            maxOutputTokens: 256,
-            temperature: 0.2,
+      const requestBody = JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "OBJECT",
+            properties: {
+              prediction: { type: "STRING", enum: ["P", "B"] },
+              confidence: { type: "STRING", enum: ["LOW", "MED", "HIGH"] },
+              reasoning: { type: "STRING" },
+            },
+            required: ["prediction", "confidence", "reasoning"],
           },
-        }),
-        signal: AbortSignal.timeout(GEMINI_TIMEOUT_MS),
+          // This is a small classification task; default Gemini 3 thinking
+          // adds latency without improving the recovery signal.
+          thinkingConfig: { thinkingLevel: "minimal" },
+          maxOutputTokens: 128,
+          temperature: 0.1,
+        },
       });
 
+      let response: Response | undefined;
+      const deadline = Date.now() + GEMINI_TIMEOUT_MS;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        if (attempt > 0) {
+          const remaining = deadline - Date.now();
+          if (remaining <= GEMINI_RETRY_DELAY_MS) break;
+          await new Promise((resolve) => setTimeout(resolve, GEMINI_RETRY_DELAY_MS));
+        }
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) break;
+        response = await fetch(`${GEMINI_URL}?key=${encodeURIComponent(apiKey)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: requestBody,
+          signal: AbortSignal.timeout(remaining),
+        });
+        if (response.ok || ![500, 502, 503, 504].includes(response.status)) break;
+      }
+      if (!response) throw new Error("Gemini request did not return a response");
       if (!response.ok) {
         if (response.status === 429) {
           this._geminiRateLimitedUntil = Date.now() + CrisisAI.GEMINI_COOLDOWN_MS;
@@ -290,13 +310,22 @@ Respond ONLY with valid JSON, no markdown:
 
       const data = await response.json() as {
         candidates?: Array<{
-          content?: { parts?: Array<{ text?: string }> };
+          content?: { parts?: Array<{ text?: string; thought?: boolean }> };
         }>;
       };
 
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-      // Some direct Gemini responses still wrap JSON despite responseMimeType.
-      const jsonText = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+      const text = data.candidates?.[0]?.content?.parts
+        ?.filter((part) => !part.thought)
+        .map((part) => part.text ?? "")
+        .join("") ?? "";
+      // Accept strict JSON, fenced JSON, or a JSON object embedded in a
+      // short explanation. The provider occasionally ignores the MIME hint.
+      const cleanedText = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+      const objectStart = cleanedText.indexOf("{");
+      const objectEnd = cleanedText.lastIndexOf("}");
+      const jsonText = objectStart >= 0 && objectEnd > objectStart
+        ? cleanedText.slice(objectStart, objectEnd + 1)
+        : cleanedText;
       const parsed = JSON.parse(jsonText) as {
         prediction?: string;
         confidence?: string;
@@ -319,10 +348,10 @@ Respond ONLY with valid JSON, no markdown:
       };
     } catch (err) {
       const reason = err instanceof DOMException && err.name === "TimeoutError"
-        ? "Gemini timeout"
+        ? "AI temporarily unavailable"
         : err instanceof Error && /^Gemini HTTP \d+/.test(err.message)
-          ? err.message
-          : "Gemini request failed";
+          ? "AI temporarily unavailable"
+          : "AI response unavailable";
       logger.warn(
         { err, model: GEMINI_MODEL, timeoutMs: GEMINI_TIMEOUT_MS },
         "CrisisAI: Gemini call failed — using ensemble fallback",
@@ -331,7 +360,7 @@ Respond ONLY with valid JSON, no markdown:
         active: true,
         prediction: ensembleVerdict,
         confidence: "LOW",
-        reasoning: `${reason} — using ensemble fallback`,
+        reasoning: `${reason} — ensemble fallback`,
         consecutiveLosses: this.consecutiveLosses,
       };
     }
