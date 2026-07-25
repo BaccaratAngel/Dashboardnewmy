@@ -14,7 +14,7 @@ import { logger } from "../logger.js";
 
 type Side = "P" | "B";
 
-const CRISIS_THRESHOLD = 3;   // consecutive losses before crisis activates
+const CRISIS_THRESHOLD = 2;   // consecutive losses before crisis activates
 const GEMINI_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
@@ -153,64 +153,65 @@ export class CrisisAI {
     const histStr = recentClean.join(" ");
     const n = this.consecutiveLosses;
 
-    // ── Build expert table ────────────────────────────────────────────────
-    // Sort by win % descending so Gemini sees best performers first
+    // ── Build expert table sorted by current run momentum ────────────────
+    // Primary: experts currently on a win streak first; secondary: streak length
     const sorted = [...experts]
       .filter((e) => e.wins + e.losses > 0)
       .sort((a, b) => {
-        const pctA = a.wins / (a.wins + a.losses);
-        const pctB = b.wins / (b.wins + b.losses);
-        return pctB - pctA;
+        // Win-streak experts first, then by streak length desc
+        const aHot = a.currentRunIsWin === true ? 1 : 0;
+        const bHot = b.currentRunIsWin === true ? 1 : 0;
+        if (bHot !== aHot) return bHot - aHot;
+        return b.currentRunLen - a.currentRunLen;
       });
 
     const expertLines = sorted.map((e) => {
-      const total = e.wins + e.losses;
-      const pct = total > 0 ? Math.round((e.wins / total) * 100) : 0;
-      const run = e.currentRunLen > 0 && e.currentRunIsWin !== null
-        ? ` ${e.currentRunIsWin ? "▲" : "▼"}${e.currentRunLen}`
-        : "";
+      // Current run strip — what the expert is doing RIGHT NOW this shoe
+      const runDir = e.currentRunIsWin === true ? "WIN" : e.currentRunIsWin === false ? "LOSS" : "none";
+      const runStr = e.currentRunLen > 0 && e.currentRunIsWin !== null
+        ? `${runDir}×${e.currentRunLen}`
+        : "—";
       const pred = e.lastPred ?? "—";
-      const trend = e.momentum === "up" ? "↑" : e.momentum === "down" ? "↓" : "→";
+      const trend = e.momentum === "up" ? "↑HOT" : e.momentum === "down" ? "↓COLD" : "→";
       const label = (EXPERT_LABELS[e.key] ?? e.key).padEnd(18);
-      return `  ${label} ${String(e.wins).padStart(2)}W ${String(e.losses).padStart(2)}L (${String(pct).padStart(3)}%) ${trend}  last:${pred}${run}`;
+      return `  ${label}  run:${runStr.padEnd(8)}  ${trend}  next:${pred}`;
     }).join("\n");
 
-    // Find the top 3 hot experts (≥60% and at least 5 predictions)
-    const hotExperts = sorted
-      .filter((e) => e.wins + e.losses >= 5 && e.wins / (e.wins + e.losses) >= 0.60)
-      .slice(0, 3)
-      .map((e) => `${EXPERT_LABELS[e.key] ?? e.key} (${Math.round(e.wins / (e.wins + e.losses) * 100)}%, last:${e.lastPred ?? "—"})`)
-      .join(", ") || "none above 60%";
+    // Experts currently on active win streaks ≥2
+    const onWinRun = sorted
+      .filter((e) => e.currentRunIsWin === true && e.currentRunLen >= 2)
+      .map((e) => `${EXPERT_LABELS[e.key] ?? e.key} (WIN×${e.currentRunLen}, next:${e.lastPred ?? "—"})`)
+      .join(", ") || "none";
 
-    // Find cold experts (≤40%)
-    const coldExperts = sorted
-      .filter((e) => e.wins + e.losses >= 5 && e.wins / (e.wins + e.losses) <= 0.40)
+    // Experts currently on active loss streaks ≥2
+    const onLossRun = sorted
+      .filter((e) => e.currentRunIsWin === false && e.currentRunLen >= 2)
       .map((e) => EXPERT_LABELS[e.key] ?? e.key)
       .join(", ") || "none";
 
-    const prompt = `You are a baccarat crisis recovery expert. The main system has lost ${n} consecutive hands.
+    const prompt = `You are a baccarat crisis recovery AI. The main system has lost ${n} consecutive hands.
 
 Recent hands (B=Banker P=Player, oldest→newest, last 25 non-tie):
 ${histStr}
 
-ALL 10 EXPERT SHOE RECORDS (current shoe win/loss, sorted best→worst):
+ALL 10 EXPERTS — CURRENT SHOE RUN STATUS (sorted: active win streaks first):
 ${expertLines}
 
-Hot experts this shoe (≥60% WR): ${hotExperts}
-Cold experts this shoe (≤40% WR): ${coldExperts}
+Experts on active win streak ≥2 hands: ${onWinRun}
+Experts on active loss streak ≥2 hands: ${onLossRun}
 
 Ensemble vote: ${ensembleVerdict ?? "none"} at ${ensemblePercent}% weight
 Shadow leader (${shadowLeader ?? "none"}) predicts: ${shadowPred ?? "none"}
 
-TASK: Based on the shoe performance data above and the recent hand sequence, identify which experts are reliable THIS shoe and what they agree on. Then predict the next hand.
+TASK: Analyse the CURRENT SHOE RUN STATUS above — not historical win rates. Experts on active win streaks are the most reliable signal right now. Look at what those hot-streak experts predict next, then check the recent hand sequence for a pattern.
 
-Key analysis points:
-1. What do the hot experts predict?
-2. Is there a streak or alternating pattern in the recent hands?
-3. Do hot experts agree on a side?
+Key analysis:
+1. Which experts are on active win streaks and what do they predict?
+2. Do the win-streak experts agree on a side?
+3. Does the recent hand sequence support that side (streak, alternating pattern)?
 
 Respond ONLY with valid JSON, no markdown:
-{"prediction":"P or B","confidence":"LOW or MED or HIGH","reasoning":"max 90 char explanation referencing shoe leaders"}`;
+{"prediction":"P or B","confidence":"LOW or MED or HIGH","reasoning":"max 90 char — cite which experts are on win streaks and what they predict"}`;
 
     try {
       const response = await fetch(`${GEMINI_URL}?key=${apiKey}`, {

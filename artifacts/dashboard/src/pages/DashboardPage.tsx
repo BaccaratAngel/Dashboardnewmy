@@ -386,12 +386,12 @@ function CrisisAIPanel({ crisis }: { crisis: CrisisAIResult }) {
           {/* Separator note */}
           <div className="text-xs text-center py-1 rounded-sm"
             style={{ color: 'rgba(251,146,60,0.5)', backgroundColor: 'rgba(251,146,60,0.04)', border: '1px solid rgba(251,146,60,0.12)' }}>
-            Crisis AI activates after {3} consecutive losses · resets on correct prediction
+            Crisis AI activates after {2} consecutive losses · resets on correct prediction
           </div>
         </div>
       ) : (
         <div className="px-4 py-3 text-xs" style={{ color: '#3f3f46' }}>
-          Monitoring main prediction accuracy · activates after 3 consecutive losses
+          Monitoring main prediction accuracy · activates after 2 consecutive losses
         </div>
       )}
     </div>
@@ -691,11 +691,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── CRISIS AI PANEL ──────────────────────────────────────── */}
-        {snapshot?.crisisAI && (
-          <CrisisAIPanel crisis={snapshot.crisisAI} />
-        )}
-
         {/* ── LOOK-AHEAD SYSTEMS PANEL ─────────────────────────────── */}
         {snapshot && snapshot.legacyLookAhead && (
           <div className="rounded-sm border flex flex-col gap-0 overflow-hidden"
@@ -836,6 +831,13 @@ export default function DashboardPage() {
         {regime && (
           <div className="rounded-sm border flex flex-col overflow-hidden"
             style={{ backgroundColor: '#0d0d14', borderColor: 'rgba(255,255,255,0.08)' }}>
+
+            {/* ── CRISIS AI PANEL (right above ensemble vote) ─────── */}
+            {snapshot?.crisisAI && (
+              <div className="mx-4 mt-3">
+                <CrisisAIPanel crisis={snapshot.crisisAI} />
+              </div>
+            )}
 
             {/* Ensemble Voting Block */}
             <div className="mx-4 mt-3 mb-2 rounded-sm p-3"
