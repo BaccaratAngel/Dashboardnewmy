@@ -1,7 +1,12 @@
 /**
  * requireUser middleware
- * Reads the session cookie, validates it against the DB, and attaches
- * the user object to req. Returns 401 if invalid or expired.
+ *
+ * 1. Reads the session cookie.
+ * 2. Validates it against DB (single-session enforcement).
+ * 3. Checks account expiry.
+ * 4. Layer 2 — verifies User-Agent fingerprint matches what was recorded at
+ *    login. Mismatch means a cookie was stolen and used on another device.
+ *    Auto-kicks the session on mismatch.
  */
 import type { Request, Response, NextFunction } from "express";
 import { db } from "@workspace/db";
@@ -49,6 +54,23 @@ export async function requireUser(
   if (new Date() > user.expiresAt) {
     res.status(401).json({ error: "Account expired" });
     return;
+  }
+
+  // ── Layer 2: User-Agent fingerprint check ──────────────────────────────────
+  // If we recorded a UA at login and the current request UA doesn't match,
+  // treat it as a stolen cookie — kick the session immediately.
+  if (user.sessionUserAgent) {
+    const currentUa = (req.headers["user-agent"] ?? "").slice(0, 512);
+    if (currentUa !== user.sessionUserAgent) {
+      // Auto-kick: clear the session so the real owner is also prompted to log back in
+      await db
+        .update(usersTable)
+        .set({ activeSessionId: null, sessionUserAgent: null, sessionIp: null })
+        .where(eq(usersTable.id, user.id));
+      res.clearCookie("session");
+      res.status(401).json({ error: "Session fingerprint mismatch. Please log in again." });
+      return;
+    }
   }
 
   req.user = { id: user.id, username: user.username, expiresAt: user.expiresAt };

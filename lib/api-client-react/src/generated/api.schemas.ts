@@ -242,6 +242,26 @@ export interface UserAccount {
      * @nullable
      */
   lastLoginAt: string | null;
+  /**
+     * ISO 8601 datetime of last heartbeat, or null
+     * @nullable
+     */
+  lastSeenAt: string | null;
+  /**
+     * IP address at last heartbeat, or null
+     * @nullable
+     */
+  lastSeenIp: string | null;
+  /**
+     * IP address of the active session, or null
+     * @nullable
+     */
+  sessionIp: string | null;
+  /**
+     * ISO 8601 datetime when account was flagged for sharing, or null
+     * @nullable
+     */
+  flaggedAt: string | null;
 }
 
 export interface UserAccountInput {
@@ -261,4 +281,3 @@ export interface UserAccountUpdate {
   /** ISO 8601 datetime */
   expiresAt?: string;
 }
-

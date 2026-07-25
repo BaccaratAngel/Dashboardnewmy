@@ -10,16 +10,16 @@ import { clearSession } from "../lib/engines/session.js";
 
 const router = Router();
 
+const IS_PROD = process.env["NODE_ENV"] === "production";
+
 const ADMIN_COOKIE_OPTS = {
   httpOnly: true,
-  sameSite: "lax" as const,
+  sameSite: "strict" as const,
+  secure: IS_PROD,
   maxAge: 4 * 60 * 60 * 1000, // 4 hours
 };
 
-// Load current active sessions for isOnline check (in-memory map of userId → sessionId)
-// We compare activeSessionId against what we stored to determine isOnline
-async function buildUserList() {
-  const users = await db.select().from(usersTable).orderBy(usersTable.id);
+function buildUserList(users: (typeof usersTable.$inferSelect)[]) {
   return users.map((u) => ({
     id: u.id,
     username: u.username,
@@ -27,6 +27,11 @@ async function buildUserList() {
     createdAt: u.createdAt.toISOString(),
     isOnline: u.activeSessionId !== null,
     lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
+    // Layer 3: presence + flag fields
+    lastSeenAt: u.lastSeenAt?.toISOString() ?? null,
+    lastSeenIp: u.lastSeenIp ?? null,
+    sessionIp: u.sessionIp ?? null,
+    flaggedAt: u.flaggedAt?.toISOString() ?? null,
   }));
 }
 
@@ -58,8 +63,8 @@ router.post("/logout", requireAdmin, (req, res) => {
 
 // GET /admin/users
 router.get("/users", requireAdmin, async (_req, res) => {
-  const list = await buildUserList();
-  res.json(list);
+  const users = await db.select().from(usersTable).orderBy(usersTable.id);
+  res.json(buildUserList(users));
 });
 
 // POST /admin/users
@@ -83,7 +88,6 @@ router.post("/users", requireAdmin, async (req, res) => {
     return;
   }
 
-  // Check uniqueness
   const existing = await db
     .select({ id: usersTable.id })
     .from(usersTable)
@@ -108,6 +112,10 @@ router.post("/users", requireAdmin, async (req, res) => {
     createdAt: u.createdAt.toISOString(),
     isOnline: false,
     lastLoginAt: null,
+    lastSeenAt: null,
+    lastSeenIp: null,
+    sessionIp: null,
+    flaggedAt: null,
   });
 });
 
@@ -161,6 +169,10 @@ router.patch("/users/:id", requireAdmin, async (req, res) => {
     createdAt: u.createdAt.toISOString(),
     isOnline: u.activeSessionId !== null,
     lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
+    lastSeenAt: u.lastSeenAt?.toISOString() ?? null,
+    lastSeenIp: u.lastSeenIp ?? null,
+    sessionIp: u.sessionIp ?? null,
+    flaggedAt: u.flaggedAt?.toISOString() ?? null,
   });
 });
 
@@ -184,7 +196,22 @@ router.post("/users/:id/kick", requireAdmin, async (req, res) => {
   const id = parseInt(String(req.params["id"] ?? "0"), 10);
   const updated = await db
     .update(usersTable)
-    .set({ activeSessionId: null })
+    .set({ activeSessionId: null, sessionUserAgent: null, sessionIp: null })
+    .where(eq(usersTable.id, id))
+    .returning({ id: usersTable.id });
+  if (updated.length === 0) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  res.status(204).send();
+});
+
+// POST /admin/users/:id/unflag  — clears the sharing-detection flag
+router.post("/users/:id/unflag", requireAdmin, async (req, res) => {
+  const id = parseInt(String(req.params["id"] ?? "0"), 10);
+  const updated = await db
+    .update(usersTable)
+    .set({ flaggedAt: null })
     .where(eq(usersTable.id, id))
     .returning({ id: usersTable.id });
   if (updated.length === 0) {
