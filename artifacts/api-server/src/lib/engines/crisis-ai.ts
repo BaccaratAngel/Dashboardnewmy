@@ -153,40 +153,52 @@ export class CrisisAI {
     const histStr = recentClean.join(" ");
     const n = this.consecutiveLosses;
 
-    // ── Build expert table sorted by current run momentum ────────────────
-    // Primary: experts currently on a win streak first; secondary: streak length
-    const sorted = [...experts]
+    // ── Classify experts by shoe win rate (mirrors the dashboard split bar) ──
+    // GREEN  = ≥60% shoe win rate  →  HIGH WEIGHT
+    // YELLOW = 50-59%              →  NORMAL WEIGHT
+    // RED    = <50%                →  LOW WEIGHT (discard)
+    const withRate = experts
       .filter((e) => e.wins + e.losses > 0)
+      .map((e) => {
+        const total = e.wins + e.losses;
+        const winPct = Math.round((e.wins / total) * 100);
+        const tier: "GREEN" | "YELLOW" | "RED" =
+          winPct >= 60 ? "GREEN" : winPct >= 50 ? "YELLOW" : "RED";
+        return { ...e, total, winPct, tier };
+      })
+      // Sort: GREEN first, then YELLOW, then RED; within tier by winPct desc
       .sort((a, b) => {
-        // Win-streak experts first, then by streak length desc
-        const aHot = a.currentRunIsWin === true ? 1 : 0;
-        const bHot = b.currentRunIsWin === true ? 1 : 0;
-        if (bHot !== aHot) return bHot - aHot;
-        return b.currentRunLen - a.currentRunLen;
+        const tierOrder = { GREEN: 0, YELLOW: 1, RED: 2 };
+        if (tierOrder[a.tier] !== tierOrder[b.tier]) return tierOrder[a.tier] - tierOrder[b.tier];
+        return b.winPct - a.winPct;
       });
 
-    const expertLines = sorted.map((e) => {
-      // Current run strip — what the expert is doing RIGHT NOW this shoe
-      const runDir = e.currentRunIsWin === true ? "WIN" : e.currentRunIsWin === false ? "LOSS" : "none";
+    const expertLines = withRate.map((e) => {
+      const runDir = e.currentRunIsWin === true ? "WIN" : e.currentRunIsWin === false ? "LOSS" : "—";
       const runStr = e.currentRunLen > 0 && e.currentRunIsWin !== null
         ? `${runDir}×${e.currentRunLen}`
         : "—";
       const pred = e.lastPred ?? "—";
-      const trend = e.momentum === "up" ? "↑HOT" : e.momentum === "down" ? "↓COLD" : "→";
       const label = (EXPERT_LABELS[e.key] ?? e.key).padEnd(18);
-      return `  ${label}  run:${runStr.padEnd(8)}  ${trend}  next:${pred}`;
+      const barTier = e.tier === "GREEN" ? "🟢" : e.tier === "YELLOW" ? "🟡" : "🔴";
+      return `  ${barTier} ${label}  shoe:${String(e.wins).padStart(2)}W/${String(e.losses).padStart(2)}L(${String(e.winPct).padStart(3)}%)  run:${runStr.padEnd(8)}  next:${pred}`;
     }).join("\n");
 
-    // Experts currently on active win streaks ≥2
-    const onWinRun = sorted
-      .filter((e) => e.currentRunIsWin === true && e.currentRunLen >= 2)
-      .map((e) => `${EXPERT_LABELS[e.key] ?? e.key} (WIN×${e.currentRunLen}, next:${e.lastPred ?? "—"})`)
-      .join(", ") || "none";
+    // ── Weighted vote from GREEN experts only ─────────────────────────────
+    const greenExperts = withRate.filter((e) => e.tier === "GREEN");
+    const greenP = greenExperts.filter((e) => e.lastPred === "P");
+    const greenB = greenExperts.filter((e) => e.lastPred === "B");
 
-    // Experts currently on active loss streaks ≥2
-    const onLossRun = sorted
-      .filter((e) => e.currentRunIsWin === false && e.currentRunLen >= 2)
-      .map((e) => EXPERT_LABELS[e.key] ?? e.key)
+    // Sum winPct as vote weight for each side
+    const weightP = greenP.reduce((s, e) => s + e.winPct, 0);
+    const weightB = greenB.reduce((s, e) => s + e.winPct, 0);
+    const greenVote: Side | null = weightP > weightB ? "P" : weightB > weightP ? "B" : null;
+    const greenVoteStr = greenVote
+      ? `${greenVote} (P-weight:${weightP} vs B-weight:${weightB})`
+      : `SPLIT (P-weight:${weightP} vs B-weight:${weightB})`;
+
+    const greenNames = greenExperts
+      .map((e) => `${EXPERT_LABELS[e.key] ?? e.key}(${e.winPct}%→${e.lastPred ?? "—"})`)
       .join(", ") || "none";
 
     const prompt = `You are a baccarat crisis recovery AI. The main system has lost ${n} consecutive hands.
@@ -194,24 +206,25 @@ export class CrisisAI {
 Recent hands (B=Banker P=Player, oldest→newest, last 25 non-tie):
 ${histStr}
 
-ALL 10 EXPERTS — CURRENT SHOE RUN STATUS (sorted: active win streaks first):
+ALL EXPERTS — sorted by shoe split bar colour (🟢 GREEN ≥60% = most reliable THIS shoe):
 ${expertLines}
 
-Experts on active win streak ≥2 hands: ${onWinRun}
-Experts on active loss streak ≥2 hands: ${onLossRun}
+GREEN experts (≥60% shoe win rate) and their next prediction:
+  ${greenNames}
 
-Ensemble vote: ${ensembleVerdict ?? "none"} at ${ensemblePercent}% weight
+Weighted GREEN vote: ${greenVoteStr}
+
+Ensemble vote: ${ensembleVerdict ?? "none"} at ${ensemblePercent}%
 Shadow leader (${shadowLeader ?? "none"}) predicts: ${shadowPred ?? "none"}
 
-TASK: Analyse the CURRENT SHOE RUN STATUS above — not historical win rates. Experts on active win streaks are the most reliable signal right now. Look at what those hot-streak experts predict next, then check the recent hand sequence for a pattern.
-
-Key analysis:
-1. Which experts are on active win streaks and what do they predict?
-2. Do the win-streak experts agree on a side?
-3. Does the recent hand sequence support that side (streak, alternating pattern)?
+DECISION RULES (follow in order):
+1. If ≥3 GREEN experts agree on one side → call that side, HIGH confidence.
+2. If ≥2 GREEN experts agree on one side → call that side, MED confidence.
+3. If GREEN experts are split or there is only 1 → check recent hand sequence for a streak or alternating pattern, then use ensemble vote as tiebreaker.
+4. Ignore RED experts (≤50% shoe win rate) entirely.
 
 Respond ONLY with valid JSON, no markdown:
-{"prediction":"P or B","confidence":"LOW or MED or HIGH","reasoning":"max 90 char — cite which experts are on win streaks and what they predict"}`;
+{"prediction":"P or B","confidence":"LOW or MED or HIGH","reasoning":"max 90 char — name which GREEN experts agree and their shoe win rates"}`;
 
     try {
       const response = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
