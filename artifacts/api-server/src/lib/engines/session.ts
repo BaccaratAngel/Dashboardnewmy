@@ -20,7 +20,7 @@ import { ShortMarkov, SupremeBayesianAI, type SupremePredInput } from "./supreme
 import { RegimeSwitchTracker, type RegimeVerdict } from "./regime.js";
 import { MetaAI, buildMetaFeatures } from "./meta-ai.js";
 import { ObserverMasterAI } from "./observer.js";
-import { CrisisAI, type CrisisResult } from "./crisis-ai.js";
+import { CrisisAI, type CrisisResult, type ExpertShoeData } from "./crisis-ai.js";
 
 type Side = "B" | "P";
 type HandValue = "B" | "P" | "T";
@@ -205,9 +205,31 @@ export class GameSession {
 
     // 4. Run CrisisAI evaluation (async — may call Gemini on crisis)
     const regimeNow = this.regime.getVerdict();
+
+    // Build per-expert shoe data for Gemini context (all 10 experts)
+    const ALL_EXPERT_KEYS = [
+      "supreme", "syndicate", "lookAhead", "legacyLookAhead", "metaAI", "observer",
+      "bebRoad", "smallRoad", "cockroachRoad", "dualAuth",
+    ] as const;
+    const expertShoeData: ExpertShoeData[] = ALL_EXPERT_KEYS.map((key) => {
+      const s = regimeNow[key];
+      const wins = s.predCount > 0 ? Math.round(s.rawWr * s.predCount) : 0;
+      return {
+        key,
+        wins,
+        losses: s.predCount - wins,
+        lastPred: s.lastPred,
+        currentRunIsWin: s.currentRunIsWin,
+        currentRunLen: s.currentRunLen,
+        momentum: s.momentum,
+        compositeScore: s.compositeScore,
+      };
+    });
+
     await this.crisisAI.evaluateOutcome(
       actual,
       [...this.history],
+      expertShoeData,
       regimeNow.shadowLeader,
       regimeNow.shadowLeaderPred,
       regimeNow.ensembleVerdict,

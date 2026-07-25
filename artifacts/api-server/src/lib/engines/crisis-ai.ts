@@ -1,7 +1,7 @@
 /**
  * Crisis Recovery AI — activates after N consecutive main prediction losses.
- * Uses Google Gemini (free tier) to analyse the recent pattern and suggest
- * a recovery prediction.
+ * Uses Google Gemini (free tier) to analyse the recent pattern and ALL 10
+ * expert shoe records, then suggests a recovery prediction.
  *
  * Integration contract:
  *   1. Before regime.evaluateOutcome():  crisisAI.setMainPrediction(verdict.decision)
@@ -18,7 +18,33 @@ const CRISIS_THRESHOLD = 3;   // consecutive losses before crisis activates
 const GEMINI_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
-// ── Public result type ────────────────────────────────────────────────────────
+// ── Expert label map ──────────────────────────────────────────────────────────
+
+const EXPERT_LABELS: Record<string, string> = {
+  supreme:         "Supreme Bayesian",
+  syndicate:       "Syndicate",
+  lookAhead:       "Look-Ahead v1",
+  legacyLookAhead: "Look-Ahead v2",
+  metaAI:          "Meta AI",
+  observer:        "Observer",
+  bebRoad:         "BEB Road",
+  smallRoad:       "Small Road",
+  cockroachRoad:   "Cockroach Road",
+  dualAuth:        "Dual-Auth",
+};
+
+// ── Public types ──────────────────────────────────────────────────────────────
+
+export interface ExpertShoeData {
+  key: string;
+  wins: number;
+  losses: number;
+  lastPred: Side | null;
+  currentRunIsWin: boolean | null;
+  currentRunLen: number;
+  momentum: string;
+  compositeScore: number;
+}
 
 export interface CrisisResult {
   active: boolean;
@@ -61,10 +87,12 @@ export class CrisisAI {
   /**
    * Call AFTER all engine evaluateOutcome() calls, for every hand (B, P, T).
    * `actual` is null for Tie hands — state is saved but no loss is counted.
+   * `experts` contains all 10 expert shoe stats for Gemini context.
    */
   async evaluateOutcome(
     actual: Side | null,
-    history: string[],            // raw history including T entries
+    history: string[],
+    experts: ExpertShoeData[],
     shadowLeader: string | null,
     shadowPred: Side | null,
     ensembleVerdict: Side | null,
@@ -93,7 +121,7 @@ export class CrisisAI {
     } else {
       this.consecutiveLosses++;
       if (this.consecutiveLosses >= CRISIS_THRESHOLD) {
-        await this._callGemini(history, shadowLeader, shadowPred, ensembleVerdict, ensemblePercent);
+        await this._callGemini(history, experts, shadowLeader, shadowPred, ensembleVerdict, ensemblePercent);
       }
     }
   }
@@ -102,6 +130,7 @@ export class CrisisAI {
 
   private async _callGemini(
     history: string[],
+    experts: ExpertShoeData[],
     shadowLeader: string | null,
     shadowPred: Side | null,
     ensembleVerdict: Side | null,
@@ -120,22 +149,68 @@ export class CrisisAI {
       return;
     }
 
-    const recentClean = history.filter((h) => h !== "T").slice(-20);
+    const recentClean = history.filter((h) => h !== "T").slice(-25);
     const histStr = recentClean.join(" ");
     const n = this.consecutiveLosses;
 
-    const prompt = `You are a baccarat prediction expert. The main AI has been wrong ${n} consecutive hands.
+    // ── Build expert table ────────────────────────────────────────────────
+    // Sort by win % descending so Gemini sees best performers first
+    const sorted = [...experts]
+      .filter((e) => e.wins + e.losses > 0)
+      .sort((a, b) => {
+        const pctA = a.wins / (a.wins + a.losses);
+        const pctB = b.wins / (b.wins + b.losses);
+        return pctB - pctA;
+      });
 
-Recent hands (B=Banker P=Player, oldest→newest): ${histStr}
+    const expertLines = sorted.map((e) => {
+      const total = e.wins + e.losses;
+      const pct = total > 0 ? Math.round((e.wins / total) * 100) : 0;
+      const run = e.currentRunLen > 0 && e.currentRunIsWin !== null
+        ? ` ${e.currentRunIsWin ? "▲" : "▼"}${e.currentRunLen}`
+        : "";
+      const pred = e.lastPred ?? "—";
+      const trend = e.momentum === "up" ? "↑" : e.momentum === "down" ? "↓" : "→";
+      const label = (EXPERT_LABELS[e.key] ?? e.key).padEnd(18);
+      return `  ${label} ${String(e.wins).padStart(2)}W ${String(e.losses).padStart(2)}L (${String(pct).padStart(3)}%) ${trend}  last:${pred}${run}`;
+    }).join("\n");
 
-Other signals:
-- Shadow expert (${shadowLeader ?? "none"}) predicts: ${shadowPred ?? "none"}
-- Ensemble vote: ${ensembleVerdict ?? "none"} at ${ensemblePercent}% lean
+    // Find the top 3 hot experts (≥60% and at least 5 predictions)
+    const hotExperts = sorted
+      .filter((e) => e.wins + e.losses >= 5 && e.wins / (e.wins + e.losses) >= 0.60)
+      .slice(0, 3)
+      .map((e) => `${EXPERT_LABELS[e.key] ?? e.key} (${Math.round(e.wins / (e.wins + e.losses) * 100)}%, last:${e.lastPred ?? "—"})`)
+      .join(", ") || "none above 60%";
 
-Look for streak reversals, alternating patterns, or dominant runs. Predict the next hand.
+    // Find cold experts (≤40%)
+    const coldExperts = sorted
+      .filter((e) => e.wins + e.losses >= 5 && e.wins / (e.wins + e.losses) <= 0.40)
+      .map((e) => EXPERT_LABELS[e.key] ?? e.key)
+      .join(", ") || "none";
+
+    const prompt = `You are a baccarat crisis recovery expert. The main system has lost ${n} consecutive hands.
+
+Recent hands (B=Banker P=Player, oldest→newest, last 25 non-tie):
+${histStr}
+
+ALL 10 EXPERT SHOE RECORDS (current shoe win/loss, sorted best→worst):
+${expertLines}
+
+Hot experts this shoe (≥60% WR): ${hotExperts}
+Cold experts this shoe (≤40% WR): ${coldExperts}
+
+Ensemble vote: ${ensembleVerdict ?? "none"} at ${ensemblePercent}% weight
+Shadow leader (${shadowLeader ?? "none"}) predicts: ${shadowPred ?? "none"}
+
+TASK: Based on the shoe performance data above and the recent hand sequence, identify which experts are reliable THIS shoe and what they agree on. Then predict the next hand.
+
+Key analysis points:
+1. What do the hot experts predict?
+2. Is there a streak or alternating pattern in the recent hands?
+3. Do hot experts agree on a side?
 
 Respond ONLY with valid JSON, no markdown:
-{"prediction":"P or B","confidence":"LOW or MED or HIGH","reasoning":"max 80 char explanation"}`;
+{"prediction":"P or B","confidence":"LOW or MED or HIGH","reasoning":"max 90 char explanation referencing shoe leaders"}`;
 
     try {
       const response = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
@@ -145,8 +220,8 @@ Respond ONLY with valid JSON, no markdown:
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
             responseMimeType: "application/json",
-            maxOutputTokens: 150,
-            temperature: 0.3,
+            maxOutputTokens: 200,
+            temperature: 0.2,
           },
         }),
         signal: AbortSignal.timeout(9000),
@@ -174,7 +249,7 @@ Respond ONLY with valid JSON, no markdown:
       const confidence = (["LOW", "MED", "HIGH"].includes(parsed.confidence ?? "")
         ? parsed.confidence
         : "LOW") as "LOW" | "MED" | "HIGH";
-      const reasoning = String(parsed.reasoning ?? "").slice(0, 100);
+      const reasoning = String(parsed.reasoning ?? "").slice(0, 110);
 
       this._result = {
         active: true,
