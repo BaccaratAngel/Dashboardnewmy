@@ -23,6 +23,6 @@ export interface GameSnapshot {
   observer: ObserverResult;
   /** Per-sub-system win rates tracked by ObserverMasterAI */
   observerMemory: ObserverMemory;
-  /** Gemini AI recovery engine — activates after 2 consecutive main losses */
+  /** Internal Crisis AI recovery engine — activates after 2 consecutive main losses */
   crisisAI: CrisisAIResult;
 }

@@ -707,7 +707,7 @@ components:
           description: Per-sub-system win rates tracked by ObserverMasterAI
         crisisAI:
           $ref: "#/components/schemas/CrisisAIResult"
-          description: Gemini AI recovery engine — activates after 2 consecutive main losses
+          description: Internal Crisis AI recovery engine — activates after 2 consecutive main losses
 
     LookAheadResult:
       type: object

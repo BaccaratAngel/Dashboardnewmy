@@ -6,7 +6,7 @@
  *   1. Capture prior main prediction for CrisisAI tracking
  *   2. Score all engines against this actual outcome (prior predictions)
  *   3. Record the outcome in all engines
- *   4. Start CrisisAI evaluation in the background (never blocks hand entry)
+ *   4. Evaluate the internal CrisisAI scorer synchronously (bounded in-process)
  *   5. Generate new predictions from all engines
  *   6. Run look-ahead v1 (depth=1, in-process branch simulation)
  *   7. Run look-ahead v2 / legacy (depth=2, two-step simulation)
@@ -174,7 +174,7 @@ export class GameSession {
     decision: "WAIT", wr: null, reasoning: "Insufficient Data", isFallback: true
   };
 
-  /** Process a new hand result without waiting for external AI */
+  /** Process a new hand result and update all local engines immediately */
   handleInput(value: string): GameSnapshot {
     const v = value.toUpperCase() as HandValue;
     if (v !== "B" && v !== "P" && v !== "T") throw new Error(`Invalid value: ${value}`);
@@ -203,11 +203,10 @@ export class GameSession {
     }
     this.history.push(v);
 
-    // 4. Prepare the context now, but do not make hand entry wait for the
-    // provider. CrisisAI protects against stale in-flight responses.
+    // 4. Prepare the current context for the local CrisisAI scorer.
     const regimeNow = this.regime.getVerdict();
 
-    // Build per-expert shoe data for Gemini context (all 10 experts)
+    // Build per-expert shoe data for the internal recovery scorer.
     const ALL_EXPERT_KEYS = [
       "supreme", "syndicate", "lookAhead", "legacyLookAhead", "metaAI", "observer",
       "bebRoad", "smallRoad", "cockroachRoad", "dualAuth",
@@ -227,7 +226,7 @@ export class GameSession {
       };
     });
 
-    void this.crisisAI.evaluateOutcome(
+    this.crisisAI.evaluateOutcome(
       actual,
       [...this.history],
       expertShoeData,
@@ -235,12 +234,7 @@ export class GameSession {
       regimeNow.shadowLeaderPred,
       regimeNow.ensembleVerdict,
       regimeNow.ensemblePercent,
-    ).catch((err: unknown) => {
-      // CrisisAI normally converts provider failures into its ensemble
-      // fallback. This guard keeps an unexpected internal error from
-      // becoming an unhandled promise rejection or affecting hand entry.
-      console.error("CrisisAI background evaluation failed", err);
-    });
+    );
 
     // 5. Generate new predictions
     this._captureNewPredictions();

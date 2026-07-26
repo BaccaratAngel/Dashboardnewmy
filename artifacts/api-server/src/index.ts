@@ -1,12 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 
-// Startup diagnostic — never log the value, only presence
-logger.info(
-  { geminiKeyPresent: !!process.env["GEMINI_API_KEY"] },
-  "Startup env check",
-);
-
 const rawPort = process.env["PORT"];
 
 if (!rawPort) {

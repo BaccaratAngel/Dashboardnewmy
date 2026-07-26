@@ -521,21 +521,6 @@ export default function DashboardPage() {
     if (initialSnapshot.data) setSnapshot(initialSnapshot.data);
   }, [initialSnapshot.data]);
 
-  // Crisis AI runs after the hand response. Refresh only while it is active
-  // so a completed background result appears without requiring another hand.
-  useEffect(() => {
-    if (
-      !snapshot?.crisisAI.active ||
-      snapshot.crisisAI.reasoning !== 'Crisis AI analyzing — ensemble fallback'
-    ) return;
-    const timer = window.setInterval(() => {
-      void initialSnapshot.refetch().then(({ data }) => {
-        if (data) setSnapshot(data);
-      });
-    }, 1000);
-    return () => window.clearInterval(timer);
-  }, [initialSnapshot.refetch, snapshot?.crisisAI.active, snapshot?.crisisAI.reasoning]);
-
   const isMutating = submitInput.isPending || undoInput.isPending || resetGame.isPending || setWindow.isPending;
 
   function handleInput(value: 'P' | 'B' | 'T') {

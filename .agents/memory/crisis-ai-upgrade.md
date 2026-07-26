@@ -1,6 +1,6 @@
 ---
 name: Crisis AI & regime upgrades
-description: CrisisAI engine using Gemini free API, shadow promotion logic, and hard 3-loss lock break added to the baccarat prediction app.
+description: Internal Crisis AI scorer, shadow promotion logic, and hard 3-loss lock break for the baccarat prediction app.
 ---
 
 # Crisis AI & Regime Upgrades
@@ -9,27 +9,15 @@ description: CrisisAI engine using Gemini free API, shadow promotion logic, and 
 
 **CrisisAI engine** (`artifacts/api-server/src/lib/engines/crisis-ai.ts`):
 - Tracks consecutive losses of the main regime prediction
-- After `CRISIS_THRESHOLD = 2` consecutive losses, calls Google Gemini REST API
-- Uses `gemini-3-flash-preview` by default via direct fetch (no SDK, uses `GEMINI_API_KEY` env var); older `gemini-2.5-flash` was rejected for new users
-- Returns: `{ active, prediction, confidence, reasoning, consecutiveLosses }`
-- Graceful fallback to ensemble verdict on API error/timeout (7s timeout); error text distinguishes timeout from HTTP/API failures
-- Full undo stack: `_save()` called on every hand (including T), matching session undo cadence
+- Activates after `CRISIS_THRESHOLD = 2` consecutive losses
+- Runs entirely in-process with no API key, network call, timeout, or external provider
+- Scores expert reliability, composite score, momentum, current runs, recent road patterns, ensemble agreement, and shadow leadership
+- Returns `{ active, prediction, confidence, reasoning, consecutiveLosses }`
+- Uses a full undo stack matching the session's hand cadence
 
-**Why:** User observed the main prediction staying "sticky" and wrong for 5-7 consecutive hands. CrisisAI provides an independent LLM-based recovery signal. Google model availability can vary by account age, so the default must stay on a currently accepted model.
+**Why:** The recovery task needs every hand's live state immediately. External AI introduced delays, rate limits, timeouts, and provider-specific parsing failures that were a poor fit for this app.
 
-**How to apply:** `crisisAI.setMainPrediction()` must be called BEFORE `regime.evaluateOutcome()`, then start `crisisAI.evaluateOutcome()` AFTER all engine scoring without awaiting it in the hand route. This captures the prior prediction correctly while keeping hand entry responsive.
-
-**Non-blocking recovery:** Crisis AI is advisory and must run in the background; hand recording always returns the ensemble snapshot immediately, with the dashboard polling briefly for a completed recovery result.
-
-**Why:** External AI can time out, rate-limit, or fail even when credentials and prompts are correct. Waiting on it made the core baccarat workflow feel broken.
-
-**How to apply:** Keep an ensemble fallback visible during analysis, invalidate results from older hands/undo/reset operations, and show provider-specific failure details only in server logs.
-
-**Gemini reliability:** Gemini 3 uses thinking by default and may return output across multiple parts, including thought metadata. Crisis classification requests should use minimal thinking, parse non-thought parts together, and retain the ensemble fallback for transient provider failures.
-
-**Why:** The recovery prompt intermittently timed out or parsed only the first word of a multi-part response even while simple Gemini requests succeeded.
-
-**How to apply:** Keep the recovery prompt compact, use `responseSchema` plus `thinkingConfig: { thinkingLevel: "minimal" }`, and enforce a total request budget with limited transient-error retry.
+**How to apply:** Keep CrisisAI synchronous and bounded. Call `setMainPrediction()` BEFORE `regime.evaluateOutcome()`, then call `evaluateOutcome()` AFTER all engine scoring and before generating new predictions. Keep the ensemble as a scoring input and safety tie-breaker, not as an external fallback.
 
 ## Regime upgrades (`regime.ts`)
 

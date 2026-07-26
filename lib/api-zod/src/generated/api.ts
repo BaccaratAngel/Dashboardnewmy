@@ -300,7 +300,7 @@ export const GetSnapshotResponse = zod.object({
   "confidence": zod.string().describe('\"LOW\" | \"MED\" | \"HIGH\"'),
   "reasoning": zod.string().describe('One-sentence AI explanation for the prediction'),
   "consecutiveLosses": zod.number().describe('Current streak of consecutive main prediction losses')
-}).describe('Gemini AI recovery engine — activates after 2 consecutive main losses')
+}).describe('Internal Crisis AI recovery engine — activates after 2 consecutive main losses')
 })
 
 
@@ -557,7 +557,7 @@ export const SubmitInputResponse = zod.object({
   "confidence": zod.string().describe('\"LOW\" | \"MED\" | \"HIGH\"'),
   "reasoning": zod.string().describe('One-sentence AI explanation for the prediction'),
   "consecutiveLosses": zod.number().describe('Current streak of consecutive main prediction losses')
-}).describe('Gemini AI recovery engine — activates after 2 consecutive main losses')
+}).describe('Internal Crisis AI recovery engine — activates after 2 consecutive main losses')
 })
 
 
@@ -810,7 +810,7 @@ export const UndoInputResponse = zod.object({
   "confidence": zod.string().describe('\"LOW\" | \"MED\" | \"HIGH\"'),
   "reasoning": zod.string().describe('One-sentence AI explanation for the prediction'),
   "consecutiveLosses": zod.number().describe('Current streak of consecutive main prediction losses')
-}).describe('Gemini AI recovery engine — activates after 2 consecutive main losses')
+}).describe('Internal Crisis AI recovery engine — activates after 2 consecutive main losses')
 })
 
 
@@ -1063,7 +1063,7 @@ export const ResetGameResponse = zod.object({
   "confidence": zod.string().describe('\"LOW\" | \"MED\" | \"HIGH\"'),
   "reasoning": zod.string().describe('One-sentence AI explanation for the prediction'),
   "consecutiveLosses": zod.number().describe('Current streak of consecutive main prediction losses')
-}).describe('Gemini AI recovery engine — activates after 2 consecutive main losses')
+}).describe('Internal Crisis AI recovery engine — activates after 2 consecutive main losses')
 })
 
 
@@ -1320,7 +1320,7 @@ export const SetWindowResponse = zod.object({
   "confidence": zod.string().describe('\"LOW\" | \"MED\" | \"HIGH\"'),
   "reasoning": zod.string().describe('One-sentence AI explanation for the prediction'),
   "consecutiveLosses": zod.number().describe('Current streak of consecutive main prediction losses')
-}).describe('Gemini AI recovery engine — activates after 2 consecutive main losses')
+}).describe('Internal Crisis AI recovery engine — activates after 2 consecutive main losses')
 })
 
 
