@@ -340,7 +340,7 @@ function CrisisAIPanel({ crisis }: { crisis: CrisisAIResult }) {
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold tracking-widest"
             style={{ color: crisis.active ? '#fb923c' : 'rgba(251,146,60,0.5)' }}>
-            {crisis.active ? '⚠ CRISIS AI — GEMINI OVERRIDE' : '◈ CRISIS AI MONITOR'}
+            {crisis.active ? '⚠ CRISIS AI — RECOVERY OVERRIDE' : '◈ CRISIS AI MONITOR'}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -362,7 +362,7 @@ function CrisisAIPanel({ crisis }: { crisis: CrisisAIResult }) {
           {/* AI Prediction */}
           <div className="flex items-center justify-between">
             <div className="flex flex-col gap-0.5">
-              <span className="text-xs tracking-widest" style={{ color: '#71717a' }}>GEMINI RECOVERY CALL</span>
+              <span className="text-xs tracking-widest" style={{ color: '#71717a' }}>BACKGROUND AI RECOVERY</span>
               <span className="text-xs" style={{ color: '#52525b' }}>
                 {crisis.reasoning || 'Analysing pattern…'}
               </span>
@@ -520,6 +520,21 @@ export default function DashboardPage() {
   useEffect(() => {
     if (initialSnapshot.data) setSnapshot(initialSnapshot.data);
   }, [initialSnapshot.data]);
+
+  // Crisis AI runs after the hand response. Refresh only while it is active
+  // so a completed background result appears without requiring another hand.
+  useEffect(() => {
+    if (
+      !snapshot?.crisisAI.active ||
+      snapshot.crisisAI.reasoning !== 'Crisis AI analyzing — ensemble fallback'
+    ) return;
+    const timer = window.setInterval(() => {
+      void initialSnapshot.refetch().then(({ data }) => {
+        if (data) setSnapshot(data);
+      });
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [initialSnapshot.refetch, snapshot?.crisisAI.active, snapshot?.crisisAI.reasoning]);
 
   const isMutating = submitInput.isPending || undoInput.isPending || resetGame.isPending || setWindow.isPending;
 

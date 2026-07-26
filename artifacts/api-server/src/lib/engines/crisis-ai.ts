@@ -1,11 +1,11 @@
 /**
  * Crisis Recovery AI — activates after N consecutive main prediction losses.
- * Uses Google Gemini (free tier) to analyse the recent pattern and ALL 10
- * expert shoe records, then suggests a recovery prediction.
+ * Uses the configured AI provider to analyse the recent pattern and expert
+ * shoe records, then suggests a recovery prediction in the background.
  *
  * Integration contract:
  *   1. Before regime.evaluateOutcome():  crisisAI.setMainPrediction(verdict.decision)
- *   2. After  regime.evaluateOutcome():  await crisisAI.evaluateOutcome(actual, ...)
+ *   2. After  regime.evaluateOutcome():  void crisisAI.evaluateOutcome(actual, ...)
  *   3. On undo:                          crisisAI.undoLast()
  *   4. On reset:                         crisisAI.reset()
  */
@@ -86,6 +86,9 @@ export class CrisisAI {
   // Rate-limit guard: do not call Gemini more than once per 60s during a crisis.
   private _lastGeminiCallAt = 0;
   private _geminiRateLimitedUntil = 0;
+  // Invalidates an in-flight provider response after a newer hand, undo, or
+  // reset changes the session state.
+  private _generation = 0;
   private static readonly GEMINI_COOLDOWN_MS = 60_000;
 
   /**
@@ -110,6 +113,7 @@ export class CrisisAI {
     ensembleVerdict: Side | null,
     ensemblePercent: number,
   ): Promise<void> {
+    const generation = ++this._generation;
     this._save();
 
     // Tie hand — preserve existing streak, no evaluation
@@ -135,7 +139,24 @@ export class CrisisAI {
     } else {
       this.consecutiveLosses++;
       if (this.consecutiveLosses >= CRISIS_THRESHOLD) {
-        await this._callGemini(history, experts, shadowLeader, shadowPred, ensembleVerdict, ensemblePercent);
+        // Return a useful fallback immediately. The provider call continues
+        // after the hand response has already been returned.
+        this._result = {
+          active: true,
+          prediction: ensembleVerdict,
+          confidence: "LOW",
+          reasoning: "Crisis AI analyzing — ensemble fallback",
+          consecutiveLosses: this.consecutiveLosses,
+        };
+        await this._callGemini(
+          history,
+          experts,
+          shadowLeader,
+          shadowPred,
+          ensembleVerdict,
+          ensemblePercent,
+          generation,
+        );
       }
     }
   }
@@ -149,15 +170,17 @@ export class CrisisAI {
     shadowPred: Side | null,
     ensembleVerdict: Side | null,
     ensemblePercent: number,
+    generation: number,
   ): Promise<void> {
     const apiKey = process.env.GEMINI_API_KEY?.trim();
 
     if (!apiKey) {
+      if (generation !== this._generation) return;
       this._result = {
         active: true,
         prediction: ensembleVerdict,
         confidence: "LOW",
-        reasoning: "GEMINI_API_KEY missing — using ensemble fallback",
+        reasoning: "Ensemble fallback active",
         consecutiveLosses: this.consecutiveLosses,
       };
       return;
@@ -167,23 +190,25 @@ export class CrisisAI {
     // This cooldown applies even when the loss count increases.
     const now = Date.now();
     if (now < this._geminiRateLimitedUntil) {
+      if (generation !== this._generation) return;
       this._result = {
         ...this._result,
         active: true,
         prediction: ensembleVerdict,
         confidence: "LOW",
-        reasoning: "Gemini rate-limit cooldown — using ensemble fallback",
+        reasoning: "Ensemble fallback active",
         consecutiveLosses: this.consecutiveLosses,
       };
       return;
     }
     if (now - this._lastGeminiCallAt < CrisisAI.GEMINI_COOLDOWN_MS) {
+      if (generation !== this._generation) return;
       this._result = {
         ...this._result,
         active: true,
         prediction: ensembleVerdict,
         confidence: "LOW",
-        reasoning: "Recovery cooldown — using ensemble fallback",
+        reasoning: "Ensemble fallback active",
         consecutiveLosses: this.consecutiveLosses,
       };
       return;
@@ -302,7 +327,7 @@ Respond ONLY with valid JSON, no markdown:
       }
       if (!response) throw new Error("Gemini request did not return a response");
       if (!response.ok) {
-        if (response.status === 429) {
+        if (response.status === 429 && generation === this._generation) {
           this._geminiRateLimitedUntil = Date.now() + CrisisAI.GEMINI_COOLDOWN_MS;
         }
         throw new Error(`Gemini HTTP ${response.status}`);
@@ -339,6 +364,7 @@ Respond ONLY with valid JSON, no markdown:
         : "LOW") as "LOW" | "MED" | "HIGH";
       const reasoning = String(parsed.reasoning ?? "").slice(0, 110);
 
+      if (generation !== this._generation) return;
       this._result = {
         active: true,
         prediction,
@@ -347,20 +373,16 @@ Respond ONLY with valid JSON, no markdown:
         consecutiveLosses: this.consecutiveLosses,
       };
     } catch (err) {
-      const reason = err instanceof DOMException && err.name === "TimeoutError"
-        ? "AI temporarily unavailable"
-        : err instanceof Error && /^Gemini HTTP \d+/.test(err.message)
-          ? "AI temporarily unavailable"
-          : "AI response unavailable";
       logger.warn(
         { err, model: GEMINI_MODEL, timeoutMs: GEMINI_TIMEOUT_MS },
         "CrisisAI: Gemini call failed — using ensemble fallback",
       );
+      if (generation !== this._generation) return;
       this._result = {
         active: true,
         prediction: ensembleVerdict,
         confidence: "LOW",
-        reasoning: `${reason} — ensemble fallback`,
+        reasoning: "Ensemble fallback active",
         consecutiveLosses: this.consecutiveLosses,
       };
     }
@@ -384,6 +406,7 @@ Respond ONLY with valid JSON, no markdown:
   }
 
   undoLast(): void {
+    this._generation++;
     const prev = this._undoStack.pop();
     if (!prev) return;
     this.consecutiveLosses = prev.consecutiveLosses;
@@ -392,6 +415,7 @@ Respond ONLY with valid JSON, no markdown:
   }
 
   reset(): void {
+    this._generation++;
     this.consecutiveLosses = 0;
     this.lastMainPred = null;
     this._result = {

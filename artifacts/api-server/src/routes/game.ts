@@ -13,15 +13,15 @@ router.get("/snapshot", (req, res) => {
   res.json(session.getSnapshot());
 });
 
-// POST /game/input  (async — may call Gemini Crisis AI)
-router.post("/input", async (req, res) => {
+// POST /game/input — hand recording never waits for Crisis AI
+router.post("/input", (req, res) => {
   const { value } = req.body as { value?: string };
   if (!value || !["B", "P", "T"].includes(value.toUpperCase())) {
     res.status(400).json({ error: "value must be B, P, or T" });
     return;
   }
   const session = getOrCreateSession(req.user!.id);
-  const snap = await session.handleInput(value.toUpperCase());
+  const snap = session.handleInput(value.toUpperCase());
   res.json(snap);
 });
 

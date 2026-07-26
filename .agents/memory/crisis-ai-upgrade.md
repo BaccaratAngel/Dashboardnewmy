@@ -17,7 +17,13 @@ description: CrisisAI engine using Gemini free API, shadow promotion logic, and 
 
 **Why:** User observed the main prediction staying "sticky" and wrong for 5-7 consecutive hands. CrisisAI provides an independent LLM-based recovery signal. Google model availability can vary by account age, so the default must stay on a currently accepted model.
 
-**How to apply:** `crisisAI.setMainPrediction()` must be called BEFORE `regime.evaluateOutcome()`, then `await crisisAI.evaluateOutcome()` AFTER all engine scoring. This captures the prior prediction correctly.
+**How to apply:** `crisisAI.setMainPrediction()` must be called BEFORE `regime.evaluateOutcome()`, then start `crisisAI.evaluateOutcome()` AFTER all engine scoring without awaiting it in the hand route. This captures the prior prediction correctly while keeping hand entry responsive.
+
+**Non-blocking recovery:** Crisis AI is advisory and must run in the background; hand recording always returns the ensemble snapshot immediately, with the dashboard polling briefly for a completed recovery result.
+
+**Why:** External AI can time out, rate-limit, or fail even when credentials and prompts are correct. Waiting on it made the core baccarat workflow feel broken.
+
+**How to apply:** Keep an ensemble fallback visible during analysis, invalidate results from older hands/undo/reset operations, and show provider-specific failure details only in server logs.
 
 **Gemini reliability:** Gemini 3 uses thinking by default and may return output across multiple parts, including thought metadata. Crisis classification requests should use minimal thinking, parse non-thought parts together, and retain the ensemble fallback for transient provider failures.
 
