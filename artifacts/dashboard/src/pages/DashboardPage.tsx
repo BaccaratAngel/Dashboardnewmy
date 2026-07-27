@@ -318,10 +318,15 @@ function LockBar({
 // ── Crisis AI Panel ───────────────────────────────────────────────────────────
 
 function CrisisAIPanel({ crisis }: { crisis: CrisisAIResult }) {
+  // Hide when: 0 consecutive losses (clean state), OR suppressed after crisis win (consecutive >= 2 but not active)
+  // Visible only when: active (2+ losses and panel open), OR exactly 1 loss (early warning)
+  const isSuppressed = !crisis.active && crisis.consecutiveLosses >= 2;
   if (!crisis.active && crisis.consecutiveLosses === 0) return null;
+  if (isSuppressed) return null;
 
   const predColor = crisis.prediction === 'P' ? '#22d3ee' : crisis.prediction === 'B' ? '#f87171' : '#71717a';
   const confColor = crisis.confidence === 'HIGH' ? '#4ade80' : crisis.confidence === 'MED' ? '#facc15' : '#fb923c';
+  const bgPredColor = crisis.backgroundPrediction === 'P' ? '#22d3ee' : crisis.backgroundPrediction === 'B' ? '#f87171' : '#71717a';
 
   return (
     <div className="rounded-sm border flex flex-col overflow-hidden"
@@ -362,7 +367,7 @@ function CrisisAIPanel({ crisis }: { crisis: CrisisAIResult }) {
           {/* AI Prediction */}
           <div className="flex items-center justify-between">
             <div className="flex flex-col gap-0.5">
-              <span className="text-xs tracking-widest" style={{ color: '#71717a' }}>BACKGROUND AI RECOVERY</span>
+              <span className="text-xs tracking-widest" style={{ color: '#71717a' }}>RECOVERY OVERRIDE</span>
               <span className="text-xs" style={{ color: '#52525b' }}>
                 {crisis.reasoning || 'Analysing pattern…'}
               </span>
@@ -383,15 +388,45 @@ function CrisisAIPanel({ crisis }: { crisis: CrisisAIResult }) {
             </div>
           </div>
 
-          {/* Separator note */}
+          {/* Background self-learning status */}
+          {crisis.bgLearning && (
+            <div className="flex items-start gap-2 px-2 py-1.5 rounded-sm"
+              style={{ backgroundColor: 'rgba(251,146,60,0.04)', border: '1px solid rgba(251,146,60,0.1)' }}>
+              <span className="text-xs shrink-0" style={{ color: 'rgba(251,146,60,0.4)' }}>◎</span>
+              <span className="text-xs leading-relaxed" style={{ color: 'rgba(251,146,60,0.5)' }}>
+                {crisis.bgLearning}
+              </span>
+            </div>
+          )}
+
+          {/* Footer note */}
           <div className="text-xs text-center py-1 rounded-sm"
-            style={{ color: 'rgba(251,146,60,0.5)', backgroundColor: 'rgba(251,146,60,0.04)', border: '1px solid rgba(251,146,60,0.12)' }}>
-            Crisis AI activates after {2} consecutive losses · resets on correct prediction
+            style={{ color: 'rgba(251,146,60,0.4)', backgroundColor: 'rgba(251,146,60,0.03)', border: '1px solid rgba(251,146,60,0.1)' }}>
+            Activates after 2 consecutive losses · closes on correct prediction · re-opens on 2 more losses
           </div>
         </div>
       ) : (
-        <div className="px-4 py-3 text-xs" style={{ color: '#3f3f46' }}>
-          Monitoring main prediction accuracy · activates after 2 consecutive losses
+        /* 1-loss early warning: show compact monitor with background prediction */
+        <div className="flex flex-col gap-2 px-4 py-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs" style={{ color: '#3f3f46' }}>
+              Monitoring · 1 loss · activates on next loss
+            </span>
+            {crisis.backgroundPrediction && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs" style={{ color: '#3f3f46' }}>BG</span>
+                <span className="text-xs font-bold px-1.5 py-0.5 rounded-sm"
+                  style={{ color: bgPredColor, backgroundColor: `${bgPredColor}12`, border: `1px solid ${bgPredColor}30` }}>
+                  {crisis.backgroundPrediction}
+                </span>
+              </div>
+            )}
+          </div>
+          {crisis.bgLearning && (
+            <span className="text-xs" style={{ color: '#3f3f46', fontStyle: 'italic' }}>
+              {crisis.bgLearning}
+            </span>
+          )}
         </div>
       )}
     </div>

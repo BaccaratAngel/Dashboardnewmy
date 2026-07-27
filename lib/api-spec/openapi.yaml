@@ -663,14 +663,14 @@ components:
 
     CrisisAIResult:
       type: object
-      required: [active, prediction, confidence, reasoning, consecutiveLosses]
+      required: [active, prediction, confidence, reasoning, consecutiveLosses, backgroundPrediction, bgLearning]
       properties:
         active:
           type: boolean
-          description: True when the crisis AI is actively overriding (2+ consecutive losses)
+          description: True when the crisis AI panel is showing (2+ consecutive losses and not suppressed)
         prediction:
           type: ["string", "null"]
-          description: '"P", "B", or null'
+          description: '"P", "B", or null — only set when panel is active'
         confidence:
           type: string
           description: '"LOW" | "MED" | "HIGH"'
@@ -680,6 +680,12 @@ components:
         consecutiveLosses:
           type: integer
           description: Current streak of consecutive main prediction losses
+        backgroundPrediction:
+          type: ["string", "null"]
+          description: Always-computed background prediction (P, B, or null) — runs even when panel is inactive
+        bgLearning:
+          type: string
+          description: Latest background self-learning analysis message
 
     GameSnapshot:
       type: object

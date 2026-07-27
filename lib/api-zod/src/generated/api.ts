@@ -295,11 +295,13 @@ export const GetSnapshotResponse = zod.object({
 })
 }).describe('Per-sub-system win rates tracked by ObserverMasterAI'),
   "crisisAI": zod.object({
-  "active": zod.boolean().describe('True when the crisis AI is actively overriding (2+ consecutive losses)'),
-  "prediction": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "active": zod.boolean().describe('True when the crisis AI panel is showing (2+ consecutive losses and not suppressed)'),
+  "prediction": zod.string().nullable().describe('\"P\", \"B\", or null — only set when panel is active'),
   "confidence": zod.string().describe('\"LOW\" | \"MED\" | \"HIGH\"'),
   "reasoning": zod.string().describe('One-sentence AI explanation for the prediction'),
-  "consecutiveLosses": zod.number().describe('Current streak of consecutive main prediction losses')
+  "consecutiveLosses": zod.number().describe('Current streak of consecutive main prediction losses'),
+  "backgroundPrediction": zod.string().nullable().describe('Always-computed background prediction (P, B, or null) — runs even when panel is inactive'),
+  "bgLearning": zod.string().describe('Latest background self-learning analysis message')
 }).describe('Internal Crisis AI recovery engine — activates after 2 consecutive main losses')
 })
 
@@ -552,11 +554,13 @@ export const SubmitInputResponse = zod.object({
 })
 }).describe('Per-sub-system win rates tracked by ObserverMasterAI'),
   "crisisAI": zod.object({
-  "active": zod.boolean().describe('True when the crisis AI is actively overriding (2+ consecutive losses)'),
-  "prediction": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "active": zod.boolean().describe('True when the crisis AI panel is showing (2+ consecutive losses and not suppressed)'),
+  "prediction": zod.string().nullable().describe('\"P\", \"B\", or null — only set when panel is active'),
   "confidence": zod.string().describe('\"LOW\" | \"MED\" | \"HIGH\"'),
   "reasoning": zod.string().describe('One-sentence AI explanation for the prediction'),
-  "consecutiveLosses": zod.number().describe('Current streak of consecutive main prediction losses')
+  "consecutiveLosses": zod.number().describe('Current streak of consecutive main prediction losses'),
+  "backgroundPrediction": zod.string().nullable().describe('Always-computed background prediction (P, B, or null) — runs even when panel is inactive'),
+  "bgLearning": zod.string().describe('Latest background self-learning analysis message')
 }).describe('Internal Crisis AI recovery engine — activates after 2 consecutive main losses')
 })
 
@@ -805,11 +809,13 @@ export const UndoInputResponse = zod.object({
 })
 }).describe('Per-sub-system win rates tracked by ObserverMasterAI'),
   "crisisAI": zod.object({
-  "active": zod.boolean().describe('True when the crisis AI is actively overriding (2+ consecutive losses)'),
-  "prediction": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "active": zod.boolean().describe('True when the crisis AI panel is showing (2+ consecutive losses and not suppressed)'),
+  "prediction": zod.string().nullable().describe('\"P\", \"B\", or null — only set when panel is active'),
   "confidence": zod.string().describe('\"LOW\" | \"MED\" | \"HIGH\"'),
   "reasoning": zod.string().describe('One-sentence AI explanation for the prediction'),
-  "consecutiveLosses": zod.number().describe('Current streak of consecutive main prediction losses')
+  "consecutiveLosses": zod.number().describe('Current streak of consecutive main prediction losses'),
+  "backgroundPrediction": zod.string().nullable().describe('Always-computed background prediction (P, B, or null) — runs even when panel is inactive'),
+  "bgLearning": zod.string().describe('Latest background self-learning analysis message')
 }).describe('Internal Crisis AI recovery engine — activates after 2 consecutive main losses')
 })
 
@@ -1058,11 +1064,13 @@ export const ResetGameResponse = zod.object({
 })
 }).describe('Per-sub-system win rates tracked by ObserverMasterAI'),
   "crisisAI": zod.object({
-  "active": zod.boolean().describe('True when the crisis AI is actively overriding (2+ consecutive losses)'),
-  "prediction": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "active": zod.boolean().describe('True when the crisis AI panel is showing (2+ consecutive losses and not suppressed)'),
+  "prediction": zod.string().nullable().describe('\"P\", \"B\", or null — only set when panel is active'),
   "confidence": zod.string().describe('\"LOW\" | \"MED\" | \"HIGH\"'),
   "reasoning": zod.string().describe('One-sentence AI explanation for the prediction'),
-  "consecutiveLosses": zod.number().describe('Current streak of consecutive main prediction losses')
+  "consecutiveLosses": zod.number().describe('Current streak of consecutive main prediction losses'),
+  "backgroundPrediction": zod.string().nullable().describe('Always-computed background prediction (P, B, or null) — runs even when panel is inactive'),
+  "bgLearning": zod.string().describe('Latest background self-learning analysis message')
 }).describe('Internal Crisis AI recovery engine — activates after 2 consecutive main losses')
 })
 
@@ -1315,11 +1323,13 @@ export const SetWindowResponse = zod.object({
 })
 }).describe('Per-sub-system win rates tracked by ObserverMasterAI'),
   "crisisAI": zod.object({
-  "active": zod.boolean().describe('True when the crisis AI is actively overriding (2+ consecutive losses)'),
-  "prediction": zod.string().nullable().describe('\"P\", \"B\", or null'),
+  "active": zod.boolean().describe('True when the crisis AI panel is showing (2+ consecutive losses and not suppressed)'),
+  "prediction": zod.string().nullable().describe('\"P\", \"B\", or null — only set when panel is active'),
   "confidence": zod.string().describe('\"LOW\" | \"MED\" | \"HIGH\"'),
   "reasoning": zod.string().describe('One-sentence AI explanation for the prediction'),
-  "consecutiveLosses": zod.number().describe('Current streak of consecutive main prediction losses')
+  "consecutiveLosses": zod.number().describe('Current streak of consecutive main prediction losses'),
+  "backgroundPrediction": zod.string().nullable().describe('Always-computed background prediction (P, B, or null) — runs even when panel is inactive'),
+  "bgLearning": zod.string().describe('Latest background self-learning analysis message')
 }).describe('Internal Crisis AI recovery engine — activates after 2 consecutive main losses')
 })
 

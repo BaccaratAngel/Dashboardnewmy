@@ -175,10 +175,10 @@ export interface ObserverMemory {
 }
 
 export interface CrisisAIResult {
-  /** True when the crisis AI is actively overriding (2+ consecutive losses) */
+  /** True when the crisis AI panel is showing (2+ consecutive losses and not suppressed) */
   active: boolean;
   /**
-     * "P", "B", or null
+     * "P", "B", or null — only set when panel is active
      * @nullable
      */
   prediction: string | null;
@@ -188,6 +188,13 @@ export interface CrisisAIResult {
   reasoning: string;
   /** Current streak of consecutive main prediction losses */
   consecutiveLosses: number;
+  /**
+     * Always-computed background prediction (P, B, or null) — runs even when panel is inactive
+     * @nullable
+     */
+  backgroundPrediction: string | null;
+  /** Latest background self-learning analysis message */
+  bgLearning: string;
 }
 
 export interface LookAheadResult {
