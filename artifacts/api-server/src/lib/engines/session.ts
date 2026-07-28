@@ -234,6 +234,7 @@ export class GameSession {
       regimeNow.shadowLeaderPred,
       regimeNow.ensembleVerdict,
       regimeNow.ensemblePercent,
+      regimeNow.volatilityIndex,  // v2: volatility-aware scoring
     );
 
     // 5. Generate new predictions

@@ -14,12 +14,48 @@
  * Panel activation: two consecutive main-prediction losses.
  * Panel close: when Crisis AI's own prediction wins.
  * Panel re-arm: if main prediction loses 2 consecutive times again after close.
+ *
+ * ── v2 upgrades ──────────────────────────────────────────────────────────────
+ *
+ * Upgrade 1 — Own loss streak + abstain mode
+ *   Crisis AI now tracks its own consecutive background-prediction losses
+ *   independently of the main-prediction streak. After 4+ consecutive own
+ *   losses it abstains for 1 hand (prediction=null) and resets the counter
+ *   to 1 so normal operation resumes the next hand. This directly stops the
+ *   "keeps losing continuously" behaviour on chaotic shoes.
+ *
+ * Upgrade 2 — Contrarian flip
+ *   When ownConsecutiveLosses >= 3 and the margin between P/B scores is narrow
+ *   (< 22%), the final prediction is flipped. The model is clearly misreading
+ *   the shoe at that point; inverting a close call is the rational response.
+ *
+ * Upgrade 3 — Volatility-aware scoring
+ *   volatilityIndex (0-1) is now passed in from the regime tracker. When
+ *   volatility > 0.70 all expert weights are scaled by 0.62 and confidence is
+ *   capped at MED. High-volatility shoes produce noisy expert signals.
+ *
+ * Upgrade 4 — Adaptive ensemble/shadow weighting
+ *   The last 6 ensemble and shadow-leader verdict outcomes are tracked. Their
+ *   score bonuses are scaled by their actual recent accuracy (min 0.35, max 1.5
+ *   for ensemble; min 0.2, max 1.0 for shadow) instead of being hardcoded.
+ *
+ * Upgrade 5 — Thrash guard
+ *   Counts panel on→off cycles (panelToggleCount). After 4+ cycles all expert
+ *   weights are reduced by 20% and confidence is capped at MED.
  */
 
 type Side = "P" | "B";
 type PatternMode = "run" | "alternating" | "balanced";
 
 const CRISIS_THRESHOLD = 2;
+const OWN_LOSS_ABSTAIN_THRESHOLD = 4;  // abstain after this many consecutive own losses
+const OWN_LOSS_CONTRARIAN_THRESHOLD = 3; // contrarian flip after this many
+const CONTRARIAN_MARGIN_THRESHOLD = 0.22; // flip only when margin is narrow
+const VOLATILITY_HIGH_THRESHOLD = 0.70;  // volatilityIndex above this = high-vol mode
+const THRASH_TOGGLE_THRESHOLD = 4;       // panel on→off cycles before thrash guard kicks in
+const VOLATILITY_EXPERT_SCALE = 0.62;    // scale factor applied to expert weights in high-vol
+const THRASH_EXPERT_SCALE = 0.80;        // scale factor applied in thrash mode
+const ADAPTIVE_WINDOW = 6;              // how many recent ensemble/shadow results to track
 
 const EXPERT_LABELS: Record<string, string> = {
   supreme: "Supreme Bayesian",
@@ -108,6 +144,13 @@ interface CrisisSnap {
   expertLearning: Record<string, ExpertLearning>;
   patternTrust: Record<PatternMode, number>;
   shoeAdaptation: ShoeAdaptation;
+  // v2 state
+  ownConsecutiveLosses: number;
+  ownConsecutiveLossMax: number;
+  panelToggleCount: number;
+  lastWasActive: boolean;
+  recentEnsembleCorrect: boolean[];
+  recentShadowCorrect: boolean[];
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -233,6 +276,20 @@ export class CrisisAI {
   };
   private _undoStack: CrisisSnap[] = [];
 
+  // ── v2 state ────────────────────────────────────────────────────────────────
+  /** Crisis AI's own consecutive background-prediction losses (separate from main losses) */
+  private ownConsecutiveLosses = 0;
+  /** Highest own loss streak seen this shoe (for analysis messages) */
+  private ownConsecutiveLossMax = 0;
+  /** Count of panel on→off cycles this shoe (for thrash detection) */
+  private panelToggleCount = 0;
+  /** Previous active state — used to detect on→off transitions */
+  private lastWasActive = false;
+  /** Rolling window of last ADAPTIVE_WINDOW ensemble verdict correctness */
+  private recentEnsembleCorrect: boolean[] = [];
+  /** Rolling window of last ADAPTIVE_WINDOW shadow-leader prediction correctness */
+  private recentShadowCorrect: boolean[] = [];
+
   setMainPrediction(pred: Side | null): void {
     this.lastMainPred = pred;
   }
@@ -241,6 +298,9 @@ export class CrisisAI {
    * Score the previous local prediction, learn from the current shoe, and
    * produce the next prediction. Background process always runs — panel
    * visibility is controlled separately by the active/suppressed flags.
+   *
+   * @param volatilityIndex  0-1 shoe-volatility from the regime tracker. Pass 0
+   *   if unavailable; the system handles it gracefully.
    */
   evaluateOutcome(
     actual: Side | null,
@@ -250,10 +310,12 @@ export class CrisisAI {
     shadowPred: Side | null,
     ensembleVerdict: Side | null,
     ensemblePercent: number,
+    volatilityIndex = 0,
   ): void {
     this._save();
 
-    const wasActive = this._result.active;
+    // Capture previous active state BEFORE anything changes (for toggle counting)
+    const prevResultActive = this._result.active;
     const previousPrediction = this.lastPrediction;
     let crisisPredictionCorrect: boolean | null = null;
 
@@ -261,13 +323,38 @@ export class CrisisAI {
       // ── Background self-learning: always runs ────────────────────────────
       this.shoeAdaptation.handsAnalyzed++;
 
+      // ── Upgrade 4: track ensemble/shadow accuracy for adaptive weighting ─
+      if (ensembleVerdict !== null) {
+        this.recentEnsembleCorrect.push(ensembleVerdict === actual);
+        if (this.recentEnsembleCorrect.length > ADAPTIVE_WINDOW) {
+          this.recentEnsembleCorrect.shift();
+        }
+      }
+      if (shadowPred !== null) {
+        this.recentShadowCorrect.push(shadowPred === actual);
+        if (this.recentShadowCorrect.length > ADAPTIVE_WINDOW) {
+          this.recentShadowCorrect.shift();
+        }
+      }
+
       if (previousPrediction !== null) {
         crisisPredictionCorrect = previousPrediction === actual;
 
-        // Base learning (existing logic — preserved)
+        // ── Upgrade 1: track own consecutive losses ───────────────────────
+        if (crisisPredictionCorrect) {
+          this.ownConsecutiveLosses = 0;
+        } else {
+          this.ownConsecutiveLosses++;
+          this.ownConsecutiveLossMax = Math.max(
+            this.ownConsecutiveLossMax,
+            this.ownConsecutiveLosses,
+          );
+        }
+
+        // Base learning (preserved)
         this._learnFromOutcome(actual, history, experts, crisisPredictionCorrect);
 
-        // Deep wrong-prediction analysis (new)
+        // Deep wrong-prediction analysis (preserved)
         if (!crisisPredictionCorrect) {
           this._analyzeWrongPrediction(previousPrediction, actual, history, experts);
         } else {
@@ -275,6 +362,8 @@ export class CrisisAI {
           this.shoeAdaptation.lastAnalysis = `Correct: predicted ${sideName(previousPrediction)} — confirmed. Shoe model reinforced.`;
         }
       }
+      // If previousPrediction was null (we abstained last hand), ownConsecutiveLosses
+      // stays unchanged — abstain hands don't count toward the streak.
 
       // Main prediction loss tracking
       if (this.lastMainPred !== null) {
@@ -288,7 +377,7 @@ export class CrisisAI {
       }
 
       // Panel close: when Crisis AI wins while active
-      if (wasActive && crisisPredictionCorrect === true && this.consecutiveLosses > 0) {
+      if (prevResultActive && crisisPredictionCorrect === true && this.consecutiveLosses > 0) {
         this.panelSuppressed = true;
         this.suppressedAtLosses = this.consecutiveLosses;
       }
@@ -302,25 +391,97 @@ export class CrisisAI {
       }
     }
 
-    // Generate next prediction (always runs in background)
-    const next = this._scoreRecovery(
-      history,
-      experts,
-      shadowLeader,
-      shadowPred,
-      ensembleVerdict,
-      ensemblePercent,
-    );
+    // ── Upgrade 1: abstain decision ──────────────────────────────────────────
+    // After OWN_LOSS_ABSTAIN_THRESHOLD consecutive own losses, skip this hand
+    // entirely and reset the counter so normal operation resumes next hand.
+    let forceAbstain = false;
+    let abstainReason = "";
+    if (this.ownConsecutiveLosses >= OWN_LOSS_ABSTAIN_THRESHOLD) {
+      forceAbstain = true;
+      abstainReason =
+        `Crisis AI standing by — ${this.ownConsecutiveLosses} consecutive background` +
+        ` misses (peak this shoe: ${this.ownConsecutiveLossMax}).` +
+        ` Observing this hand without prediction to recalibrate shoe model.`;
+      // Reset to "skeptical" (1) so we're still somewhat guarded but making predictions next hand
+      this.ownConsecutiveLosses = 1;
+    }
+
+    // Generate next prediction
+    const active = this.consecutiveLosses >= CRISIS_THRESHOLD && !this.panelSuppressed;
+
+    let next: ReturnType<typeof this._scoreRecovery>;
+    if (forceAbstain) {
+      const pattern = scoreRecentPattern(history);
+      next = {
+        prediction: null,
+        confidence: "LOW" as const,
+        reasoning: abstainReason,
+        mode: pattern.mode,
+        contrarianed: false,
+        isHighVolatility: false,
+        isThrashing: false,
+      };
+    } else {
+      next = this._scoreRecovery(
+        history,
+        experts,
+        shadowLeader,
+        shadowPred,
+        ensembleVerdict,
+        ensemblePercent,
+        volatilityIndex,
+      );
+    }
+
     this.lastPrediction = next.prediction;
     this.lastPatternMode = next.mode;
 
-    const active = this.consecutiveLosses >= CRISIS_THRESHOLD && !this.panelSuppressed;
+    // ── Upgrade 5: track panel toggle count ─────────────────────────────────
+    // A "toggle" is panel going from active→inactive (Crisis AI won)
+    if (prevResultActive && !active) {
+      this.panelToggleCount++;
+    }
+    this.lastWasActive = active;
 
-    const bgLearning = this.shoeAdaptation.lastAnalysis
-      ? this.shoeAdaptation.lastAnalysis
-      : this.shoeAdaptation.handsAnalyzed > 0
-        ? `Background learning: ${this.shoeAdaptation.handsAnalyzed} hands, ${this.shoeAdaptation.wrongCount} corrections applied`
-        : "Background process active — warming up";
+    // Build bgLearning message — surface new state modes prominently
+    const statusNotes: string[] = [];
+    if (forceAbstain) {
+      statusNotes.push(abstainReason);
+    } else {
+      if (next.contrarianed) {
+        statusNotes.push(
+          `Contrarian flip engaged — ${this.ownConsecutiveLosses} consecutive misses, ` +
+          `inverted narrow-margin call`,
+        );
+      }
+      if (next.isHighVolatility) {
+        statusNotes.push(
+          `High-volatility shoe (VI: ${Math.round(volatilityIndex * 100)}%) — ` +
+          `expert weights reduced, confidence capped`,
+        );
+      }
+      if (next.isThrashing) {
+        statusNotes.push(
+          `Thrash guard active (${this.panelToggleCount} panel cycles) — low-conviction mode`,
+        );
+      }
+    }
+
+    let bgLearning: string;
+    if (statusNotes.length > 0) {
+      bgLearning = statusNotes.join("; ");
+      if (!forceAbstain && this.shoeAdaptation.lastAnalysis) {
+        bgLearning += `; ${this.shoeAdaptation.lastAnalysis}`;
+      }
+    } else if (this.shoeAdaptation.lastAnalysis) {
+      bgLearning = this.shoeAdaptation.lastAnalysis;
+    } else if (this.shoeAdaptation.handsAnalyzed > 0) {
+      bgLearning =
+        `Background learning: ${this.shoeAdaptation.handsAnalyzed} hands, ` +
+        `${this.shoeAdaptation.wrongCount} corrections applied`;
+    } else {
+      bgLearning = "Background process active — warming up";
+    }
 
     this._result = active
       ? {
@@ -343,6 +504,16 @@ export class CrisisAI {
           backgroundPrediction: next.prediction,
           bgLearning,
         };
+  }
+
+  /**
+   * Compute reliability from a rolling boolean hit window.
+   * Returns 0.75 (neutral baseline) when there are fewer than 2 data points.
+   */
+  private _computeReliability(hits: boolean[]): number {
+    if (hits.length < 2) return 0.75;
+    const correct = hits.filter(Boolean).length;
+    return clamp(correct / hits.length, 0.25, 1.0);
   }
 
   /**
@@ -400,7 +571,7 @@ export class CrisisAI {
   }
 
   /**
-   * Deep wrong-prediction analysis (new learning layer).
+   * Deep wrong-prediction analysis (preserved from v1).
    *
    * When Crisis AI's prediction was wrong, this method:
    *   1. Examines the last two hands for context
@@ -408,10 +579,6 @@ export class CrisisAI {
    *   3. Identifies which experts were misleading (agreed with wrong prediction)
    *   4. Adjusts shoe-specific expert boosts and side bias
    *   5. Produces a human-readable analysis of what went wrong
-   *
-   * This is additive to the base learning layer above — it creates a
-   * shoe-specific correction model that tunes the scoring formula for the
-   * current shoe's behavior patterns.
    */
   private _analyzeWrongPrediction(
     wrongPred: Side,
@@ -421,12 +588,10 @@ export class CrisisAI {
   ): void {
     this.shoeAdaptation.wrongCount++;
 
-    // Context: last 2 hands before the current one
     const clean = cleanHistory(history);
     const last2 = clean.slice(-3, -1);
     const contextStr = last2.length >= 2 ? last2.join("→") : last2.join("") || "early shoe";
 
-    // Categorize experts by whether they aligned with actual or wrong prediction
     const correctExperts: Array<{ key: string; baseWeight: number }> = [];
     const wrongExperts: Array<{ key: string; baseWeight: number }> = [];
 
@@ -440,7 +605,6 @@ export class CrisisAI {
 
       if (expert.lastPred === actual) {
         correctExperts.push({ key: expert.key, baseWeight });
-        // Boost this expert's shoe-specific weight
         this.shoeAdaptation.expertBoost[expert.key] = clamp(
           (this.shoeAdaptation.expertBoost[expert.key] ?? 0) + 0.035,
           -0.35,
@@ -448,7 +612,6 @@ export class CrisisAI {
         );
       } else if (expert.lastPred === wrongPred) {
         wrongExperts.push({ key: expert.key, baseWeight });
-        // Dampen this expert for this shoe
         this.shoeAdaptation.expertBoost[expert.key] = clamp(
           (this.shoeAdaptation.expertBoost[expert.key] ?? 0) - 0.045,
           -0.35,
@@ -457,8 +620,6 @@ export class CrisisAI {
       }
     }
 
-    // Adjust shoe-side bias toward the actual outcome
-    // Step size decays slightly as more corrections accumulate (more stable over time)
     const decayFactor = Math.max(0.4, 1 - this.shoeAdaptation.wrongCount * 0.015);
     const biasStep = 0.045 * decayFactor;
 
@@ -486,16 +647,13 @@ export class CrisisAI {
       );
     }
 
-    // Also adjust the pattern boost for the mode that was active when wrong
     const patternStep = 0.03 * decayFactor;
-    // The wrong-prediction pattern mode gets a small negative correction
     this.shoeAdaptation.patternBoost[this.lastPatternMode] = clamp(
       this.shoeAdaptation.patternBoost[this.lastPatternMode] - patternStep,
       -0.3,
       0.3,
     );
 
-    // Build analysis message
     const correctNames = correctExperts
       .sort((a, b) => b.baseWeight - a.baseWeight)
       .slice(0, 3)
@@ -527,12 +685,33 @@ export class CrisisAI {
     shadowPred: Side | null,
     ensembleVerdict: Side | null,
     ensemblePercent: number,
+    volatilityIndex: number,
   ): {
-    prediction: Side;
+    prediction: Side | null;
     confidence: CrisisResult["confidence"];
     reasoning: string;
     mode: PatternMode;
+    contrarianed: boolean;
+    isHighVolatility: boolean;
+    isThrashing: boolean;
   } {
+    // ── Upgrade 4: adaptive ensemble/shadow reliability ──────────────────────
+    const ensembleReliability = this._computeReliability(this.recentEnsembleCorrect);
+    const shadowReliability = this._computeReliability(this.recentShadowCorrect);
+
+    // ── Upgrade 3 + 5: volatility and thrash guards ──────────────────────────
+    const isHighVolatility = volatilityIndex > VOLATILITY_HIGH_THRESHOLD;
+    const isThrashing = this.panelToggleCount >= THRASH_TOGGLE_THRESHOLD;
+
+    // Compound expert scale factor
+    let expertScaleFactor = 1.0;
+    if (isHighVolatility) expertScaleFactor *= VOLATILITY_EXPERT_SCALE;
+    if (isThrashing) expertScaleFactor *= THRASH_EXPERT_SCALE;
+
+    // Max confidence allowed under current conditions
+    const confOrder: Array<CrisisResult["confidence"]> = ["LOW", "MED", "HIGH"];
+    const maxConfidenceIdx = isHighVolatility || isThrashing ? 1 : 2; // MED or HIGH
+
     let playerScore = 0;
     let bankerScore = 0;
     const playerExperts: Array<{ label: string; weight: number }> = [];
@@ -548,7 +727,6 @@ export class CrisisAI {
       const reliability = clamp((expert.wins + 1) / (total + 2), 0.25, 0.75);
       const composite = clamp(expert.compositeScore || reliability, 0.2, 1);
 
-      // Apply shoe-specific expert boost on top of base trust (new)
       const shoeBoost = this.shoeAdaptation.expertBoost[expert.key] ?? 0;
       let weight =
         (0.65 + reliability * 0.55 + composite * 0.35) * learning.trust * (1 + shoeBoost);
@@ -559,6 +737,9 @@ export class CrisisAI {
         weight *= 1 + Math.min(expert.currentRunLen * 0.025, 0.1);
       if (expert.currentRunIsWin === false)
         weight *= Math.max(0.72, 1 - expert.currentRunLen * 0.06);
+
+      // Upgrade 3/5: apply compound scale factor
+      weight *= expertScaleFactor;
 
       const target = expert.lastPred === "P" ? playerExperts : bankerExperts;
       target.push({ label: EXPERT_LABELS[expert.key] ?? expert.key, weight });
@@ -571,25 +752,29 @@ export class CrisisAI {
     playerScore += pattern.p * modeWeight;
     bankerScore += pattern.b * modeWeight;
 
-    // Apply shoe-specific pattern boost (new)
     const patternBoostValue = this.shoeAdaptation.patternBoost[pattern.mode];
     if (patternBoostValue !== 0) {
-      // Boost whichever side the pattern was favoring
       if (pattern.p > pattern.b) playerScore += patternBoostValue;
       else if (pattern.b > pattern.p) bankerScore += patternBoostValue;
     }
 
-    if (ensembleVerdict === "P") playerScore += 1.25 * clamp(ensemblePercent / 100, 0.5, 1);
-    if (ensembleVerdict === "B") bankerScore += 1.25 * clamp(ensemblePercent / 100, 0.5, 1);
-    if (shadowPred === "P") playerScore += 0.8;
-    if (shadowPred === "B") bankerScore += 0.8;
+    // ── Upgrade 4: adaptive ensemble/shadow bonuses ──────────────────────────
+    // Scale bonuses by recent accuracy instead of hardcoded 1.25/0.8
+    const ensembleBonus = clamp(1.25 * ensembleReliability, 0.35, 1.5);
+    const shadowBonus = clamp(0.8 * shadowReliability, 0.2, 1.0);
 
-    // Apply shoe-learned side bias (new — additive after all other scoring)
+    if (ensembleVerdict === "P") playerScore += ensembleBonus * clamp(ensemblePercent / 100, 0.5, 1);
+    if (ensembleVerdict === "B") bankerScore += ensembleBonus * clamp(ensemblePercent / 100, 0.5, 1);
+    if (shadowPred === "P") playerScore += shadowBonus;
+    if (shadowPred === "B") bankerScore += shadowBonus;
+
+    // Apply shoe-learned side bias
     playerScore += this.shoeAdaptation.playerBias;
     bankerScore += this.shoeAdaptation.bankerBias;
 
     const totalScore = playerScore + bankerScore;
     const margin = totalScore > 0 ? Math.abs(playerScore - bankerScore) / totalScore : 0;
+
     let prediction: Side;
     if (playerScore > bankerScore) prediction = "P";
     else if (bankerScore > playerScore) prediction = "B";
@@ -597,16 +782,33 @@ export class CrisisAI {
     else if (this.lastMainPred) prediction = opposite(this.lastMainPred);
     else prediction = "B";
 
+    // ── Upgrade 2: contrarian flip ───────────────────────────────────────────
+    // When own consecutive losses >= threshold AND margin is narrow,
+    // the model is clearly misreading the shoe — invert the close call.
+    let contrarianed = false;
+    if (
+      this.ownConsecutiveLosses >= OWN_LOSS_CONTRARIAN_THRESHOLD &&
+      margin < CONTRARIAN_MARGIN_THRESHOLD
+    ) {
+      prediction = opposite(prediction);
+      contrarianed = true;
+    }
+
     const winningExperts = prediction === "P" ? playerExperts : bankerExperts;
     const agreeingCount = winningExperts.length;
     const ensembleAgrees = ensembleVerdict === prediction;
     const shadowAgrees = shadowPred === prediction;
-    const confidence: CrisisResult["confidence"] =
+
+    let rawConfidenceIdx =
       agreeingCount >= 4 && margin >= 0.2 && (ensembleAgrees || shadowAgrees)
-        ? "HIGH"
+        ? 2 // HIGH
         : agreeingCount >= 2 && margin >= 0.08
-          ? "MED"
-          : "LOW";
+          ? 1 // MED
+          : 0; // LOW
+
+    // Apply confidence cap from volatility/thrash guards
+    rawConfidenceIdx = Math.min(rawConfidenceIdx, maxConfidenceIdx);
+    const confidence = confOrder[rawConfidenceIdx];
 
     const strongestExperts = winningExperts
       .sort((a, b) => b.weight - a.weight)
@@ -616,28 +818,44 @@ export class CrisisAI {
     const agreement = strongestExperts
       ? `${strongestExperts} favor ${sideName(prediction)}`
       : `${sideName(prediction)} has the stronger local score`;
+
+    const ensembleReliabilityPct = Math.round(ensembleReliability * 100);
     const confirmations = [
-      ensembleAgrees ? `ensemble ${ensemblePercent}% agrees` : "",
+      ensembleAgrees
+        ? `ensemble ${ensemblePercent}% agrees (${ensembleReliabilityPct}% recent reliability)`
+        : "",
       shadowAgrees && shadowLeader
         ? `shadow ${EXPERT_LABELS[shadowLeader] ?? shadowLeader} agrees`
         : "",
     ].filter(Boolean);
     const confirmationText = confirmations.length > 0 ? `; ${confirmations.join(", ")}` : "";
 
-    // Note shoe adaptation in reasoning when meaningful
     const shoeNote =
       Math.abs(this.shoeAdaptation.playerBias) > 0.05 ||
       Math.abs(this.shoeAdaptation.bankerBias) > 0.05
         ? `; shoe-adapted (${this.shoeAdaptation.wrongCount} corrections)`
         : "";
 
+    const contraryNote = contrarianed
+      ? `; ⟳ contrarian flip (own streak ${this.ownConsecutiveLosses}, margin ${Math.round(margin * 100)}%)`
+      : "";
+    const volatileNote = isHighVolatility
+      ? `; ⚡ high-vol shoe (VI ${Math.round(volatilityIndex * 100)}%, scale ×${VOLATILITY_EXPERT_SCALE})`
+      : "";
+    const thrashNote = isThrashing
+      ? `; 🔄 thrash guard (${this.panelToggleCount} cycles)`
+      : "";
+
     return {
       prediction,
       confidence,
       mode: pattern.mode,
+      contrarianed,
+      isHighVolatility,
+      isThrashing,
       reasoning:
         `Internal score ${Math.round(playerScore * 10) / 10}/${Math.round(bankerScore * 10) / 10}; ` +
-        `${agreement}${confirmationText}; ${pattern.note}${shoeNote}`,
+        `${agreement}${confirmationText}; ${pattern.note}${shoeNote}${contraryNote}${volatileNote}${thrashNote}`,
     };
   }
 
@@ -660,6 +878,13 @@ export class CrisisAI {
       ),
       patternTrust: { ...this.patternTrust },
       shoeAdaptation: cloneShoeAdaptation(this.shoeAdaptation),
+      // v2
+      ownConsecutiveLosses: this.ownConsecutiveLosses,
+      ownConsecutiveLossMax: this.ownConsecutiveLossMax,
+      panelToggleCount: this.panelToggleCount,
+      lastWasActive: this.lastWasActive,
+      recentEnsembleCorrect: [...this.recentEnsembleCorrect],
+      recentShadowCorrect: [...this.recentShadowCorrect],
     });
     if (this._undoStack.length > 200) this._undoStack.shift();
   }
@@ -680,6 +905,13 @@ export class CrisisAI {
     );
     this.patternTrust = { ...prev.patternTrust };
     this.shoeAdaptation = cloneShoeAdaptation(prev.shoeAdaptation);
+    // v2
+    this.ownConsecutiveLosses = prev.ownConsecutiveLosses;
+    this.ownConsecutiveLossMax = prev.ownConsecutiveLossMax;
+    this.panelToggleCount = prev.panelToggleCount;
+    this.lastWasActive = prev.lastWasActive;
+    this.recentEnsembleCorrect = [...prev.recentEnsembleCorrect];
+    this.recentShadowCorrect = [...prev.recentShadowCorrect];
   }
 
   reset(): void {
@@ -703,5 +935,12 @@ export class CrisisAI {
       bgLearning: "",
     };
     this._undoStack = [];
+    // v2
+    this.ownConsecutiveLosses = 0;
+    this.ownConsecutiveLossMax = 0;
+    this.panelToggleCount = 0;
+    this.lastWasActive = false;
+    this.recentEnsembleCorrect = [];
+    this.recentShadowCorrect = [];
   }
 }
