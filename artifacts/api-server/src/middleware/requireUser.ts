@@ -59,6 +59,13 @@ export async function requireUser(
     return;
   }
 
+  // ── Layer 4: Block suspended accounts ─────────────────────────────────────
+  if (user.flaggedAt) {
+    req.log.warn({ userId: user.id }, "User request rejected: account suspended");
+    res.status(401).json({ error: "Account suspended for policy violation. Contact admin." });
+    return;
+  }
+
   // ── Layer 2: User-Agent fingerprint check ──────────────────────────────────
   // If we recorded a UA at login and the current request UA doesn't match,
   // treat it as a stolen cookie — kick the session immediately.

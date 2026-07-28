@@ -8,6 +8,7 @@ import {
   useResetGame,
   useSetWindow,
   useLogout,
+  useHeartbeat,
 } from '@workspace/api-client-react';
 import type { GameSnapshot, ExpertStats, CrisisAIResult } from '@workspace/api-client-react';
 import { cn } from '@/lib/utils';
@@ -318,53 +319,57 @@ function LockBar({
 // ── Crisis AI Panel ───────────────────────────────────────────────────────────
 
 function CrisisAIPanel({ crisis }: { crisis: CrisisAIResult }) {
-  // Hide when: 0 consecutive losses (clean state), OR suppressed after crisis win (consecutive >= 2 but not active)
-  // Visible only when: active (2+ losses and panel open), OR exactly 1 loss (early warning)
+  // Always visible — 4 states: standby (0 losses), monitoring (1 loss), post-crisis (suppressed), active override
+  const isActive    = crisis.active;
   const isSuppressed = !crisis.active && crisis.consecutiveLosses >= 2;
-  if (!crisis.active && crisis.consecutiveLosses === 0) return null;
-  if (isSuppressed) return null;
+  const isMonitoring = !crisis.active && crisis.consecutiveLosses === 1;
+  // isStandby = !isActive && !isSuppressed && !isMonitoring
 
-  const predColor = crisis.prediction === 'P' ? '#22d3ee' : crisis.prediction === 'B' ? '#f87171' : '#71717a';
-  const confColor = crisis.confidence === 'HIGH' ? '#4ade80' : crisis.confidence === 'MED' ? '#facc15' : '#fb923c';
+  const predColor   = crisis.prediction === 'P' ? '#22d3ee' : crisis.prediction === 'B' ? '#f87171' : '#71717a';
+  const confColor   = crisis.confidence === 'HIGH' ? '#4ade80' : crisis.confidence === 'MED' ? '#facc15' : '#fb923c';
   const bgPredColor = crisis.backgroundPrediction === 'P' ? '#22d3ee' : crisis.backgroundPrediction === 'B' ? '#f87171' : '#71717a';
+
+  const headerLabel = isActive
+    ? '⚠ CRISIS AI — RECOVERY OVERRIDE'
+    : isMonitoring
+    ? '◈ CRISIS AI MONITOR'
+    : isSuppressed
+    ? '◈ CRISIS AI — MONITORING'
+    : '◈ CRISIS AI — STANDBY';
 
   return (
     <div className="rounded-sm border flex flex-col overflow-hidden"
       style={{
         backgroundColor: '#120a00',
-        borderColor: crisis.active ? 'rgba(251,146,60,0.6)' : 'rgba(251,146,60,0.2)',
-        boxShadow: crisis.active ? '0 0 16px rgba(251,146,60,0.15)' : 'none',
+        borderColor: isActive ? 'rgba(251,146,60,0.6)' : 'rgba(251,146,60,0.2)',
+        boxShadow: isActive ? '0 0 16px rgba(251,146,60,0.15)' : 'none',
       }}>
 
       {/* Header */}
       <div className="px-4 py-2 flex items-center justify-between"
         style={{
           borderBottom: '1px solid rgba(251,146,60,0.2)',
-          backgroundColor: crisis.active ? 'rgba(251,146,60,0.08)' : 'rgba(251,146,60,0.02)',
+          backgroundColor: isActive ? 'rgba(251,146,60,0.08)' : 'rgba(251,146,60,0.02)',
         }}>
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold tracking-widest"
-            style={{ color: crisis.active ? '#fb923c' : 'rgba(251,146,60,0.5)' }}>
-            {crisis.active ? '⚠ CRISIS AI — RECOVERY OVERRIDE' : '◈ CRISIS AI MONITOR'}
+        <span className="text-xs font-bold tracking-widest"
+          style={{ color: isActive ? '#fb923c' : 'rgba(251,146,60,0.5)' }}>
+          {headerLabel}
+        </span>
+        {crisis.consecutiveLosses > 0 && (
+          <span className="text-xs font-bold tabular-nums px-2 py-0.5 rounded-sm"
+            style={{
+              color: '#fb923c',
+              backgroundColor: 'rgba(251,146,60,0.12)',
+              border: '1px solid rgba(251,146,60,0.3)',
+            }}>
+            {crisis.consecutiveLosses}× LOSS STREAK
           </span>
-        </div>
-        <div className="flex items-center gap-2">
-          {crisis.consecutiveLosses > 0 && (
-            <span className="text-xs font-bold tabular-nums px-2 py-0.5 rounded-sm"
-              style={{
-                color: '#fb923c',
-                backgroundColor: 'rgba(251,146,60,0.12)',
-                border: '1px solid rgba(251,146,60,0.3)',
-              }}>
-              {crisis.consecutiveLosses}× LOSS STREAK
-            </span>
-          )}
-        </div>
+        )}
       </div>
 
-      {crisis.active ? (
+      {isActive ? (
+        /* ── Active: full recovery override panel ── */
         <div className="flex flex-col gap-3 px-4 py-4">
-          {/* AI Prediction */}
           <div className="flex items-center justify-between">
             <div className="flex flex-col gap-0.5">
               <span className="text-xs tracking-widest" style={{ color: '#71717a' }}>RECOVERY OVERRIDE</span>
@@ -388,7 +393,6 @@ function CrisisAIPanel({ crisis }: { crisis: CrisisAIResult }) {
             </div>
           </div>
 
-          {/* Background self-learning status */}
           {crisis.bgLearning && (
             <div className="flex items-start gap-2 px-2 py-1.5 rounded-sm"
               style={{ backgroundColor: 'rgba(251,146,60,0.04)', border: '1px solid rgba(251,146,60,0.1)' }}>
@@ -399,18 +403,21 @@ function CrisisAIPanel({ crisis }: { crisis: CrisisAIResult }) {
             </div>
           )}
 
-          {/* Footer note */}
           <div className="text-xs text-center py-1 rounded-sm"
             style={{ color: 'rgba(251,146,60,0.4)', backgroundColor: 'rgba(251,146,60,0.03)', border: '1px solid rgba(251,146,60,0.1)' }}>
             Activates after 2 consecutive losses · closes on correct prediction · re-opens on 2 more losses
           </div>
         </div>
       ) : (
-        /* 1-loss early warning: show compact monitor with background prediction */
+        /* ── Inactive: standby / 1-loss monitor / post-crisis monitor ── */
         <div className="flex flex-col gap-2 px-4 py-3">
           <div className="flex items-center justify-between">
             <span className="text-xs" style={{ color: '#3f3f46' }}>
-              Monitoring · 1 loss · activates on next loss
+              {isSuppressed
+                ? 'Streak resolved · watching for renewal · re-opens on 2 more losses'
+                : isMonitoring
+                ? 'Monitoring · 1 loss · activates on next loss'
+                : 'Standby · no streak · activates at 2 consecutive losses'}
             </span>
             {crisis.backgroundPrediction && (
               <div className="flex items-center gap-1.5">
@@ -547,10 +554,26 @@ export default function DashboardPage() {
   const resetGame = useResetGame();
   const setWindow = useSetWindow();
   const logout = useLogout();
+  const heartbeat = useHeartbeat();
 
   useEffect(() => {
     if (me.isError) setLocation('/login');
   }, [me.isError, setLocation]);
+
+  // ── Heartbeat: probe every 15 s for concurrent-session detection ──────────
+  useEffect(() => {
+    const id = setInterval(() => {
+      heartbeat.mutate(undefined, {
+        onError: () => {
+          // 401 = session kicked (concurrent login or account suspended)
+          setLocation('/login');
+        },
+      });
+    }, 15_000);
+    return () => clearInterval(id);
+    // heartbeat.mutate is stable across renders
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (initialSnapshot.data) setSnapshot(initialSnapshot.data);

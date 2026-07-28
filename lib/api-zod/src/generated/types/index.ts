@@ -14,6 +14,7 @@ export * from './expertStats';
 export * from './gameInputData';
 export * from './gameSnapshot';
 export * from './healthStatus';
+export * from './heartbeat200';
 export * from './loginCredentials';
 export * from './lookAheadResult';
 export * from './metaAIResult';

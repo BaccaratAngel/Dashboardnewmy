@@ -21,7 +21,9 @@ export default function LoginPage() {
         },
         onError: (err: unknown) => {
           const msg = (err as { message?: string })?.message ?? '';
-          if (msg.toLowerCase().includes('expired')) {
+          if (msg.toLowerCase().includes('suspended') || msg.toLowerCase().includes('policy')) {
+            setErrorMsg('Account suspended for policy violation. Contact admin.');
+          } else if (msg.toLowerCase().includes('expired')) {
             setErrorMsg('Access expired. Contact admin.');
           } else {
             setErrorMsg('Invalid credentials');

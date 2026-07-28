@@ -289,3 +289,7 @@ export interface UserAccountUpdate {
   expiresAt?: string;
 }
 
+export type Heartbeat200 = {
+  ok: boolean;
+};
+

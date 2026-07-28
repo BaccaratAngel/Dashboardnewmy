@@ -42,6 +42,14 @@ export const LogoutResponse = zod.void()
 
 
 /**
+ * @summary Update session presence (concurrent-session probe)
+ */
+export const HeartbeatResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
  * @summary Get current session user
  */
 export const GetMeResponse = zod.object({

@@ -69,6 +69,13 @@ router.post("/login", async (req, res) => {
     return;
   }
 
+  // Layer 4: block flagged accounts — must be unflagged by admin first
+  if (user.flaggedAt) {
+    req.log.warn({ userId: user.id, username: user.username }, "User login rejected: account suspended for sharing violation");
+    res.status(403).json({ error: "Account suspended for policy violation. Contact admin." });
+    return;
+  }
+
   // Success — clear rate limit bucket for this IP
   clearLoginRateLimit(ip);
 
@@ -85,10 +92,9 @@ router.post("/login", async (req, res) => {
       // Layer 2 fingerprint
       sessionUserAgent: ua,
       sessionIp: ip,
-      // Clear any previous heartbeat / flag state on fresh login
+      // Update presence timestamps (do NOT clear flaggedAt — only admin can do that)
       lastSeenAt: new Date(),
       lastSeenIp: ip,
-      flaggedAt: null,
     })
     .where(eq(usersTable.id, user.id));
 
@@ -145,7 +151,7 @@ router.post("/heartbeat", requireUser, async (req, res) => {
     return;
   }
 
-  const CONCURRENT_WINDOW_MS = 60_000; // 60 seconds
+  const CONCURRENT_WINDOW_MS = 30_000; // 30 seconds
   const priorIp = row.lastSeenIp;
   const priorSeen = row.lastSeenAt;
 

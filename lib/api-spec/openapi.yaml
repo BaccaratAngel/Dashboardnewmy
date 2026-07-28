@@ -66,6 +66,29 @@ paths:
         "204":
           description: Logged out
 
+  /auth/heartbeat:
+    post:
+      operationId: heartbeat
+      tags: [auth]
+      summary: Update session presence (concurrent-session probe)
+      responses:
+        "200":
+          description: Heartbeat accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+        "401":
+          description: Not authenticated or concurrent session detected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /auth/me:
     get:
       operationId: getMe
