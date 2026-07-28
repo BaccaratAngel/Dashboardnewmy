@@ -375,6 +375,33 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /admin/users/{id}/unflag:
+    post:
+      operationId: unflagUser
+      tags: [admin]
+      summary: Clear the sharing-violation suspension flag on a user account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Flag cleared
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated as admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /admin/users/{id}/kick:
     post:
       operationId: kickUserSession
@@ -794,7 +821,7 @@ components:
     # ── Admin schemas ───────────────────────────────────────
     UserAccount:
       type: object
-      required: [id, username, expiresAt, createdAt, isOnline, lastLoginAt]
+      required: [id, username, expiresAt, createdAt, isOnline, lastLoginAt, lastSeenAt, lastSeenIp, sessionIp, sessionUserAgent, flaggedAt]
       properties:
         id:
           type: integer
@@ -811,6 +838,21 @@ components:
         lastLoginAt:
           type: ["string", "null"]
           description: ISO 8601 datetime or null
+        lastSeenAt:
+          type: ["string", "null"]
+          description: ISO 8601 datetime of last heartbeat
+        lastSeenIp:
+          type: ["string", "null"]
+          description: IP address of last heartbeat
+        sessionIp:
+          type: ["string", "null"]
+          description: IP address recorded at login
+        sessionUserAgent:
+          type: ["string", "null"]
+          description: Browser/device User-Agent recorded at login
+        flaggedAt:
+          type: ["string", "null"]
+          description: ISO 8601 datetime when sharing violation was detected; null if clean
 
     UserAccountInput:
       type: object

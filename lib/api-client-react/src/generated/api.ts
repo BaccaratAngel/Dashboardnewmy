@@ -1223,6 +1223,77 @@ export const useDeleteUser = <TError = ErrorType<ErrorResponse>,
       return useMutation(getDeleteUserMutationOptions(options));
     }
 
+export const getUnflagUserUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/users/${id}/unflag`
+}
+
+/**
+ * @summary Clear the sharing-violation suspension flag on a user account
+ */
+export const unflagUser = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getUnflagUserUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getUnflagUserMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unflagUser>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof unflagUser>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['unflagUser'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unflagUser>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  unflagUser(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UnflagUserMutationResult = NonNullable<Awaited<ReturnType<typeof unflagUser>>>
+
+    export type UnflagUserMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Clear the sharing-violation suspension flag on a user account
+ */
+export const useUnflagUser = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unflagUser>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof unflagUser>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getUnflagUserMutationOptions(options));
+    }
+
 export const getKickUserSessionUrl = (id: number,) => {
 
 

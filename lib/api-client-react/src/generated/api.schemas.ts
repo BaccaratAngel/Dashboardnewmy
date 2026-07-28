@@ -269,6 +269,31 @@ export interface UserAccount {
      * @nullable
      */
   lastLoginAt: string | null;
+  /**
+     * ISO 8601 datetime of last heartbeat
+     * @nullable
+     */
+  lastSeenAt: string | null;
+  /**
+     * IP address of last heartbeat
+     * @nullable
+     */
+  lastSeenIp: string | null;
+  /**
+     * IP address recorded at login
+     * @nullable
+     */
+  sessionIp: string | null;
+  /**
+     * Browser/device User-Agent recorded at login
+     * @nullable
+     */
+  sessionUserAgent: string | null;
+  /**
+     * ISO 8601 datetime when sharing violation was detected; null if clean
+     * @nullable
+     */
+  flaggedAt: string | null;
 }
 
 export interface UserAccountInput {

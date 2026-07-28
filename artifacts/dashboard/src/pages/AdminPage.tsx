@@ -8,6 +8,7 @@ import {
   useUpdateUser,
   useDeleteUser,
   useKickUserSession,
+  useUnflagUser,
   getListUsersQueryKey,
 } from '@workspace/api-client-react';
 import type { UserAccount } from '@workspace/api-client-react';
@@ -24,6 +25,48 @@ function formatExpiry(iso: string): string {
   } catch {
     return iso;
   }
+}
+
+function formatRelativeTime(iso: string): string {
+  try {
+    const diff = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    return `${days}d ago`;
+  } catch {
+    return iso;
+  }
+}
+
+function abbreviateUserAgent(ua: string | null): string {
+  if (!ua) return '—';
+  // Extract browser + OS from common UA strings
+  const chrome = ua.match(/Chrome\/([\d]+)/);
+  const safari = ua.match(/Safari/) && !ua.match(/Chrome/);
+  const firefox = ua.match(/Firefox\/([\d]+)/);
+  const edge = ua.match(/Edg\/([\d]+)/);
+  const android = ua.match(/Android ([\d.]+)/);
+  const ios = ua.match(/iPhone OS ([\d_]+)/);
+  const mac = ua.match(/Mac OS X ([\d_]+)/);
+  const windows = ua.match(/Windows NT ([\d.]+)/);
+
+  let browser = 'Browser';
+  if (edge) browser = `Edge ${edge[1]}`;
+  else if (chrome) browser = `Chrome ${chrome[1]}`;
+  else if (firefox) browser = `Firefox ${firefox[1]}`;
+  else if (safari) browser = 'Safari';
+
+  let os = '';
+  if (android) os = `Android ${android[1]}`;
+  else if (ios) os = `iOS ${ios[1].replace(/_/g, '.')}`;
+  else if (mac) os = `macOS`;
+  else if (windows) os = `Windows`;
+
+  return os ? `${browser} / ${os}` : browser;
 }
 
 function toDatetimeLocal(iso: string): string {
@@ -53,9 +96,29 @@ function getApiErrorMessage(error: unknown, fallback: string): string {
 function UserStatusBadge({ user }: { user: UserAccount }) {
   const now = new Date();
   const expiry = new Date(user.expiresAt);
-  if (user.isOnline) {
-    return (
+  const badges = [];
+
+  if (user.flaggedAt) {
+    badges.push(
       <span
+        key="flagged"
+        className="text-xs font-bold px-2 py-0.5 rounded-sm tracking-wider"
+        style={{
+          color: '#fb923c',
+          backgroundColor: 'rgba(251,146,60,0.1)',
+          border: '1px solid rgba(251,146,60,0.4)',
+        }}
+        title={`Flagged: sharing violation detected at ${formatExpiry(user.flaggedAt)}`}
+      >
+        ⚠ FLAGGED
+      </span>
+    );
+  }
+
+  if (user.isOnline) {
+    badges.push(
+      <span
+        key="online"
         className="text-xs font-bold px-2 py-0.5 rounded-sm tracking-wider"
         style={{
           color: '#4ade80',
@@ -66,10 +129,10 @@ function UserStatusBadge({ user }: { user: UserAccount }) {
         ONLINE
       </span>
     );
-  }
-  if (expiry > now) {
-    return (
+  } else if (expiry > now) {
+    badges.push(
       <span
+        key="active"
         className="text-xs font-bold px-2 py-0.5 rounded-sm tracking-wider"
         style={{
           color: '#22d3ee',
@@ -80,24 +143,47 @@ function UserStatusBadge({ user }: { user: UserAccount }) {
         ACTIVE
       </span>
     );
+  } else {
+    badges.push(
+      <span
+        key="expired"
+        className="text-xs font-bold px-2 py-0.5 rounded-sm tracking-wider"
+        style={{
+          color: '#f87171',
+          backgroundColor: 'rgba(248,113,113,0.1)',
+          border: '1px solid rgba(248,113,113,0.3)',
+        }}
+      >
+        EXPIRED
+      </span>
+    );
   }
-  return (
-    <span
-      className="text-xs font-bold px-2 py-0.5 rounded-sm tracking-wider"
-      style={{
-        color: '#f87171',
-        backgroundColor: 'rgba(248,113,113,0.1)',
-        border: '1px solid rgba(248,113,113,0.3)',
-      }}
-    >
-      EXPIRED
-    </span>
-  );
+
+  return <div className="flex items-center gap-1.5">{badges}</div>;
 }
 
 interface EditState {
   expiresAt: string;
   password: string;
+}
+
+function SecurityInfoRow({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+  return (
+    <div className="flex gap-2 items-start min-w-0">
+      <span className="shrink-0 text-xs tracking-wider" style={{ color: '#52525b', minWidth: '110px' }}>
+        {label}
+      </span>
+      <span
+        className="text-xs break-all"
+        style={{
+          color: highlight ? '#fb923c' : '#a1a1aa',
+          fontFamily: "'JetBrains Mono', monospace",
+        }}
+      >
+        {value}
+      </span>
+    </div>
+  );
 }
 
 function UserRow({
@@ -108,6 +194,7 @@ function UserRow({
   onRefresh: () => void;
 }) {
   const [editing, setEditing] = useState(false);
+  const [showSecurity, setShowSecurity] = useState(false);
   const [editState, setEditState] = useState<EditState>({
     expiresAt: toDatetimeLocal(user.expiresAt),
     password: '',
@@ -116,6 +203,7 @@ function UserRow({
   const updateUser = useUpdateUser();
   const deleteUser = useDeleteUser();
   const kickUser = useKickUserSession();
+  const unflagUser = useUnflagUser();
 
   function handleEdit() {
     setEditing(true);
@@ -155,16 +243,28 @@ function UserRow({
     );
   }
 
+  function handleUnflag() {
+    unflagUser.mutate(
+      { id: user.id },
+      { onSuccess: onRefresh }
+    );
+  }
+
+  const isFlagged = !!user.flaggedAt;
+  const borderColor = isFlagged
+    ? 'rgba(251,146,60,0.25)'
+    : 'rgba(255,255,255,0.08)';
+
   return (
     <div
       className="rounded-sm border p-4 flex flex-col gap-3"
       style={{
-        backgroundColor: 'rgba(255,255,255,0.02)',
-        borderColor: 'rgba(255,255,255,0.08)',
+        backgroundColor: isFlagged ? 'rgba(251,146,60,0.04)' : 'rgba(255,255,255,0.02)',
+        borderColor,
       }}
     >
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <span
             className="font-bold text-sm"
             style={{ color: '#e2e8f0', fontFamily: "'JetBrains Mono', monospace" }}
@@ -174,7 +274,23 @@ function UserRow({
           </span>
           <UserStatusBadge user={user} />
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          {isFlagged && (
+            <button
+              data-testid={`btn-unflag-${user.id}`}
+              onClick={handleUnflag}
+              disabled={unflagUser.isPending}
+              className="text-xs px-2 py-1 rounded-sm tracking-wider transition-all active:scale-95"
+              style={{
+                color: '#fb923c',
+                border: '1px solid rgba(251,146,60,0.4)',
+                backgroundColor: 'rgba(251,146,60,0.08)',
+                cursor: unflagUser.isPending ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {unflagUser.isPending ? '...' : 'UNFLAG'}
+            </button>
+          )}
           <button
             data-testid={`btn-kick-${user.id}`}
             onClick={handleKick}
@@ -222,6 +338,71 @@ function UserRow({
 
       <div className="text-xs" style={{ color: '#71717a' }} data-testid={`user-expiry-${user.id}`}>
         EXPIRES: {formatExpiry(user.expiresAt)}
+      </div>
+
+      {/* Security info section */}
+      <div>
+        <button
+          onClick={() => setShowSecurity((v) => !v)}
+          className="text-xs tracking-wider transition-colors"
+          style={{
+            color: showSecurity ? '#52525b' : '#3f3f46',
+            backgroundColor: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            padding: 0,
+          }}
+        >
+          {showSecurity ? '▾ SECURITY INFO' : '▸ SECURITY INFO'}
+        </button>
+
+        {showSecurity && (
+          <div
+            className="mt-2 p-3 rounded-sm flex flex-col gap-1.5"
+            style={{
+              backgroundColor: 'rgba(0,0,0,0.3)',
+              border: '1px solid rgba(255,255,255,0.06)',
+            }}
+          >
+            <SecurityInfoRow label="LOGIN IP" value={user.sessionIp ?? '—'} />
+            <SecurityInfoRow label="LAST SEEN IP" value={user.lastSeenIp ?? '—'} />
+            <SecurityInfoRow
+              label="LAST SEEN"
+              value={user.lastSeenAt ? formatRelativeTime(user.lastSeenAt) : '—'}
+            />
+            <SecurityInfoRow
+              label="DEVICE"
+              value={abbreviateUserAgent(user.sessionUserAgent)}
+            />
+            {user.flaggedAt && (
+              <SecurityInfoRow
+                label="FLAGGED AT"
+                value={formatExpiry(user.flaggedAt)}
+                highlight
+              />
+            )}
+            {user.sessionUserAgent && (
+              <details className="mt-1">
+                <summary
+                  className="text-xs cursor-pointer"
+                  style={{ color: '#3f3f46', listStyle: 'none' }}
+                >
+                  full UA ▸
+                </summary>
+                <p
+                  className="mt-1 text-xs break-all"
+                  style={{
+                    color: '#52525b',
+                    fontFamily: "'JetBrains Mono', monospace",
+                    lineHeight: '1.5',
+                  }}
+                >
+                  {user.sessionUserAgent}
+                </p>
+              </details>
+            )}
+          </div>
+        )}
       </div>
 
       {editing && (

@@ -31,6 +31,7 @@ function buildUserList(users: (typeof usersTable.$inferSelect)[]) {
     lastSeenAt: u.lastSeenAt?.toISOString() ?? null,
     lastSeenIp: u.lastSeenIp ?? null,
     sessionIp: u.sessionIp ?? null,
+    sessionUserAgent: u.sessionUserAgent ?? null,
     flaggedAt: u.flaggedAt?.toISOString() ?? null,
   }));
 }
@@ -127,6 +128,7 @@ router.post("/users", requireAdmin, async (req, res) => {
       lastSeenAt: null,
       lastSeenIp: null,
       sessionIp: null,
+      sessionUserAgent: null,
       flaggedAt: null,
     });
   } catch (error) {
@@ -194,6 +196,7 @@ router.patch("/users/:id", requireAdmin, async (req, res) => {
     lastSeenAt: u.lastSeenAt?.toISOString() ?? null,
     lastSeenIp: u.lastSeenIp ?? null,
     sessionIp: u.sessionIp ?? null,
+    sessionUserAgent: u.sessionUserAgent ?? null,
     flaggedAt: u.flaggedAt?.toISOString() ?? null,
   });
 });

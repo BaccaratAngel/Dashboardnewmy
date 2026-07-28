@@ -1372,7 +1372,12 @@ export const ListUsersResponseItem = zod.object({
   "expiresAt": zod.string().describe('ISO 8601 datetime'),
   "createdAt": zod.string().describe('ISO 8601 datetime'),
   "isOnline": zod.boolean(),
-  "lastLoginAt": zod.string().nullable().describe('ISO 8601 datetime or null')
+  "lastLoginAt": zod.string().nullable().describe('ISO 8601 datetime or null'),
+  "lastSeenAt": zod.string().nullable().describe('ISO 8601 datetime of last heartbeat'),
+  "lastSeenIp": zod.string().nullable().describe('IP address of last heartbeat'),
+  "sessionIp": zod.string().nullable().describe('IP address recorded at login'),
+  "sessionUserAgent": zod.string().nullable().describe('Browser\/device User-Agent recorded at login'),
+  "flaggedAt": zod.string().nullable().describe('ISO 8601 datetime when sharing violation was detected; null if clean')
 })
 export const ListUsersResponse = zod.array(ListUsersResponseItem)
 
@@ -1397,7 +1402,12 @@ export const CreateUserResponse = zod.object({
   "expiresAt": zod.string().describe('ISO 8601 datetime'),
   "createdAt": zod.string().describe('ISO 8601 datetime'),
   "isOnline": zod.boolean(),
-  "lastLoginAt": zod.string().nullable().describe('ISO 8601 datetime or null')
+  "lastLoginAt": zod.string().nullable().describe('ISO 8601 datetime or null'),
+  "lastSeenAt": zod.string().nullable().describe('ISO 8601 datetime of last heartbeat'),
+  "lastSeenIp": zod.string().nullable().describe('IP address of last heartbeat'),
+  "sessionIp": zod.string().nullable().describe('IP address recorded at login'),
+  "sessionUserAgent": zod.string().nullable().describe('Browser\/device User-Agent recorded at login'),
+  "flaggedAt": zod.string().nullable().describe('ISO 8601 datetime when sharing violation was detected; null if clean')
 })
 
 
@@ -1425,7 +1435,12 @@ export const UpdateUserResponse = zod.object({
   "expiresAt": zod.string().describe('ISO 8601 datetime'),
   "createdAt": zod.string().describe('ISO 8601 datetime'),
   "isOnline": zod.boolean(),
-  "lastLoginAt": zod.string().nullable().describe('ISO 8601 datetime or null')
+  "lastLoginAt": zod.string().nullable().describe('ISO 8601 datetime or null'),
+  "lastSeenAt": zod.string().nullable().describe('ISO 8601 datetime of last heartbeat'),
+  "lastSeenIp": zod.string().nullable().describe('IP address of last heartbeat'),
+  "sessionIp": zod.string().nullable().describe('IP address recorded at login'),
+  "sessionUserAgent": zod.string().nullable().describe('Browser\/device User-Agent recorded at login'),
+  "flaggedAt": zod.string().nullable().describe('ISO 8601 datetime when sharing violation was detected; null if clean')
 })
 
 
@@ -1437,6 +1452,16 @@ export const DeleteUserParams = zod.object({
 })
 
 export const DeleteUserResponse = zod.void()
+
+
+/**
+ * @summary Clear the sharing-violation suspension flag on a user account
+ */
+export const UnflagUserParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UnflagUserResponse = zod.void()
 
 
 /**
