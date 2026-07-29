@@ -6,8 +6,8 @@
  *   1. scores the previous Crisis AI prediction against the actual outcome,
  *   2. updates shoe-pattern and per-expert trust (base learning),
  *   3. runs deep wrong-prediction analysis when prediction missed — examining
- *      the last two hands, which experts were correct, and what score path
- *      would have led to the right answer — and adjusts shoe-specific biases,
+ *      recent context, which experts were correct, and what score path would
+ *      have led to the right answer — and adjusts shoe-specific biases,
  *   4. generates the next prediction from the newly learned state.
  *
  * The background process always runs regardless of panel visibility.
@@ -24,10 +24,17 @@
  *   to 1 so normal operation resumes the next hand. This directly stops the
  *   "keeps losing continuously" behaviour on chaotic shoes.
  *
- * Upgrade 2 — Contrarian flip
- *   When ownConsecutiveLosses >= 3 and the margin between P/B scores is narrow
- *   (< 22%), the final prediction is flipped. The model is clearly misreading
- *   the shoe at that point; inverting a close call is the rational response.
+ * Upgrade 2 — Shoe-survival contrarian mode (replaces 3-loss flip)
+ *   Instead of flipping on any 3-loss streak, Crisis AI now tracks its total
+ *   shoe accuracy (shoeOwnWins / shoeOwnLosses). Contrarian mode only engages
+ *   when:
+ *     • at least CONTRARIAN_MIN_SAMPLE hands have been predicted this shoe, AND
+ *     • shoe accuracy falls below CONTRARIAN_ACC_THRESHOLD (≤ 38%)
+ *   Once engaged, all predictions are flipped for a block of CONTRARIAN_BLOCK
+ *   hands. If contrarian mode accuracy is itself ≤ CONTRARIAN_FAIL_THRESHOLD,
+ *   Crisis AI self-disables for the rest of the shoe (shoeSurvivalFailed=true).
+ *   This avoids the noisy 3-hand trigger and models the shoe as genuinely
+ *   inverted rather than reacting to short-term variance.
  *
  * Upgrade 3 — Volatility-aware scoring
  *   volatilityIndex (0-1) is now passed in from the regime tracker. When
@@ -42,15 +49,31 @@
  * Upgrade 5 — Thrash guard
  *   Counts panel on→off cycles (panelToggleCount). After 4+ cycles all expert
  *   weights are reduced by 20% and confidence is capped at MED.
+ *
+ * Upgrade 6 — Auto-length pattern scanner (replaces fixed windows)
+ *   scoreRecentPattern now tests run/alternating/dominance at all meaningful
+ *   window sizes automatically and selects the strongest confirmed signal,
+ *   scaling its weight by how long the pattern has persisted. A 6-hand run
+ *   carries more evidence than a 2-hand run; a 10-hand alternating stretch
+ *   outweighs a 4-hand one.
  */
 
 type Side = "P" | "B";
 type PatternMode = "run" | "alternating" | "balanced";
 
 const CRISIS_THRESHOLD = 2;
-const OWN_LOSS_ABSTAIN_THRESHOLD = 4;  // abstain after this many consecutive own losses
-const OWN_LOSS_CONTRARIAN_THRESHOLD = 3; // contrarian flip after this many
-const CONTRARIAN_MARGIN_THRESHOLD = 0.22; // flip only when margin is narrow
+const OWN_LOSS_ABSTAIN_THRESHOLD = 4;   // abstain after this many consecutive own losses
+
+// ── Shoe-survival contrarian constants ──────────────────────────────────────
+/** Minimum hands predicted before shoe-survival check can engage */
+const CONTRARIAN_MIN_SAMPLE = 10;
+/** Shoe accuracy at or below this → enter contrarian mode */
+const CONTRARIAN_ACC_THRESHOLD = 0.38;
+/** How many hands contrarian mode stays active */
+const CONTRARIAN_BLOCK = 6;
+/** If contrarian accuracy itself falls at or below this → self-disable for the shoe */
+const CONTRARIAN_FAIL_THRESHOLD = 0.40;
+
 const VOLATILITY_HIGH_THRESHOLD = 0.70;  // volatilityIndex above this = high-vol mode
 const THRASH_TOGGLE_THRESHOLD = 4;       // panel on→off cycles before thrash guard kicks in
 const VOLATILITY_EXPERT_SCALE = 0.62;    // scale factor applied to expert weights in high-vol
@@ -151,6 +174,14 @@ interface CrisisSnap {
   lastWasActive: boolean;
   recentEnsembleCorrect: boolean[];
   recentShadowCorrect: boolean[];
+  // v2 shoe-survival contrarian
+  shoeOwnWins: number;
+  shoeOwnLosses: number;
+  contrарianMode: boolean;
+  contrарianHandsRemaining: number;
+  contrарianWins: number;
+  contrарianLosses: number;
+  shoeSurvivalFailed: boolean;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -199,8 +230,15 @@ function cleanHistory(history: string[]): Side[] {
 }
 
 /**
- * Detect the current shoe mode. The signal is deliberately capped: it can
- * tune expert scores but cannot overpower broad expert agreement by itself.
+ * Auto-length pattern scanner (Upgrade 6).
+ *
+ * Tests run / alternating / dominance at all meaningful window sizes and
+ * returns the strongest confirmed signal, scaled by how long the pattern
+ * has been sustained. A 6-hand run outweighs a 2-hand one; a 10-hand
+ * alternating stretch outweighs a 4-hand one.
+ *
+ * The signal is deliberately capped so it tunes expert scores without
+ * overpowering broad expert agreement.
  */
 function scoreRecentPattern(history: string[]): LocalSignal {
   const clean = cleanHistory(history);
@@ -209,45 +247,79 @@ function scoreRecentPattern(history: string[]): LocalSignal {
   }
 
   const last = clean[clean.length - 1];
+
+  // ── 1. Run detection (auto-length) ────────────────────────────────────────
   let runLength = 1;
   for (let i = clean.length - 2; i >= 0 && clean[i] === last; i--) runLength++;
 
-  let p = 0;
-  let b = 0;
-  const notes: string[] = [];
-  const tail = clean.slice(-7);
-  let transitions = 0;
-  for (let i = 1; i < tail.length; i++) {
-    if (tail[i] !== tail[i - 1]) transitions++;
-  }
-
   if (runLength >= 2) {
-    const amount = Math.min(0.08 + (runLength - 2) * 0.025, 0.16);
-    if (last === "P") p += amount;
-    else b += amount;
-    notes.push(`${runLength}-hand ${sideName(last)} run`);
-    return { p, b, mode: "run", note: notes.join(", ") };
+    // Scale weight with run length; cap at 10 to avoid over-commitment
+    const effectiveLen = Math.min(runLength, 10);
+    const amount = clamp(0.06 + (effectiveLen - 2) * 0.018, 0.06, 0.20);
+    const p = last === "P" ? amount : 0;
+    const b = last === "B" ? amount : 0;
+    return { p, b, mode: "run", note: `${runLength}-hand ${sideName(last)} run` };
   }
 
-  if (tail.length >= 5 && transitions / (tail.length - 1) >= 0.8) {
+  // ── 2. Alternating detection (auto-length, windows 4–14) ─────────────────
+  let bestAltScore = 0;
+  let bestAltLen = 0;
+  const maxAltWindow = Math.min(14, clean.length);
+  for (let w = 4; w <= maxAltWindow; w += 2) {
+    const window = clean.slice(-w);
+    let transitions = 0;
+    for (let i = 1; i < window.length; i++) {
+      if (window[i] !== window[i - 1]) transitions++;
+    }
+    const altScore = transitions / (window.length - 1);
+    // Require at least 75% transition rate; prefer longer confirmed windows
+    if (altScore >= 0.75 && w > bestAltLen) {
+      bestAltScore = altScore;
+      bestAltLen = w;
+    }
+  }
+
+  if (bestAltLen >= 4) {
+    // Scale weight with how many hands confirmed the pattern
+    const amount = clamp(0.06 + (bestAltLen - 4) * 0.010, 0.06, 0.16);
     const reversal = opposite(last);
-    if (reversal === "P") p += 0.1;
-    else b += 0.1;
-    notes.push("alternating road");
-    return { p, b, mode: "alternating", note: notes.join(", ") };
+    const p = reversal === "P" ? amount : 0;
+    const b = reversal === "B" ? amount : 0;
+    return {
+      p, b, mode: "alternating",
+      note: `${bestAltLen}-hand alternating road (${Math.round(bestAltScore * 100)}% transitions)`,
+    };
   }
 
-  const balanceTail = clean.slice(-8);
-  const playerCount = balanceTail.filter((hand) => hand === "P").length;
-  const bankerCount = balanceTail.length - playerCount;
-  if (Math.abs(playerCount - bankerCount) >= 4) {
-    const lessFrequent: Side = playerCount < bankerCount ? "P" : "B";
-    if (lessFrequent === "P") p += 0.05;
-    else b += 0.05;
-    notes.push(`${sideName(lessFrequent)} underrepresented recently`);
+  // ── 3. Side-dominance detection (auto-length, windows 6–24) ──────────────
+  // Find the window that shows the strongest imbalance toward one side.
+  let bestImbalance = 0;
+  let bestDomSide: Side | null = null;
+  let bestDomLen = 0;
+  const maxDomWindow = Math.min(24, clean.length);
+  for (let w = 6; w <= maxDomWindow; w += 2) {
+    const window = clean.slice(-w);
+    const pCount = window.filter((h) => h === "P").length;
+    const imbalance = Math.abs(pCount - (w - pCount)) / w;
+    if (imbalance > bestImbalance) {
+      bestImbalance = imbalance;
+      bestDomSide = pCount > w - pCount ? "P" : "B";
+      bestDomLen = w;
+    }
   }
 
-  return { p, b, mode: "balanced", note: notes.join(", ") || "mixed recent road" };
+  if (bestImbalance >= 0.30 && bestDomSide !== null) {
+    // Gentle nudge toward the dominant side — not a strong signal on its own
+    const amount = clamp(bestImbalance * 0.20, 0.04, 0.09);
+    const p = bestDomSide === "P" ? amount : 0;
+    const b = bestDomSide === "B" ? amount : 0;
+    return {
+      p, b, mode: "balanced",
+      note: `${sideName(bestDomSide)} dominant over last ${bestDomLen} hands (${Math.round(bestImbalance * 100)}% imbalance)`,
+    };
+  }
+
+  return { p: 0, b: 0, mode: "balanced", note: "mixed recent road" };
 }
 
 export class CrisisAI {
@@ -289,6 +361,22 @@ export class CrisisAI {
   private recentEnsembleCorrect: boolean[] = [];
   /** Rolling window of last ADAPTIVE_WINDOW shadow-leader prediction correctness */
   private recentShadowCorrect: boolean[] = [];
+
+  // ── v2 shoe-survival contrarian ──────────────────────────────────────────
+  /** Total own wins this shoe (background predictions) */
+  private shoeOwnWins = 0;
+  /** Total own losses this shoe (background predictions) */
+  private shoeOwnLosses = 0;
+  /** Whether contrarian mode is currently active */
+  private contrарianMode = false;
+  /** Hands remaining in the current contrarian block */
+  private contrарianHandsRemaining = 0;
+  /** Wins scored while in contrarian mode (current block) */
+  private contrарianWins = 0;
+  /** Losses scored while in contrarian mode (current block) */
+  private contrарianLosses = 0;
+  /** True when even contrarian mode failed — self-disable for this shoe */
+  private shoeSurvivalFailed = false;
 
   setMainPrediction(pred: Side | null): void {
     this.lastMainPred = pred;
@@ -343,12 +431,39 @@ export class CrisisAI {
         // ── Upgrade 1: track own consecutive losses ───────────────────────
         if (crisisPredictionCorrect) {
           this.ownConsecutiveLosses = 0;
+          this.shoeOwnWins++;
         } else {
           this.ownConsecutiveLosses++;
           this.ownConsecutiveLossMax = Math.max(
             this.ownConsecutiveLossMax,
             this.ownConsecutiveLosses,
           );
+          this.shoeOwnLosses++;
+        }
+
+        // ── Upgrade 2: shoe-survival contrarian tracking ─────────────────
+        if (this.contrарianMode) {
+          if (crisisPredictionCorrect) {
+            this.contrарianWins++;
+          } else {
+            this.contrарianLosses++;
+          }
+          this.contrарianHandsRemaining--;
+
+          // If contrarian block is exhausted, evaluate its effectiveness
+          if (this.contrарianHandsRemaining <= 0) {
+            const contrárianTotal = this.contrарianWins + this.contrарianLosses;
+            const contrárianAcc = contrárianTotal > 0
+              ? this.contrарianWins / contrárianTotal
+              : 0;
+            if (contrárianAcc <= CONTRARIAN_FAIL_THRESHOLD) {
+              // Contrarian didn't help either — self-disable for the rest of the shoe
+              this.shoeSurvivalFailed = true;
+            }
+            // Exit contrarian mode whether it worked or not
+            this.contrарianMode = false;
+            this.contrарianHandsRemaining = 0;
+          }
         }
 
         // Base learning (preserved)
@@ -362,8 +477,7 @@ export class CrisisAI {
           this.shoeAdaptation.lastAnalysis = `Correct: predicted ${sideName(previousPrediction)} — confirmed. Shoe model reinforced.`;
         }
       }
-      // If previousPrediction was null (we abstained last hand), ownConsecutiveLosses
-      // stays unchanged — abstain hands don't count toward the streak.
+      // If previousPrediction was null (we abstained last hand), counts stay unchanged.
 
       // Main prediction loss tracking
       if (this.lastMainPred !== null) {
@@ -406,20 +520,44 @@ export class CrisisAI {
       this.ownConsecutiveLosses = 1;
     }
 
+    // ── Upgrade 2: shoe-survival contrarian engagement check ─────────────────
+    // Only engage after a sufficient sample and when shoe-level accuracy is poor.
+    // Never engage if self-disable has already fired.
+    if (!forceAbstain && !this.shoeSurvivalFailed && !this.contrарianMode) {
+      const shoeTotalPredicted = this.shoeOwnWins + this.shoeOwnLosses;
+      if (shoeTotalPredicted >= CONTRARIAN_MIN_SAMPLE) {
+        const shoeAcc = this.shoeOwnWins / shoeTotalPredicted;
+        if (shoeAcc <= CONTRARIAN_ACC_THRESHOLD) {
+          // Enter contrarian mode for a block of hands
+          this.contrарianMode = true;
+          this.contrарianHandsRemaining = CONTRARIAN_BLOCK;
+          this.contrарianWins = 0;
+          this.contrарianLosses = 0;
+        }
+      }
+    }
+
     // Generate next prediction
     const active = this.consecutiveLosses >= CRISIS_THRESHOLD && !this.panelSuppressed;
 
     let next: ReturnType<typeof this._scoreRecovery>;
-    if (forceAbstain) {
+    if (forceAbstain || this.shoeSurvivalFailed) {
       const pattern = scoreRecentPattern(history);
+      const selfDisabledReason = this.shoeSurvivalFailed
+        ? `Crisis AI self-disabled — shoe survival failed ` +
+          `(normal: ${Math.round(this.shoeOwnWins / Math.max(1, this.shoeOwnWins + this.shoeOwnLosses) * 100)}%, ` +
+          `contrarian also failed). Observing only.`
+        : abstainReason;
       next = {
         prediction: null,
         confidence: "LOW" as const,
-        reasoning: abstainReason,
+        reasoning: selfDisabledReason,
         mode: pattern.mode,
         contrarianed: false,
+        inContrарianMode: false,
         isHighVolatility: false,
         isThrashing: false,
+        shoeSurvivalFailed: this.shoeSurvivalFailed,
       };
     } else {
       next = this._scoreRecovery(
@@ -445,13 +583,19 @@ export class CrisisAI {
 
     // Build bgLearning message — surface new state modes prominently
     const statusNotes: string[] = [];
-    if (forceAbstain) {
+    if (this.shoeSurvivalFailed) {
+      statusNotes.push(next.reasoning);
+    } else if (forceAbstain) {
       statusNotes.push(abstainReason);
     } else {
-      if (next.contrarianed) {
+      if (next.inContrарianMode) {
+        const shoeTot = this.shoeOwnWins + this.shoeOwnLosses;
+        const shoeAccPct = shoeTot > 0
+          ? Math.round(this.shoeOwnWins / shoeTot * 100)
+          : 0;
         statusNotes.push(
-          `Contrarian flip engaged — ${this.ownConsecutiveLosses} consecutive misses, ` +
-          `inverted narrow-margin call`,
+          `⟳ Contrarian mode active — shoe accuracy ${shoeAccPct}% over ${shoeTot} hands; ` +
+          `${this.contrарianHandsRemaining} hands remaining in block`,
         );
       }
       if (next.isHighVolatility) {
@@ -571,10 +715,11 @@ export class CrisisAI {
   }
 
   /**
-   * Deep wrong-prediction analysis (preserved from v1).
+   * Deep wrong-prediction analysis.
    *
    * When Crisis AI's prediction was wrong, this method:
-   *   1. Examines the last two hands for context
+   *   1. Examines recent context using an auto-length window (up to 5 prior hands,
+   *      scaled to what's available) rather than a fixed 2-hand look-back.
    *   2. Identifies which experts correctly pointed to the actual outcome
    *   3. Identifies which experts were misleading (agreed with wrong prediction)
    *   4. Adjusts shoe-specific expert boosts and side bias
@@ -589,8 +734,13 @@ export class CrisisAI {
     this.shoeAdaptation.wrongCount++;
 
     const clean = cleanHistory(history);
-    const last2 = clean.slice(-3, -1);
-    const contextStr = last2.length >= 2 ? last2.join("→") : last2.join("") || "early shoe";
+    // Auto-length context: use up to 5 prior hands (excluding the outcome itself)
+    // so the analysis reflects a richer window as the shoe develops
+    const contextLen = Math.min(5, Math.max(1, clean.length - 1));
+    const contextHands = clean.slice(-(contextLen + 1), -1);
+    const contextStr = contextHands.length >= 2
+      ? contextHands.join("→")
+      : contextHands.join("") || "early shoe";
 
     const correctExperts: Array<{ key: string; baseWeight: number }> = [];
     const wrongExperts: Array<{ key: string; baseWeight: number }> = [];
@@ -691,9 +841,10 @@ export class CrisisAI {
     confidence: CrisisResult["confidence"];
     reasoning: string;
     mode: PatternMode;
-    contrarianed: boolean;
+    inContrарianMode: boolean;
     isHighVolatility: boolean;
     isThrashing: boolean;
+    shoeSurvivalFailed: boolean;
   } {
     // ── Upgrade 4: adaptive ensemble/shadow reliability ──────────────────────
     const ensembleReliability = this._computeReliability(this.recentEnsembleCorrect);
@@ -782,22 +933,22 @@ export class CrisisAI {
     else if (this.lastMainPred) prediction = opposite(this.lastMainPred);
     else prediction = "B";
 
-    // ── Upgrade 2: contrarian flip ───────────────────────────────────────────
-    // When own consecutive losses >= threshold AND margin is narrow,
-    // the model is clearly misreading the shoe — invert the close call.
-    let contrarianed = false;
-    if (
-      this.ownConsecutiveLosses >= OWN_LOSS_CONTRARIAN_THRESHOLD &&
-      margin < CONTRARIAN_MARGIN_THRESHOLD
-    ) {
+    // ── Upgrade 2: shoe-survival contrarian mode (replaces 3-loss flip) ────────
+    // If contrarian mode is active (engaged by evaluateOutcome above), flip the
+    // prediction. This is a sustained mode, not a one-hand reactive flip.
+    const inContrарianMode = this.contrарianMode;
+    if (inContrарianMode) {
       prediction = opposite(prediction);
-      contrarianed = true;
     }
 
     const winningExperts = prediction === "P" ? playerExperts : bankerExperts;
     const agreeingCount = winningExperts.length;
     const ensembleAgrees = ensembleVerdict === prediction;
     const shadowAgrees = shadowPred === prediction;
+
+    // In contrarian mode cap confidence at MED — we're operating against the model
+    const contrарianMaxIdx = inContrарianMode ? 1 : 2;
+    const effectiveMaxIdx = Math.min(maxConfidenceIdx, contrарianMaxIdx);
 
     let rawConfidenceIdx =
       agreeingCount >= 4 && margin >= 0.2 && (ensembleAgrees || shadowAgrees)
@@ -806,8 +957,7 @@ export class CrisisAI {
           ? 1 // MED
           : 0; // LOW
 
-    // Apply confidence cap from volatility/thrash guards
-    rawConfidenceIdx = Math.min(rawConfidenceIdx, maxConfidenceIdx);
+    rawConfidenceIdx = Math.min(rawConfidenceIdx, effectiveMaxIdx);
     const confidence = confOrder[rawConfidenceIdx];
 
     const strongestExperts = winningExperts
@@ -836,8 +986,8 @@ export class CrisisAI {
         ? `; shoe-adapted (${this.shoeAdaptation.wrongCount} corrections)`
         : "";
 
-    const contraryNote = contrarianed
-      ? `; ⟳ contrarian flip (own streak ${this.ownConsecutiveLosses}, margin ${Math.round(margin * 100)}%)`
+    const contraryNote = inContrарianMode
+      ? `; ⟳ contrarian mode (${this.contrарianHandsRemaining} hands remaining)`
       : "";
     const volatileNote = isHighVolatility
       ? `; ⚡ high-vol shoe (VI ${Math.round(volatilityIndex * 100)}%, scale ×${VOLATILITY_EXPERT_SCALE})`
@@ -850,9 +1000,10 @@ export class CrisisAI {
       prediction,
       confidence,
       mode: pattern.mode,
-      contrarianed,
+      inContrарianMode,
       isHighVolatility,
       isThrashing,
+      shoeSurvivalFailed: false,
       reasoning:
         `Internal score ${Math.round(playerScore * 10) / 10}/${Math.round(bankerScore * 10) / 10}; ` +
         `${agreement}${confirmationText}; ${pattern.note}${shoeNote}${contraryNote}${volatileNote}${thrashNote}`,
@@ -885,6 +1036,14 @@ export class CrisisAI {
       lastWasActive: this.lastWasActive,
       recentEnsembleCorrect: [...this.recentEnsembleCorrect],
       recentShadowCorrect: [...this.recentShadowCorrect],
+      // v2 shoe-survival
+      shoeOwnWins: this.shoeOwnWins,
+      shoeOwnLosses: this.shoeOwnLosses,
+      contrарianMode: this.contrарianMode,
+      contrарianHandsRemaining: this.contrарianHandsRemaining,
+      contrарianWins: this.contrарianWins,
+      contrарianLosses: this.contrарianLosses,
+      shoeSurvivalFailed: this.shoeSurvivalFailed,
     });
     if (this._undoStack.length > 200) this._undoStack.shift();
   }
@@ -912,6 +1071,14 @@ export class CrisisAI {
     this.lastWasActive = prev.lastWasActive;
     this.recentEnsembleCorrect = [...prev.recentEnsembleCorrect];
     this.recentShadowCorrect = [...prev.recentShadowCorrect];
+    // v2 shoe-survival
+    this.shoeOwnWins = prev.shoeOwnWins;
+    this.shoeOwnLosses = prev.shoeOwnLosses;
+    this.contrарianMode = prev.contrарianMode;
+    this.contrарianHandsRemaining = prev.contrарianHandsRemaining;
+    this.contrарianWins = prev.contrарianWins;
+    this.contrарianLosses = prev.contrарianLosses;
+    this.shoeSurvivalFailed = prev.shoeSurvivalFailed;
   }
 
   reset(): void {
@@ -942,5 +1109,13 @@ export class CrisisAI {
     this.lastWasActive = false;
     this.recentEnsembleCorrect = [];
     this.recentShadowCorrect = [];
+    // v2 shoe-survival
+    this.shoeOwnWins = 0;
+    this.shoeOwnLosses = 0;
+    this.contrарianMode = false;
+    this.contrарianHandsRemaining = 0;
+    this.contrарianWins = 0;
+    this.contrарianLosses = 0;
+    this.shoeSurvivalFailed = false;
   }
 }
