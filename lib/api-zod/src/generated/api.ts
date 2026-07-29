@@ -486,7 +486,17 @@ export const GetSnapshotResponse = zod.object({
   "consecutiveLosses": zod.number().describe('Current streak of consecutive main prediction losses'),
   "backgroundPrediction": zod.string().nullable().describe('Always-computed background prediction (P, B, or null) — runs even when panel is inactive'),
   "bgLearning": zod.string().describe('Latest background self-learning analysis message')
-}).describe('Internal Crisis AI recovery engine — activates after 2 consecutive main losses')
+}).describe('Internal Crisis AI recovery engine — activates after 2 consecutive main losses'),
+  "metaCombiner": zod.object({
+  "prediction": zod.string().describe('\"P\", \"B\", or \"WAIT\"'),
+  "pPlayer": zod.number().describe('Raw 0-1 P(Player) from the logistic regression'),
+  "confidence": zod.string().describe('\"LOW\", \"MED\", or \"HIGH\"'),
+  "recentAccuracy": zod.number().nullable().describe('Rolling 20-hand accuracy, null while warming up'),
+  "seen": zod.number().describe('Total hands the model has learned from'),
+  "topFactors": zod.array(zod.string()).describe('Top contributing sub-systems driving this call'),
+  "convergenceCount": zod.number().describe('How many of the 7 core systems agree on the predicted side'),
+  "convergenceTotal": zod.number().describe('Total core systems with a non-null prediction this hand')
+}).describe('Online learned meta-layer that combines all sub-system outputs')
 })
 
 
@@ -921,7 +931,17 @@ export const SubmitInputResponse = zod.object({
   "consecutiveLosses": zod.number().describe('Current streak of consecutive main prediction losses'),
   "backgroundPrediction": zod.string().nullable().describe('Always-computed background prediction (P, B, or null) — runs even when panel is inactive'),
   "bgLearning": zod.string().describe('Latest background self-learning analysis message')
-}).describe('Internal Crisis AI recovery engine — activates after 2 consecutive main losses')
+}).describe('Internal Crisis AI recovery engine — activates after 2 consecutive main losses'),
+  "metaCombiner": zod.object({
+  "prediction": zod.string().describe('\"P\", \"B\", or \"WAIT\"'),
+  "pPlayer": zod.number().describe('Raw 0-1 P(Player) from the logistic regression'),
+  "confidence": zod.string().describe('\"LOW\", \"MED\", or \"HIGH\"'),
+  "recentAccuracy": zod.number().nullable().describe('Rolling 20-hand accuracy, null while warming up'),
+  "seen": zod.number().describe('Total hands the model has learned from'),
+  "topFactors": zod.array(zod.string()).describe('Top contributing sub-systems driving this call'),
+  "convergenceCount": zod.number().describe('How many of the 7 core systems agree on the predicted side'),
+  "convergenceTotal": zod.number().describe('Total core systems with a non-null prediction this hand')
+}).describe('Online learned meta-layer that combines all sub-system outputs')
 })
 
 
@@ -1352,7 +1372,17 @@ export const UndoInputResponse = zod.object({
   "consecutiveLosses": zod.number().describe('Current streak of consecutive main prediction losses'),
   "backgroundPrediction": zod.string().nullable().describe('Always-computed background prediction (P, B, or null) — runs even when panel is inactive'),
   "bgLearning": zod.string().describe('Latest background self-learning analysis message')
-}).describe('Internal Crisis AI recovery engine — activates after 2 consecutive main losses')
+}).describe('Internal Crisis AI recovery engine — activates after 2 consecutive main losses'),
+  "metaCombiner": zod.object({
+  "prediction": zod.string().describe('\"P\", \"B\", or \"WAIT\"'),
+  "pPlayer": zod.number().describe('Raw 0-1 P(Player) from the logistic regression'),
+  "confidence": zod.string().describe('\"LOW\", \"MED\", or \"HIGH\"'),
+  "recentAccuracy": zod.number().nullable().describe('Rolling 20-hand accuracy, null while warming up'),
+  "seen": zod.number().describe('Total hands the model has learned from'),
+  "topFactors": zod.array(zod.string()).describe('Top contributing sub-systems driving this call'),
+  "convergenceCount": zod.number().describe('How many of the 7 core systems agree on the predicted side'),
+  "convergenceTotal": zod.number().describe('Total core systems with a non-null prediction this hand')
+}).describe('Online learned meta-layer that combines all sub-system outputs')
 })
 
 
@@ -1783,7 +1813,17 @@ export const ResetGameResponse = zod.object({
   "consecutiveLosses": zod.number().describe('Current streak of consecutive main prediction losses'),
   "backgroundPrediction": zod.string().nullable().describe('Always-computed background prediction (P, B, or null) — runs even when panel is inactive'),
   "bgLearning": zod.string().describe('Latest background self-learning analysis message')
-}).describe('Internal Crisis AI recovery engine — activates after 2 consecutive main losses')
+}).describe('Internal Crisis AI recovery engine — activates after 2 consecutive main losses'),
+  "metaCombiner": zod.object({
+  "prediction": zod.string().describe('\"P\", \"B\", or \"WAIT\"'),
+  "pPlayer": zod.number().describe('Raw 0-1 P(Player) from the logistic regression'),
+  "confidence": zod.string().describe('\"LOW\", \"MED\", or \"HIGH\"'),
+  "recentAccuracy": zod.number().nullable().describe('Rolling 20-hand accuracy, null while warming up'),
+  "seen": zod.number().describe('Total hands the model has learned from'),
+  "topFactors": zod.array(zod.string()).describe('Top contributing sub-systems driving this call'),
+  "convergenceCount": zod.number().describe('How many of the 7 core systems agree on the predicted side'),
+  "convergenceTotal": zod.number().describe('Total core systems with a non-null prediction this hand')
+}).describe('Online learned meta-layer that combines all sub-system outputs')
 })
 
 
@@ -2218,7 +2258,17 @@ export const SetWindowResponse = zod.object({
   "consecutiveLosses": zod.number().describe('Current streak of consecutive main prediction losses'),
   "backgroundPrediction": zod.string().nullable().describe('Always-computed background prediction (P, B, or null) — runs even when panel is inactive'),
   "bgLearning": zod.string().describe('Latest background self-learning analysis message')
-}).describe('Internal Crisis AI recovery engine — activates after 2 consecutive main losses')
+}).describe('Internal Crisis AI recovery engine — activates after 2 consecutive main losses'),
+  "metaCombiner": zod.object({
+  "prediction": zod.string().describe('\"P\", \"B\", or \"WAIT\"'),
+  "pPlayer": zod.number().describe('Raw 0-1 P(Player) from the logistic regression'),
+  "confidence": zod.string().describe('\"LOW\", \"MED\", or \"HIGH\"'),
+  "recentAccuracy": zod.number().nullable().describe('Rolling 20-hand accuracy, null while warming up'),
+  "seen": zod.number().describe('Total hands the model has learned from'),
+  "topFactors": zod.array(zod.string()).describe('Top contributing sub-systems driving this call'),
+  "convergenceCount": zod.number().describe('How many of the 7 core systems agree on the predicted side'),
+  "convergenceTotal": zod.number().describe('Total core systems with a non-null prediction this hand')
+}).describe('Online learned meta-layer that combines all sub-system outputs')
 })
 
 

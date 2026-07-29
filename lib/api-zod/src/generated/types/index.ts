@@ -18,6 +18,7 @@ export * from './heartbeat200';
 export * from './loginCredentials';
 export * from './lookAheadResult';
 export * from './metaAIResult';
+export * from './metaCombinerResult';
 export * from './observerMemory';
 export * from './observerResult';
 export * from './observerSubSystem';

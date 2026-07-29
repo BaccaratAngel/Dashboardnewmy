@@ -8,6 +8,7 @@
 import type { CrisisAIResult } from './crisisAIResult';
 import type { LookAheadResult } from './lookAheadResult';
 import type { MetaAIResult } from './metaAIResult';
+import type { MetaCombinerResult } from './metaCombinerResult';
 import type { ObserverMemory } from './observerMemory';
 import type { ObserverResult } from './observerResult';
 import type { RegimeState } from './regimeState';
@@ -25,4 +26,6 @@ export interface GameSnapshot {
   observerMemory: ObserverMemory;
   /** Internal Crisis AI recovery engine — activates after 2 consecutive main losses */
   crisisAI: CrisisAIResult;
+  /** Online learned meta-layer that combines all sub-system outputs */
+  metaCombiner: MetaCombinerResult;
 }

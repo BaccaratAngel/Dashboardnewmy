@@ -773,7 +773,7 @@ components:
 
     GameSnapshot:
       type: object
-      required: [handCount, history, regime, lookAhead, legacyLookAhead, metaAI, observer, observerMemory, crisisAI]
+      required: [handCount, history, regime, lookAhead, legacyLookAhead, metaAI, observer, observerMemory, crisisAI, metaCombiner]
       properties:
         handCount:
           type: integer
@@ -798,6 +798,40 @@ components:
         crisisAI:
           $ref: "#/components/schemas/CrisisAIResult"
           description: Internal Crisis AI recovery engine — activates after 2 consecutive main losses
+        metaCombiner:
+          $ref: "#/components/schemas/MetaCombinerResult"
+          description: Online learned meta-layer that combines all sub-system outputs
+
+    MetaCombinerResult:
+      type: object
+      required: [prediction, pPlayer, confidence, recentAccuracy, seen, topFactors, convergenceCount, convergenceTotal]
+      properties:
+        prediction:
+          type: string
+          description: '"P", "B", or "WAIT"'
+        pPlayer:
+          type: number
+          description: Raw 0-1 P(Player) from the logistic regression
+        confidence:
+          type: string
+          description: '"LOW", "MED", or "HIGH"'
+        recentAccuracy:
+          type: ["number", "null"]
+          description: Rolling 20-hand accuracy, null while warming up
+        seen:
+          type: integer
+          description: Total hands the model has learned from
+        topFactors:
+          type: array
+          items:
+            type: string
+          description: Top contributing sub-systems driving this call
+        convergenceCount:
+          type: integer
+          description: How many of the 7 core systems agree on the predicted side
+        convergenceTotal:
+          type: integer
+          description: Total core systems with a non-null prediction this hand
 
     LookAheadResult:
       type: object

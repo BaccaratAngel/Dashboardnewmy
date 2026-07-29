@@ -252,6 +252,28 @@ export interface ObserverResult {
   isFallback: boolean;
 }
 
+export interface MetaCombinerResult {
+  /** "P", "B", or "WAIT" */
+  prediction: string;
+  /** Raw 0-1 P(Player) from the logistic regression */
+  pPlayer: number;
+  /** "LOW", "MED", or "HIGH" */
+  confidence: string;
+  /**
+     * Rolling 20-hand accuracy, null while warming up
+     * @nullable
+     */
+  recentAccuracy: number | null;
+  /** Total hands the model has learned from */
+  seen: number;
+  /** Top contributing sub-systems driving this call */
+  topFactors: string[];
+  /** How many of the 7 core systems agree on the predicted side */
+  convergenceCount: number;
+  /** Total core systems with a non-null prediction this hand */
+  convergenceTotal: number;
+}
+
 export interface GameSnapshot {
   handCount: number;
   /** Array of B, P, T outcomes entered so far */
@@ -265,6 +287,8 @@ export interface GameSnapshot {
   observerMemory: ObserverMemory;
   /** Internal Crisis AI recovery engine — activates after 2 consecutive main losses */
   crisisAI: CrisisAIResult;
+  /** Online learned meta-layer that combines all sub-system outputs */
+  metaCombiner: MetaCombinerResult;
 }
 
 export interface UserAccount {

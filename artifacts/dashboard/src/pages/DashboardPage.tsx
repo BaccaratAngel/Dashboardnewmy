@@ -10,7 +10,7 @@ import {
   useLogout,
   useHeartbeat,
 } from '@workspace/api-client-react';
-import type { GameSnapshot, ExpertStats, CrisisAIResult } from '@workspace/api-client-react';
+import type { GameSnapshot, ExpertStats, CrisisAIResult, MetaCombinerResult } from '@workspace/api-client-react';
 import { cn } from '@/lib/utils';
 
 // ── Color & label helpers ─────────────────────────────────────────────────────
@@ -553,6 +553,134 @@ function ExpertGroupHeader({ label, color }: { label: string; color: string }) {
   );
 }
 
+// ── MetaCombiner Panel ────────────────────────────────────────────────────────
+
+function MetaCombinerPanel({ mc }: { mc: MetaCombinerResult }) {
+  const predColor =
+    mc.prediction === 'P' ? '#22d3ee'
+    : mc.prediction === 'B' ? '#f87171'
+    : '#52525b';
+
+  const confColor =
+    mc.confidence === 'HIGH' ? '#4ade80'
+    : mc.confidence === 'MED' ? '#facc15'
+    : '#fb923c';
+
+  const pPct = mc.pPlayer * 100;
+  const bPct = 100 - pPct;
+  const isWarm = mc.seen >= 8;
+  const acc = mc.recentAccuracy;
+
+  return (
+    <div className="rounded-sm border flex flex-col overflow-hidden"
+      style={{
+        backgroundColor: '#08080f',
+        borderColor: mc.prediction !== 'WAIT' ? 'rgba(250,204,21,0.35)' : 'rgba(250,204,21,0.14)',
+        boxShadow: mc.prediction !== 'WAIT' ? '0 0 14px rgba(250,204,21,0.08)' : 'none',
+      }}>
+
+      {/* Header */}
+      <div className="px-4 py-2 flex items-center justify-between"
+        style={{
+          borderBottom: '1px solid rgba(250,204,21,0.12)',
+          backgroundColor: 'rgba(250,204,21,0.03)',
+        }}>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold tracking-widest" style={{ color: '#facc15' }}>
+            ◈ META COMBINER
+          </span>
+          <span className="text-xs px-1.5 py-0 rounded-sm"
+            style={{ color: '#facc15', backgroundColor: 'rgba(250,204,21,0.08)', border: '1px solid rgba(250,204,21,0.2)', fontSize: 9 }}>
+            ONLINE LR
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {isWarm && acc !== null && (
+            <span className="text-xs tabular-nums"
+              style={{ color: acc >= 0.55 ? '#4ade80' : acc >= 0.48 ? '#facc15' : '#f87171', fontFamily: 'monospace' }}>
+              {Math.round(acc * 100)}% acc
+            </span>
+          )}
+          <span className="text-xs" style={{ color: '#3f3f46' }}>
+            {mc.seen} hands
+          </span>
+        </div>
+      </div>
+
+      {/* Warming-up overlay */}
+      {!isWarm ? (
+        <div className="px-4 py-4 flex flex-col gap-2">
+          <div className="text-xs text-center" style={{ color: '#3f3f46' }}>
+            Warming up — needs {8 - mc.seen} more hand{8 - mc.seen !== 1 ? 's' : ''} before issuing predictions
+          </div>
+          <div className="h-0.5 rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(250,204,21,0.08)' }}>
+            <div className="h-full rounded-full transition-all duration-700"
+              style={{ width: `${(mc.seen / 8) * 100}%`, backgroundColor: '#facc15' }} />
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3 px-4 py-3">
+
+          {/* P̂ probability bar */}
+          <div className="flex flex-col gap-1">
+            <div className="flex justify-between text-xs" style={{ color: '#52525b' }}>
+              <span>P {pPct.toFixed(1)}%</span>
+              <span>B {bPct.toFixed(1)}%</span>
+            </div>
+            <div className="h-2 rounded-full overflow-hidden flex" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>
+              <div className="h-full transition-all duration-700"
+                style={{ width: `${pPct}%`, backgroundColor: '#22d3ee', opacity: 0.8 }} />
+              <div className="h-full flex-1"
+                style={{ backgroundColor: '#f87171', opacity: 0.4 }} />
+            </div>
+          </div>
+
+          {/* Decision + confidence + convergence */}
+          <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs tracking-widest" style={{ color: '#71717a' }}>COMBINER</span>
+                {mc.prediction !== 'WAIT' && (
+                  <span className="text-xs font-bold px-1.5 py-0.5 rounded-sm"
+                    style={{ color: confColor, backgroundColor: `${confColor}15`, border: `1px solid ${confColor}40` }}>
+                    {mc.confidence}
+                  </span>
+                )}
+              </div>
+              {mc.convergenceTotal > 0 && (
+                <span className="text-xs" style={{ color: '#52525b' }}>
+                  {mc.convergenceCount}/{mc.convergenceTotal} systems agree
+                </span>
+              )}
+            </div>
+            {mc.prediction !== 'WAIT' ? (
+              <span className="text-xl font-black tracking-wider"
+                style={{ color: predColor, textShadow: `0 0 10px ${predColor}50` }}>
+                {mc.prediction === 'P' ? 'PLAYER' : 'BANKER'}
+              </span>
+            ) : (
+              <span className="text-sm font-black" style={{ color: '#3f3f46' }}>— WAIT —</span>
+            )}
+          </div>
+
+          {/* Top factors */}
+          {mc.topFactors.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs" style={{ color: '#3f3f46' }}>Driven by</span>
+              {mc.topFactors.map((f, i) => (
+                <span key={i} className="text-xs px-1.5 py-0 rounded-sm font-bold"
+                  style={{ color: '#facc15', backgroundColor: 'rgba(250,204,21,0.06)', border: '1px solid rgba(250,204,21,0.18)', fontSize: 9 }}>
+                  {f}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -913,6 +1041,11 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
+        )}
+
+        {/* ── META COMBINER PANEL ───────────────────────────────────── */}
+        {snapshot?.metaCombiner && (
+          <MetaCombinerPanel mc={snapshot.metaCombiner} />
         )}
 
         {/* ── DECISION PANEL (ensemble + timeline + lock + main call) ── */}
