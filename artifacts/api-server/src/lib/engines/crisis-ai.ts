@@ -66,13 +66,17 @@ const OWN_LOSS_ABSTAIN_THRESHOLD = 4;   // abstain after this many consecutive o
 
 // ── Shoe-survival contrarian constants ──────────────────────────────────────
 /** Minimum hands predicted before shoe-survival check can engage */
-const CONTRARIAN_MIN_SAMPLE = 10;
+const CONTRARIAN_MIN_SAMPLE = 15;       // raised from 10 — need more evidence before committing
 /** Shoe accuracy at or below this → enter contrarian mode */
 const CONTRARIAN_ACC_THRESHOLD = 0.38;
 /** How many hands contrarian mode stays active */
-const CONTRARIAN_BLOCK = 6;
+const CONTRARIAN_BLOCK = 8;             // raised from 6 — give contrarian more runway to prove itself
 /** If contrarian accuracy itself falls at or below this → self-disable for the shoe */
-const CONTRARIAN_FAIL_THRESHOLD = 0.40;
+const CONTRARIAN_FAIL_THRESHOLD = 0.35; // lowered from 0.40 — require worse performance to self-disable
+/** Hands after self-disable before Crisis AI retries with fresh shoe stats */
+const SHOE_SURVIVAL_RECOVERY_HANDS = 10;
+/** Consecutive main losses that force an emergency prediction even when self-disabled */
+const EMERGENCY_OVERRIDE_LOSSES = 5;
 
 const VOLATILITY_HIGH_THRESHOLD = 0.70;  // volatilityIndex above this = high-vol mode
 const THRASH_TOGGLE_THRESHOLD = 4;       // panel on→off cycles before thrash guard kicks in
@@ -182,6 +186,7 @@ interface CrisisSnap {
   contrарianWins: number;
   contrарianLosses: number;
   shoeSurvivalFailed: boolean;
+  shoeSurvivalFailedHands: number;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -377,6 +382,8 @@ export class CrisisAI {
   private contrарianLosses = 0;
   /** True when even contrarian mode failed — self-disable for this shoe */
   private shoeSurvivalFailed = false;
+  /** Hands elapsed since self-disable (for auto-recovery countdown) */
+  private shoeSurvivalFailedHands = 0;
 
   setMainPrediction(pred: Side | null): void {
     this.lastMainPred = pred;
@@ -537,29 +544,68 @@ export class CrisisAI {
       }
     }
 
+    // ── Shoe-survival auto-recovery countdown ────────────────────────────────
+    // After SHOE_SURVIVAL_RECOVERY_HANDS hands since self-disable, reset and
+    // try again with fresh shoe stats. The shoe pattern may have changed.
+    if (this.shoeSurvivalFailed && actual !== null) {
+      this.shoeSurvivalFailedHands++;
+      if (this.shoeSurvivalFailedHands >= SHOE_SURVIVAL_RECOVERY_HANDS) {
+        this.shoeSurvivalFailed = false;
+        this.shoeSurvivalFailedHands = 0;
+        this.shoeOwnWins = 0;
+        this.shoeOwnLosses = 0;
+        this.contrарianMode = false;
+        this.contrарianHandsRemaining = 0;
+        this.contrарianWins = 0;
+        this.contrарianLosses = 0;
+      }
+    }
+
+    // ── Emergency override: extreme loss streak bypasses self-disable ─────────
+    // When the main prediction has lost EMERGENCY_OVERRIDE_LOSSES+ consecutive
+    // hands and shoeSurvivalFailed is set, the user needs help most. Rather than
+    // showing WAIT, we run a reduced scoring pass using ensemble + pattern only.
+    const isEmergencyOverride =
+      this.shoeSurvivalFailed && this.consecutiveLosses >= EMERGENCY_OVERRIDE_LOSSES;
+
     // Generate next prediction
     const active = this.consecutiveLosses >= CRISIS_THRESHOLD && !this.panelSuppressed;
 
     let next: ReturnType<typeof this._scoreRecovery>;
-    if (forceAbstain || this.shoeSurvivalFailed) {
+    if (forceAbstain) {
       const pattern = scoreRecentPattern(history);
-      const selfDisabledReason = this.shoeSurvivalFailed
-        ? `Crisis AI self-disabled — shoe survival failed ` +
-          `(normal: ${Math.round(this.shoeOwnWins / Math.max(1, this.shoeOwnWins + this.shoeOwnLosses) * 100)}%, ` +
-          `contrarian also failed). Observing only.`
-        : abstainReason;
       next = {
         prediction: null,
         confidence: "LOW" as const,
-        reasoning: selfDisabledReason,
+        reasoning: abstainReason,
         mode: pattern.mode,
-        contrarianed: false,
         inContrарianMode: false,
         isHighVolatility: false,
         isThrashing: false,
-        shoeSurvivalFailed: this.shoeSurvivalFailed,
+        shoeSurvivalFailed: false,
+      };
+    } else if (this.shoeSurvivalFailed && !isEmergencyOverride) {
+      // Self-disabled, not yet at emergency threshold — show WAIT with retry countdown
+      const pattern = scoreRecentPattern(history);
+      const handsUntilRetry = SHOE_SURVIVAL_RECOVERY_HANDS - this.shoeSurvivalFailedHands;
+      const shoePct = Math.round(
+        this.shoeOwnWins / Math.max(1, this.shoeOwnWins + this.shoeOwnLosses) * 100,
+      );
+      next = {
+        prediction: null,
+        confidence: "LOW" as const,
+        reasoning:
+          `Crisis AI self-disabled — shoe survival failed ` +
+          `(normal: ${shoePct}%, contrarian also failed). ` +
+          `Retrying in ${handsUntilRetry} hand${handsUntilRetry !== 1 ? "s" : ""}. Observing only.`,
+        mode: pattern.mode,
+        inContrарianMode: false,
+        isHighVolatility: false,
+        isThrashing: false,
+        shoeSurvivalFailed: true,
       };
     } else {
+      // Normal scoring OR emergency override (isEmergencyOverride = true)
       next = this._scoreRecovery(
         history,
         experts,
@@ -569,6 +615,14 @@ export class CrisisAI {
         ensemblePercent,
         volatilityIndex,
       );
+      if (isEmergencyOverride) {
+        next = {
+          ...next,
+          reasoning:
+            `⚠ EMERGENCY OVERRIDE — ${this.consecutiveLosses}× loss streak, self-check bypassed; ` +
+            next.reasoning,
+        };
+      }
     }
 
     this.lastPrediction = next.prediction;
@@ -1044,6 +1098,7 @@ export class CrisisAI {
       contrарianWins: this.contrарianWins,
       contrарianLosses: this.contrарianLosses,
       shoeSurvivalFailed: this.shoeSurvivalFailed,
+      shoeSurvivalFailedHands: this.shoeSurvivalFailedHands,
     });
     if (this._undoStack.length > 200) this._undoStack.shift();
   }
@@ -1079,6 +1134,7 @@ export class CrisisAI {
     this.contrарianWins = prev.contrарianWins;
     this.contrарianLosses = prev.contrарianLosses;
     this.shoeSurvivalFailed = prev.shoeSurvivalFailed;
+    this.shoeSurvivalFailedHands = prev.shoeSurvivalFailedHands;
   }
 
   reset(): void {
@@ -1117,5 +1173,6 @@ export class CrisisAI {
     this.contrарianWins = 0;
     this.contrарianLosses = 0;
     this.shoeSurvivalFailed = false;
+    this.shoeSurvivalFailedHands = 0;
   }
 }
