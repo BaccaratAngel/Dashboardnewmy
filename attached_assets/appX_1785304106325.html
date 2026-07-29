@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Nexus Elite v9.1: Shadow Syndicate</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #020617; color: #e2e8f0; font-family: system-ui, -apple-system, sans-serif; }
+        .no-select { -webkit-user-select: none; user-select: none; }
+        .stat-card { background: linear-gradient(160deg, #0f172a 0%, #020617 100%); border: 1px solid #1e293b; border-radius: 12px; }
+        .btn-press:active { transform: scale(0.95); opacity: 0.8; }
+        .row-best { background-color: rgba(16, 185, 129, 0.15) !important; border-left: 3px solid #10b981; }
+        .row-worst { background-color: rgba(239, 68, 68, 0.15) !important; border-left: 3px solid #ef4444; }
+        #toast {
+            position: fixed; top: -100px; left: 50%; transform: translateX(-50%);
+            background: #10b981; color: white; padding: 14px 28px;
+            border-radius: 50px; font-size: 14px; font-weight: 800;
+            transition: all 0.5s ease; z-index: 10000;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        ::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden no-select">
+
+    <div id="toast">SYSTEM READY</div>
+
+    <header class="p-3 bg-slate-950 border-b border-slate-800 flex justify-between items-center shrink-0">
+        <div>
+            <h1 class="text-lg font-black text-white italic">NEXUS<span class="text-emerald-500">V9.1</span></h1>
+            <p id="file-status" class="text-[8px] text-slate-500 font-bold uppercase tracking-widest">Shadow Syndicate Active</p>
+        </div>
+        <div id="session-pnl" class="text-emerald-400 font-mono font-bold text-sm">0W - 0L</div>
+    </header>
+
+    <main class="flex-1 overflow-y-auto p-2 space-y-3">
+        
+        <div class="stat-card p-3 border-t-2 border-slate-700">
+            <span class="text-[10px] font-black text-slate-400 uppercase block mb-2">Strategy Hub (Shadow Tracking)</span>
+            <div class="overflow-x-auto">
+                <table class="w-full text-[10px] text-left">
+                    <thead>
+                        <tr class="text-slate-500 border-b border-slate-800">
+                            <th class="py-1">BOT</th>
+                            <th class="py-1">W/L</th>
+                            <th class="py-1">STRK</th>
+                            <th class="py-1">B2B MISS</th>
+                            <th class="py-1 text-center">NEXT</th>
+                        </tr>
+                    </thead>
+                    <tbody id="syndicate-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="scanner-panel" class="stat-card p-4">
+            <div class="flex justify-between items-center border-b border-slate-800/50 pb-2 mb-2">
+                <div class="flex gap-4">
+                    <div><p class="text-[7px] text-slate-500 uppercase">Matches</p><p id="stat-matches" class="text-xs font-bold text-emerald-400">0</p></div>
+                    <div><p class="text-[7px] text-slate-500 uppercase">Depth</p><p id="stat-depth" class="text-xs font-bold text-white">0</p></div>
+                    <div><p class="text-[7px] text-slate-500 uppercase">Net Units</p><p id="stat-net" class="text-xs font-bold text-white">0</p></div>
+                </div>
+                <div class="text-right">
+                    <p class="text-[7px] text-slate-500 uppercase">Certainty</p>
+                    <p id="conf-text" class="text-sm font-black text-white">0%</p>
+                </div>
+            </div>
+            <div class="flex justify-around items-center">
+                <div class="text-center">
+                    <p class="text-[8px] text-slate-500 uppercase">Library Match</p>
+                    <div id="prediction-main" class="text-6xl font-black text-slate-800">--</div>
+                </div>
+                <div id="roadmap-container" class="hidden text-center">
+                    <p class="text-[8px] text-slate-500 uppercase mb-1">Projected</p>
+                    <div id="future-dots" class="flex gap-1.5 p-2 bg-black/40 rounded-lg"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 shrink-0">
+            <button onclick="app.handleInput('B')" class="btn-press h-20 bg-emerald-600 rounded-2xl shadow-xl flex flex-col items-center justify-center border-b-8 border-emerald-900">
+                <span class="text-3xl font-black text-white">B</span>
+            </button>
+            <button onclick="app.handleInput('P')" class="btn-press h-20 bg-blue-600 rounded-2xl shadow-xl flex flex-col items-center justify-center border-b-8 border-blue-900">
+                <span class="text-3xl font-black text-white">P</span>
+            </button>
+        </div>
+
+        <div class="stat-card p-4">
+            <div id="history-road" class="flex flex-wrap gap-2"></div>
+        </div>
+    </main>
+
+    <footer class="p-3 bg-slate-950 border-t border-slate-800 flex gap-2">
+        <button onclick="app.reset()" class="w-1/4 py-3 bg-slate-900 text-red-500 rounded-xl font-bold text-[10px]">RESET</button>
+        <button onclick="app.undo()" class="w-1/4 py-3 bg-slate-800 text-yellow-500 rounded-xl font-bold text-[10px]">UNDO</button>
+        <button onclick="document.getElementById('file-upload-input').click()" class="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-black text-[10px] uppercase">Sync Library</button>
+        <input type="file" id="file-upload-input" class="hidden" onchange="app.handleFileUpload(this)">
+    </footer>
+
+    <script>
+        class EliteNexus {
+            constructor() {
+                this.history = [];
+                this.shoes = [];
+                this.stats = { w: 0, l: 0 };
+                this.lastPred = null;
+                this.predictionHistory = [];
+                this.players = this.initPlayers();
+                this.render();
+                this.renderSyndicate();
+            }
+
+            initPlayers() {
+                return Array.from({ length: 11 }, (_, i) => ({
+                    id: i + 1, wins: 0, losses: 0, currentStreak: 0, 
+                    b2bMisses: 0, consecutiveWins: 0, nextBet: null,
+                    isShadow: (i + 1) >= 5
+                }));
+            }
+
+            handleFileUpload(input) {
+                const file = input.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    this.shoes = e.target.result.split(/\r?\n/).map(s => s.replace(/[^BP]/gi, '').toUpperCase()).filter(s => s.length > 5);
+                    this.showToast(`✅ DATABASE SYNCED: ${this.shoes.length} SHOES`);
+                    document.getElementById('file-status').innerText = `SYNCED: ${this.shoes.length}`;
+                    this.scan();
+                };
+                reader.readAsText(file);
+            }
+
+            handleInput(val) {
+                // Save state for undo
+                this.predictionHistory.push({
+                    lastPred: this.lastPred,
+                    players: JSON.parse(JSON.stringify(this.players)),
+                    stats: {...this.stats},
+                    history: [...this.history]
+                });
+
+                if (this.lastPred === val) this.stats.w++;
+                else if (this.lastPred) this.stats.l++;
+                
+                this.history.push(val);
+                this.calculateSyndicate(val);
+                this.scan();
+                this.render();
+            }
+
+            undo() {
+                if (this.predictionHistory.length === 0) return;
+                const prevState = this.predictionHistory.pop();
+                this.lastPred = prevState.lastPred;
+                this.players = prevState.players;
+                this.stats = prevState.stats;
+                this.history = prevState.history;
+                this.scan();
+                this.render();
+                this.renderSyndicate();
+                this.showToast("⏪ UNDO SUCCESSFUL");
+            }
+
+            calculateSyndicate(actual) {
+                this.players.forEach(p => {
+                    // Logic for Hand 1: Bots 5-11 enter "Shadow" mode
+                    if (this.history.length === 1 && p.id >= 5) {
+                        const theoreticalBet = this.getStrategyBet(p.id, []); 
+                        // We pass empty history to see what the bot's "first" decision would be
+                        if (theoreticalBet && theoreticalBet !== actual) p.b2bMisses++;
+                    } 
+                    else if (p.nextBet) {
+                        if (p.nextBet === actual) {
+                            p.wins++;
+                            p.consecutiveWins++;
+                            p.currentStreak = (p.currentStreak < 0) ? 1 : p.currentStreak + 1;
+                            if (p.consecutiveWins >= 2) p.b2bMisses = 0;
+                        } else {
+                            p.losses++;
+                            p.consecutiveWins = 0;
+                            p.currentStreak = (p.currentStreak > 0) ? -1 : p.currentStreak - 1;
+                            p.b2bMisses++;
+                        }
+                    }
+                    p.nextBet = this.getStrategyBet(p.id, this.history);
+                });
+                this.renderSyndicate();
+            }
+
+            getStrategyBet(id, h) {
+                const len = h.length;
+                const last = h[len-1];
+                const first = h[0];
+
+                if (id <= 4) {
+                    if (id === 1) return 'B';
+                    if (id === 2) return 'P';
+                    if (id === 3) return (len % 2 === 0) ? 'B' : 'P';
+                    if (id === 4) return (len % 2 === 0) ? 'P' : 'B';
+                }
+
+                // Players 5-11 wait for first hand to define their pattern
+                if (len === 0) {
+                    // This section returns what the bot WOULD have bet on Hand 1 for B2B calc
+                    // based on your rules for starting side
+                    if (id === 7) return 'B'; // Default assumption for shadow check
+                    return 'B'; 
+                }
+
+                switch(id) {
+                    case 5: return ['B','B','P','P'][len % 4];
+                    case 6: return last === 'B' ? 'P' : 'B';
+                    case 7: return last;
+                    case 8: return (first === 'P' ? ['P','P','P','B','B','B'] : ['B','B','B','P','P','P'])[len % 6];
+                    case 9: return (first === 'P' ? ['P','B','B'] : ['B','P','P'])[len % 3];
+                    case 10: return (first === 'P' ? ['P','P','B','B','B'] : ['B','B','P','P','P'])[len % 5];
+                    case 11: return (first === 'P' ? ['P','B','B','B'] : ['B','P','P','P'])[len % 4];
+                }
+            }
+
+            renderSyndicate() {
+                const body = document.getElementById('syndicate-body');
+                const maxMiss = Math.max(...this.players.map(p => p.b2bMisses));
+                const maxStrk = Math.max(...this.players.map(p => p.currentStreak));
+
+                body.innerHTML = this.players.map(p => {
+                    const isBest = (p.currentStreak === maxStrk && maxStrk > 0);
+                    const isWorst = (p.b2bMisses === maxMiss && maxMiss > 0);
+                    const rowClass = isBest ? 'row-best' : (isWorst ? 'row-worst' : '');
+                    
+                    let actionDisplay = '';
+                    if (this.history.length === 0 && p.id >= 5) {
+                        actionDisplay = `<span class="px-2 py-0.5 rounded bg-slate-800 text-[8px] text-slate-500 font-bold italic tracking-tighter">SHADOW</span>`;
+                    } else {
+                        actionDisplay = `<span class="px-2 py-0.5 rounded font-black ${p.nextBet === 'B' ? 'bg-emerald-600' : p.nextBet === 'P' ? 'bg-blue-600' : 'bg-slate-800 text-slate-500'} text-white">${p.nextBet || 'WAIT'}</span>`;
+                    }
+
+                    return `<tr class="border-b border-slate-900/50 ${rowClass}">
+                        <td class="py-2 font-bold text-slate-400 pl-1">#${p.id}</td>
+                        <td class="py-2">${p.wins}-${p.losses}</td>
+                        <td class="py-2 ${p.currentStreak > 0 ? 'text-emerald-400' : 'text-red-400'} font-bold">${p.currentStreak}</td>
+                        <td class="py-2 ${isWorst ? 'text-red-500 font-black' : ''}">${p.b2bMisses}</td>
+                        <td class="py-2 text-center">${actionDisplay}</td>
+                    </tr>`;
+                }).join('');
+            }
+
+            scan() {
+                const output = document.getElementById('prediction-main');
+                if (this.shoes.length === 0 || this.history.length === 0) return;
+                
+                let matches = [], bestMatch = null, depth = 0;
+                for (let d = this.history.length; d >= 2; d--) {
+                    const seq = this.history.slice(-d).join('');
+                    const found = this.shoes.filter(s => s.startsWith(seq));
+                    if (found.length > 0) { matches = found; bestMatch = found[0]; depth = d; break; }
+                }
+
+                document.getElementById('stat-depth').innerText = depth;
+                document.getElementById('stat-matches').innerText = matches.length;
+
+                if (matches.length > 0) {
+                    const pred = bestMatch[depth] || "END";
+                    this.lastPred = (pred === 'B' || pred === 'P') ? pred : null;
+                    const bCount = matches.filter(s => s[depth] === 'B').length;
+                    document.getElementById('conf-text').innerText = ((Math.max(bCount, matches.length - bCount) / matches.length) * 100).toFixed(0) + "%";
+                    output.innerText = pred;
+                    output.className = `text-6xl font-black ${pred === 'B' ? 'text-emerald-500' : 'text-blue-500'}`;
+                    document.getElementById('roadmap-container').classList.remove('hidden');
+                    let roadHTML = "";
+                    for(let i = 0; i < 5; i++) {
+                        const h = bestMatch[depth + i];
+                        if (h) roadHTML += `<div class="w-4 h-4 rounded shadow-sm ${h === 'B' ? 'bg-emerald-500' : 'bg-blue-500'}"></div>`;
+                    }
+                    document.getElementById('future-dots').innerHTML = roadHTML;
+                } else {
+                    output.innerText = "--";
+                    output.className = "text-6xl font-black text-slate-800";
+                    this.lastPred = null;
+                }
+            }
+
+            render() {
+                const road = document.getElementById('history-road');
+                road.innerHTML = this.history.slice(-30).map(h => `<div class="w-8 h-8 flex items-center justify-center rounded-lg text-xs font-black text-white ${h === 'B' ? 'bg-emerald-600' : 'bg-blue-600'}">${h}</div>`).join('');
+                const net = this.stats.w - this.stats.l;
+                document.getElementById('session-pnl').innerText = `${this.stats.w}W - ${this.stats.l}L`;
+                document.getElementById('stat-net').innerText = (net > 0 ? '+' : '') + net;
+            }
+
+            showToast(msg) {
+                const t = document.getElementById('toast'); t.innerText = msg; t.style.top = "20px";
+                setTimeout(() => { t.style.top = "-100px"; }, 3000);
+            }
+
+            reset() {
+                this.history = []; this.stats = { w: 0, l: 0 }; this.lastPred = null; this.predictionHistory = [];
+                this.players = this.initPlayers(); this.render(); this.renderSyndicate(); this.scan();
+                this.showToast("SESSION RESET");
+            }
+        }
+        const app = new EliteNexus();
+
+        // ============================================================
+        // postMessage Bridge — embedding in master dashboard
+        // ============================================================
+        (function () {
+            const params = new URLSearchParams(location.search);
+            const isEmbedded = params.get('embedded') === '1';
+
+            if (isEmbedded) {
+                // Hide P/B input buttons and footer controls
+                document.querySelectorAll('.btn-press').forEach(b => b.style.display = 'none');
+                const footer = document.querySelector('footer');
+                if (footer) footer.style.display = 'none';
+            }
+
+            window.addEventListener('message', function (e) {
+                const d = e.data || {};
+                if (!d || typeof d !== 'object') return;
+
+                const reply = function (type, data) {
+                    try { e.source.postMessage(Object.assign({ type: type, replyTo: d.id }, data), '*'); } catch (_) {}
+                };
+
+                switch (d.type) {
+                    case 'PING':
+                        reply('PONG');
+                        break;
+
+                    case 'MASTER_INPUT': {
+                        const val = String(d.value || '').toUpperCase();
+                        if (val === 'B' || val === 'P') {
+                            app.handleInput(val);
+                        }
+                        // Ties are not tracked by this engine
+                        break;
+                    }
+
+                    case 'MASTER_UNDO':
+                        app.undo();
+                        break;
+
+                    case 'MASTER_RESET':
+                        app.reset();
+                        break;
+
+                    case 'GET_SNAPSHOT': {
+                        var maxMissAll = app.players.reduce(function (m, p) { return Math.max(m, p.b2bMisses); }, 0);
+                        var qualified = app.players.filter(function (p) { return p.b2bMisses >= 5 && p.nextBet; });
+                        var maxMissQ = qualified.reduce(function (m, p) { return Math.max(m, p.b2bMisses); }, 0);
+                        var highestPlayers = qualified.filter(function (p) { return p.b2bMisses === maxMissQ; });
+                        var sides = Array.from(new Set(highestPlayers.map(function (p) { return p.nextBet; }).filter(Boolean)));
+                        var consensusSide = sides.length === 1 ? sides[0] : null;
+
+                        var snapshot = {
+                            players: app.players.map(function (p) {
+                                return { id: p.id, wins: p.wins, losses: p.losses, currentStreak: p.currentStreak, b2bMisses: p.b2bMisses, nextBet: p.nextBet };
+                            }),
+                            b2bAlert: {
+                                active: qualified.length > 0,
+                                maxMiss: maxMissAll,
+                                qualifyingCount: qualified.length,
+                                highestPlayers: highestPlayers.map(function (p) { return { id: p.id, nextBet: p.nextBet, b2bMisses: p.b2bMisses }; }),
+                                consensusSide: consensusSide,
+                                hasConflict: sides.length > 1
+                            },
+                            stats: app.stats
+                        };
+                        reply('SNAPSHOT', { snapshot: snapshot });
+                        break;
+                    }
+                }
+            });
+        })();
+    </script>
+</body>
+</html>
+
+
+
