@@ -54,7 +54,9 @@ interface ExpertState {
 
 export type ExpertKey =
   | "supreme" | "syndicate" | "lookAhead" | "legacyLookAhead" | "metaAI" | "observer"
-  | "bebRoad" | "smallRoad" | "cockroachRoad" | "dualAuth";
+  | "bebRoad" | "smallRoad" | "cockroachRoad" | "dualAuth"
+  | "bot1" | "bot2" | "bot3" | "bot4" | "bot5" | "bot6"
+  | "bot7" | "bot8" | "bot9" | "bot10" | "bot11";
 
 // ── Public interfaces ─────────────────────────────────────────────────────────
 
@@ -111,6 +113,18 @@ export interface RegimeVerdict {
   smallRoad: ExpertStats;
   cockroachRoad: ExpertStats;
   dualAuth: ExpertStats;
+  // Syndicate 11 — individual strategy bots
+  bot1: ExpertStats;
+  bot2: ExpertStats;
+  bot3: ExpertStats;
+  bot4: ExpertStats;
+  bot5: ExpertStats;
+  bot6: ExpertStats;
+  bot7: ExpertStats;
+  bot8: ExpertStats;
+  bot9: ExpertStats;
+  bot10: ExpertStats;
+  bot11: ExpertStats;
   // Ensemble
   ensembleVerdict: Side | null;
   ensemblePercent: number;
@@ -192,6 +206,8 @@ function freshExpert(): ExpertState {
 const ALL_KEYS: ExpertKey[] = [
   "supreme", "syndicate", "lookAhead", "legacyLookAhead", "metaAI", "observer",
   "bebRoad", "smallRoad", "cockroachRoad", "dualAuth",
+  "bot1", "bot2", "bot3", "bot4", "bot5", "bot6",
+  "bot7", "bot8", "bot9", "bot10", "bot11",
 ];
 
 // ── Main class ────────────────────────────────────────────────────────────────
@@ -205,6 +221,8 @@ export class RegimeSwitchTracker {
     minCounts: {
       supreme: 6, syndicate: 4, lookAhead: 4, legacyLookAhead: 4, metaAI: 4, observer: 4,
       bebRoad: 6, smallRoad: 6, cockroachRoad: 6, dualAuth: 6,
+      bot1: 3, bot2: 3, bot3: 3, bot4: 3, bot5: 3, bot6: 3,
+      bot7: 3, bot8: 3, bot9: 3, bot10: 3, bot11: 3,
     },
     decayFactor: 0.88,
     lockHands: 5,
@@ -222,6 +240,17 @@ export class RegimeSwitchTracker {
     smallRoad: freshExpert(),
     cockroachRoad: freshExpert(),
     dualAuth: freshExpert(),
+    bot1: freshExpert(),
+    bot2: freshExpert(),
+    bot3: freshExpert(),
+    bot4: freshExpert(),
+    bot5: freshExpert(),
+    bot6: freshExpert(),
+    bot7: freshExpert(),
+    bot8: freshExpert(),
+    bot9: freshExpert(),
+    bot10: freshExpert(),
+    bot11: freshExpert(),
   };
 
   private dominant: ExpertKey | null = null;
@@ -361,6 +390,19 @@ export class RegimeSwitchTracker {
     exp.lastPred = verdict;
     if (verdict) {
       exp.history.push({ pred: verdict, actual: null });
+      exp.totalPreds++;
+      this._trimHistory(exp);
+    }
+  }
+
+  /** Individual syndicate bot prediction (id 1–11). null = no prediction yet. */
+  captureBot(id: number, pred: Side | null): void {
+    const key = `bot${id}` as ExpertKey;
+    const exp = this.experts[key];
+    if (!exp) return;
+    exp.lastPred = pred;
+    if (pred) {
+      exp.history.push({ pred, actual: null });
       exp.totalPreds++;
       this._trimHistory(exp);
     }
@@ -818,6 +860,17 @@ export class RegimeSwitchTracker {
       smallRoad: freshExpert(),
       cockroachRoad: freshExpert(),
       dualAuth: freshExpert(),
+      bot1: freshExpert(),
+      bot2: freshExpert(),
+      bot3: freshExpert(),
+      bot4: freshExpert(),
+      bot5: freshExpert(),
+      bot6: freshExpert(),
+      bot7: freshExpert(),
+      bot8: freshExpert(),
+      bot9: freshExpert(),
+      bot10: freshExpert(),
+      bot11: freshExpert(),
     };
     this.dominant = null;
     this.dominantLockCount = 0;

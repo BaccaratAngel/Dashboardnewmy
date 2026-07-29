@@ -139,6 +139,11 @@ export class SyndicateEngine {
     this._stateHistory = [];
   }
 
+  /** Returns each bot's current next-bet prediction (null if no prediction yet). */
+  getBotPredictions(): Array<{ id: number; pred: "B" | "P" | null }> {
+    return this.players.map((p) => ({ id: p.id, pred: p.nextBet }));
+  }
+
   getB2BAlert(): B2BAlert {
     const THRESHOLD = 5;
     const maxMissAll = this.players.reduce(

@@ -210,6 +210,8 @@ export class GameSession {
     const ALL_EXPERT_KEYS = [
       "supreme", "syndicate", "lookAhead", "legacyLookAhead", "metaAI", "observer",
       "bebRoad", "smallRoad", "cockroachRoad", "dualAuth",
+      "bot1", "bot2", "bot3", "bot4", "bot5", "bot6",
+      "bot7", "bot8", "bot9", "bot10", "bot11",
     ] as const;
     const expertShoeData: ExpertShoeData[] = ALL_EXPERT_KEYS.map((key) => {
       const s = regimeNow[key];
@@ -382,6 +384,12 @@ export class GameSession {
     const dualAuthSide: "B" | "P" | null =
       nexusSide && roadSide && nexusSide === roadSide ? nexusSide : null;
     this.regime.captureDualAuth(dualAuthSide);
+
+    // Syndicate 11 — individual bot predictions tracked as separate regime experts
+    const botPreds = this.syndicate.getBotPredictions();
+    for (const { id, pred } of botPreds) {
+      this.regime.captureBot(id, pred);
+    }
 
     // Observer tracks predictions for next hand's scoring
     this.observer.capturePredictions(

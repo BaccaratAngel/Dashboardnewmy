@@ -51,6 +51,17 @@ export interface RegimeState {
   smallRoad: ExpertStats;
   cockroachRoad: ExpertStats;
   dualAuth: ExpertStats;
+  bot1: ExpertStats;
+  bot2: ExpertStats;
+  bot3: ExpertStats;
+  bot4: ExpertStats;
+  bot5: ExpertStats;
+  bot6: ExpertStats;
+  bot7: ExpertStats;
+  bot8: ExpertStats;
+  bot9: ExpertStats;
+  bot10: ExpertStats;
+  bot11: ExpertStats;
   /**
      * Ensemble-blended verdict (P, B, or null)
      * @nullable

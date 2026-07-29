@@ -28,6 +28,18 @@ const EXPERT_META: Record<string, { label: string; shortLabel: string; color: st
   smallRoad:        { label: 'SMALL ROAD',        shortLabel: 'SM ROAD',   color: '#e879f9' },
   cockroachRoad:    { label: 'COCKROACH ROAD',    shortLabel: 'COCKROACH', color: '#f97316' },
   dualAuth:         { label: 'DUAL-AUTH ENGINE',  shortLabel: 'DUAL-AUTH', color: '#facc15' },
+  // Strategy Bots 1–11 (Syndicate individual bots)
+  bot1:  { label: 'BOT 1 — ALWAYS B',       shortLabel: 'BOT 1',  color: '#64748b' },
+  bot2:  { label: 'BOT 2 — ALWAYS P',       shortLabel: 'BOT 2',  color: '#94a3b8' },
+  bot3:  { label: 'BOT 3 — ALT BP (even)',  shortLabel: 'BOT 3',  color: '#7dd3fc' },
+  bot4:  { label: 'BOT 4 — ALT PB (even)',  shortLabel: 'BOT 4',  color: '#93c5fd' },
+  bot5:  { label: 'BOT 5 — BBPP cycle',     shortLabel: 'BOT 5',  color: '#6ee7b7' },
+  bot6:  { label: 'BOT 6 — ANTI-LAST',      shortLabel: 'BOT 6',  color: '#fcd34d' },
+  bot7:  { label: 'BOT 7 — FOLLOW-LAST',    shortLabel: 'BOT 7',  color: '#f9a8d4' },
+  bot8:  { label: 'BOT 8 — BBB/PPP cycle',  shortLabel: 'BOT 8',  color: '#c4b5fd' },
+  bot9:  { label: 'BOT 9 — BPP/PBB cycle',  shortLabel: 'BOT 9',  color: '#fdba74' },
+  bot10: { label: 'BOT 10 — BBPPP cycle',   shortLabel: 'BOT 10', color: '#86efac' },
+  bot11: { label: 'BOT 11 — BPPP cycle',    shortLabel: 'BOT 11', color: '#67e8f9' },
 };
 
 function expertColor(key: string): string {
@@ -606,10 +618,11 @@ export default function DashboardPage() {
   const dominantKey = regime?.expert?.split('+')[0] ?? null;
   const shadowKey = regime?.shadowLeader ?? null;
 
-  // Core 6 + Road 4
+  // Core 6 + Road 4 + Strategy Bots 11
   const coreKeys = ['supreme', 'syndicate', 'lookAhead', 'legacyLookAhead', 'metaAI', 'observer'] as const;
   const roadKeys = ['bebRoad', 'smallRoad', 'cockroachRoad', 'dualAuth'] as const;
-  const allExpertKeys = [...coreKeys, ...roadKeys];
+  const botKeys = ['bot1', 'bot2', 'bot3', 'bot4', 'bot5', 'bot6', 'bot7', 'bot8', 'bot9', 'bot10', 'bot11'] as const;
+  const allExpertKeys = [...coreKeys, ...roadKeys, ...botKeys];
 
   // Total voting experts count (for ensemble display)
   const totalExperts = allExpertKeys.length;
@@ -725,6 +738,23 @@ export default function DashboardPage() {
             <div className="px-4">
               <ExpertGroupHeader label="DERIVED ROADS" color="#f43f5e" />
               {roadKeys.map((key) => {
+                const stats = regime[key] as ExpertStats;
+                return (
+                  <ExpertRow
+                    key={key}
+                    expertKey={key}
+                    stats={stats}
+                    isActive={dominantKey === key}
+                    isShadow={shadowKey === key}
+                  />
+                );
+              })}
+            </div>
+
+            {/* ── Strategy Bots 11 ── */}
+            <div className="px-4">
+              <ExpertGroupHeader label="STRATEGY BOTS (appx 11)" color="#64748b" />
+              {botKeys.map((key) => {
                 const stats = regime[key] as ExpertStats;
                 return (
                   <ExpertRow

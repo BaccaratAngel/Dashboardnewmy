@@ -589,6 +589,17 @@ components:
         - smallRoad
         - cockroachRoad
         - dualAuth
+        - bot1
+        - bot2
+        - bot3
+        - bot4
+        - bot5
+        - bot6
+        - bot7
+        - bot8
+        - bot9
+        - bot10
+        - bot11
         - ensembleVerdict
         - ensemblePercent
         - switchTimeline
@@ -659,6 +670,29 @@ components:
         cockroachRoad:
           $ref: "#/components/schemas/ExpertStats"
         dualAuth:
+          $ref: "#/components/schemas/ExpertStats"
+        # Syndicate 11 — individual strategy bots
+        bot1:
+          $ref: "#/components/schemas/ExpertStats"
+        bot2:
+          $ref: "#/components/schemas/ExpertStats"
+        bot3:
+          $ref: "#/components/schemas/ExpertStats"
+        bot4:
+          $ref: "#/components/schemas/ExpertStats"
+        bot5:
+          $ref: "#/components/schemas/ExpertStats"
+        bot6:
+          $ref: "#/components/schemas/ExpertStats"
+        bot7:
+          $ref: "#/components/schemas/ExpertStats"
+        bot8:
+          $ref: "#/components/schemas/ExpertStats"
+        bot9:
+          $ref: "#/components/schemas/ExpertStats"
+        bot10:
+          $ref: "#/components/schemas/ExpertStats"
+        bot11:
           $ref: "#/components/schemas/ExpertStats"
         ensembleVerdict:
           type: ["string", "null"]
