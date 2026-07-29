@@ -10,7 +10,7 @@ import {
   useLogout,
   useHeartbeat,
 } from '@workspace/api-client-react';
-import type { GameSnapshot, ExpertStats, CrisisAIResult, MetaCombinerResult } from '@workspace/api-client-react';
+import type { GameSnapshot, ExpertStats, CrisisAIResult, MetaCombinerResult, RaceState, RaceContestantStats, RegimeState } from '@workspace/api-client-react';
 import { cn } from '@/lib/utils';
 
 // ── Color & label helpers ─────────────────────────────────────────────────────
@@ -330,12 +330,14 @@ function LockBar({
 
 // ── Crisis AI Panel ───────────────────────────────────────────────────────────
 
-function CrisisAIPanel({ crisis }: { crisis: CrisisAIResult }) {
+function CrisisAIPanel({ crisis, race }: { crisis: CrisisAIResult; race?: RaceState }) {
+  const { isChampion, isChallenger, stats: raceStats, active: raceActive } = useRaceStatus(race, 'crisisAI');
+  const allAgree = race?.allAgree ?? false;
+
   // Always visible — 4 states: standby (0 losses), monitoring (1 loss), post-crisis (suppressed), active override
   const isActive    = crisis.active;
   const isSuppressed = !crisis.active && crisis.consecutiveLosses >= 2;
   const isMonitoring = !crisis.active && crisis.consecutiveLosses === 1;
-  // isStandby = !isActive && !isSuppressed && !isMonitoring
 
   const predColor   = crisis.prediction === 'P' ? '#22d3ee' : crisis.prediction === 'B' ? '#f87171' : '#71717a';
   const confColor   = crisis.confidence === 'HIGH' ? '#4ade80' : crisis.confidence === 'MED' ? '#facc15' : '#fb923c';
@@ -349,34 +351,46 @@ function CrisisAIPanel({ crisis }: { crisis: CrisisAIResult }) {
     ? '◈ CRISIS AI — MONITORING'
     : '◈ CRISIS AI — STANDBY';
 
+  const baseBorder = isActive ? 'rgba(251,146,60,0.6)' : 'rgba(251,146,60,0.2)';
+  const baseShadow = isActive ? '0 0 16px rgba(251,146,60,0.15)' : 'none';
+  const containerExtra = raceContainerStyle(isChampion, isChallenger, allAgree, baseBorder, baseShadow);
+
   return (
-    <div className="rounded-sm border flex flex-col overflow-hidden"
-      style={{
-        backgroundColor: '#120a00',
-        borderColor: isActive ? 'rgba(251,146,60,0.6)' : 'rgba(251,146,60,0.2)',
-        boxShadow: isActive ? '0 0 16px rgba(251,146,60,0.15)' : 'none',
-      }}>
+    <div className="rounded-sm border flex flex-col overflow-hidden transition-all duration-500"
+      style={{ backgroundColor: '#120a00', ...containerExtra }}>
 
       {/* Header */}
       <div className="px-4 py-2 flex items-center justify-between"
         style={{
           borderBottom: '1px solid rgba(251,146,60,0.2)',
-          backgroundColor: isActive ? 'rgba(251,146,60,0.08)' : 'rgba(251,146,60,0.02)',
+          backgroundColor: isActive ? 'rgba(251,146,60,0.08)' : isChampion ? 'rgba(251,146,60,0.05)' : 'rgba(251,146,60,0.02)',
         }}>
         <span className="text-xs font-bold tracking-widest"
-          style={{ color: isActive ? '#fb923c' : 'rgba(251,146,60,0.5)' }}>
+          style={{ color: isActive || isChampion ? '#fb923c' : 'rgba(251,146,60,0.5)' }}>
           {headerLabel}
         </span>
-        {crisis.consecutiveLosses > 0 && (
-          <span className="text-xs font-bold tabular-nums px-2 py-0.5 rounded-sm"
-            style={{
-              color: '#fb923c',
-              backgroundColor: 'rgba(251,146,60,0.12)',
-              border: '1px solid rgba(251,146,60,0.3)',
-            }}>
-            {crisis.consecutiveLosses}× LOSS STREAK
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {raceActive ? (
+            <RaceAccuracyBadge
+              stats={raceStats}
+              isChampion={isChampion}
+              isChallenger={isChallenger}
+              championStreak={race?.championStreak ?? 0}
+              allAgree={allAgree}
+            />
+          ) : crisis.consecutiveLosses > 0 ? (
+            <span className="text-xs font-bold tabular-nums px-2 py-0.5 rounded-sm"
+              style={{ color: '#fb923c', backgroundColor: 'rgba(251,146,60,0.12)', border: '1px solid rgba(251,146,60,0.3)' }}>
+              {crisis.consecutiveLosses}× LOSS STREAK
+            </span>
+          ) : null}
+          {raceActive && crisis.consecutiveLosses > 0 && (
+            <span className="text-xs font-bold tabular-nums px-1.5 py-0.5 rounded-sm"
+              style={{ color: '#fb923c', backgroundColor: 'rgba(251,146,60,0.12)', border: '1px solid rgba(251,146,60,0.3)' }}>
+              {crisis.consecutiveLosses}×
+            </span>
+          )}
+        </div>
       </div>
 
       {isActive ? (
@@ -553,9 +567,173 @@ function ExpertGroupHeader({ label, color }: { label: string; color: string }) {
   );
 }
 
+// ── Race helpers ──────────────────────────────────────────────────────────────
+
+type RaceKey = 'metaCombiner' | 'crisisAI' | 'ensemble';
+
+function useRaceStatus(race: RaceState | undefined, key: RaceKey) {
+  if (!race?.active) return { isChampion: false, isChallenger: false, stats: race?.[key] as RaceContestantStats | undefined, active: false };
+  const stats = race[key] as RaceContestantStats;
+  const isChampion = race.champion === key;
+  const champAcc = race.champion ? (race[race.champion as RaceKey] as RaceContestantStats).rollingAccuracy : null;
+  const myAcc = stats.rollingAccuracy;
+  const isChallenger = !isChampion
+    && myAcc !== null && myAcc !== undefined
+    && champAcc !== null && champAcc !== undefined
+    && (champAcc - myAcc) <= 0.05 && myAcc > 0;
+  return { isChampion, isChallenger, stats, active: true };
+}
+
+function RaceAccuracyBadge({ stats, isChampion, isChallenger, championStreak, allAgree }: {
+  stats: RaceContestantStats | undefined;
+  isChampion: boolean;
+  isChallenger: boolean;
+  championStreak: number;
+  allAgree: boolean;
+}) {
+  const acc = stats?.rollingAccuracy;
+  const streak = isChampion ? championStreak : (stats?.winStreak ?? 0);
+
+  return (
+    <div className="flex items-center gap-1.5">
+      {/* Consensus flash */}
+      {allAgree && (
+        <span className="text-xs font-bold px-1.5 py-0 rounded-sm"
+          style={{ color: '#22d3ee', backgroundColor: 'rgba(34,211,238,0.1)', border: '1px solid rgba(34,211,238,0.3)', fontSize: 9, animation: 'pulse 1.5s infinite' }}>
+          CONSENSUS
+        </span>
+      )}
+      {/* Champion streak */}
+      {isChampion && streak > 0 && (
+        <span className="text-xs font-bold tabular-nums"
+          style={{ color: '#facc15', fontFamily: 'monospace' }}>
+          🏆 {streak}×
+        </span>
+      )}
+      {/* Challenger badge */}
+      {isChallenger && (
+        <span className="text-xs font-bold px-1.5 py-0 rounded-sm"
+          style={{ color: '#fb923c', backgroundColor: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.25)', fontSize: 9 }}>
+          ⚡ CHALL
+        </span>
+      )}
+      {/* Rolling accuracy */}
+      {acc !== null && acc !== undefined ? (
+        <span className="text-xs tabular-nums font-bold"
+          style={{ color: acc >= 0.60 ? '#4ade80' : acc >= 0.50 ? '#facc15' : '#f87171', fontFamily: 'monospace' }}>
+          {Math.round(acc * 100)}%
+        </span>
+      ) : (
+        <span className="text-xs" style={{ color: '#3f3f46', fontFamily: 'monospace' }}>—%</span>
+      )}
+    </div>
+  );
+}
+
+function raceContainerStyle(
+  isChampion: boolean,
+  isChallenger: boolean,
+  allAgree: boolean,
+  baseBorderColor: string,
+  baseBoxShadow: string
+): React.CSSProperties {
+  let borderColor = baseBorderColor;
+  let boxShadow = baseBoxShadow;
+  if (isChampion) {
+    borderColor = 'rgba(250,204,21,0.85)';
+    boxShadow = '0 0 28px rgba(250,204,21,0.28), 0 0 8px rgba(250,204,21,0.55)';
+  } else if (isChallenger) {
+    borderColor = 'rgba(251,146,60,0.5)';
+    boxShadow = '0 0 10px rgba(251,146,60,0.1)';
+  }
+  if (allAgree) {
+    boxShadow = (boxShadow === 'none' ? '' : boxShadow + ', ') + '0 0 16px rgba(34,211,238,0.14)';
+  }
+  return { borderColor, boxShadow };
+}
+
+// ── Ensemble Vote Block ───────────────────────────────────────────────────────
+
+function EnsembleVoteBlock({ regime, race, totalExperts }: {
+  regime: RegimeState;
+  race?: RaceState;
+  totalExperts: number;
+}) {
+  const { isChampion, isChallenger, stats, active: raceActive } = useRaceStatus(race, 'ensemble');
+  const allAgree = race?.allAgree ?? false;
+  const containerExtra = raceContainerStyle(isChampion, isChallenger, allAgree, 'rgba(234,179,8,0.35)', 'none');
+
+  return (
+    <div className="mx-4 mt-3 mb-2 rounded-sm p-3"
+      style={{
+        backgroundColor: isChampion ? 'rgba(234,179,8,0.08)' : 'rgba(234,179,8,0.05)',
+        border: `1px solid ${containerExtra.borderColor ?? 'rgba(234,179,8,0.15)'}`,
+        boxShadow: containerExtra.boxShadow,
+        transition: 'border-color 0.4s, box-shadow 0.4s',
+      }}>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-bold tracking-wider" style={{ color: isChampion ? '#facc15' : '#eab308' }}>
+          ⚖ ENSEMBLE VOTE
+        </span>
+        <div className="flex items-center gap-1.5">
+          {raceActive && (
+            <RaceAccuracyBadge
+              stats={stats}
+              isChampion={isChampion}
+              isChallenger={isChallenger}
+              championStreak={race?.championStreak ?? 0}
+              allAgree={allAgree}
+            />
+          )}
+          {regime.agreeCount > 0 && (
+            <span className="text-xs" style={{ color: '#71717a' }}>
+              {regime.agreeCount}/{totalExperts} agree
+            </span>
+          )}
+          <span className="text-xs font-bold" style={{
+            color: regime.ensembleVerdict === 'P' ? '#22d3ee'
+              : regime.ensembleVerdict === 'B' ? '#f87171'
+              : '#71717a',
+          }}>
+            {regime.ensembleVerdict === 'P' ? `PLAYER ${regime.ensemblePercent}%`
+              : regime.ensembleVerdict === 'B' ? `BANKER ${regime.ensemblePercent}%`
+              : 'NO LEAN'}
+          </span>
+        </div>
+      </div>
+      <div className="h-2 rounded-full overflow-hidden flex" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>
+        {regime.ensembleVerdict === 'P' && (
+          <>
+            <div className="h-full rounded-l-full transition-all duration-700"
+              style={{ width: `${regime.ensemblePercent}%`, backgroundColor: '#22d3ee', opacity: 0.85 }} />
+            <div className="h-full rounded-r-full flex-1" style={{ backgroundColor: '#f87171', opacity: 0.3 }} />
+          </>
+        )}
+        {regime.ensembleVerdict === 'B' && (
+          <>
+            <div className="h-full rounded-l-full flex-1" style={{ backgroundColor: '#22d3ee', opacity: 0.3 }} />
+            <div className="h-full rounded-r-full transition-all duration-700"
+              style={{ width: `${regime.ensemblePercent}%`, backgroundColor: '#f87171', opacity: 0.85 }} />
+          </>
+        )}
+        {!regime.ensembleVerdict && (
+          <div className="h-full w-full rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }} />
+        )}
+      </div>
+      <div className="flex justify-between mt-1">
+        <span className="text-xs" style={{ color: 'rgba(34,211,238,0.5)' }}>P</span>
+        <span className="text-xs" style={{ color: 'rgba(248,113,113,0.5)' }}>B</span>
+      </div>
+    </div>
+  );
+}
+
 // ── MetaCombiner Panel ────────────────────────────────────────────────────────
 
-function MetaCombinerPanel({ mc }: { mc: MetaCombinerResult }) {
+function MetaCombinerPanel({ mc, race }: { mc: MetaCombinerResult; race?: RaceState }) {
+  const { isChampion, isChallenger, stats, active: raceActive } = useRaceStatus(race, 'metaCombiner');
+  const allAgree = race?.allAgree ?? false;
+
   const predColor =
     mc.prediction === 'P' ? '#22d3ee'
     : mc.prediction === 'B' ? '#f87171'
@@ -571,22 +749,22 @@ function MetaCombinerPanel({ mc }: { mc: MetaCombinerResult }) {
   const isWarm = mc.seen >= 8;
   const acc = mc.recentAccuracy;
 
+  const baseBorder = mc.prediction !== 'WAIT' ? 'rgba(250,204,21,0.35)' : 'rgba(250,204,21,0.14)';
+  const baseShadow = mc.prediction !== 'WAIT' ? '0 0 14px rgba(250,204,21,0.08)' : 'none';
+  const containerExtra = raceContainerStyle(isChampion, isChallenger, allAgree, baseBorder, baseShadow);
+
   return (
-    <div className="rounded-sm border flex flex-col overflow-hidden"
-      style={{
-        backgroundColor: '#08080f',
-        borderColor: mc.prediction !== 'WAIT' ? 'rgba(250,204,21,0.35)' : 'rgba(250,204,21,0.14)',
-        boxShadow: mc.prediction !== 'WAIT' ? '0 0 14px rgba(250,204,21,0.08)' : 'none',
-      }}>
+    <div className="rounded-sm border flex flex-col overflow-hidden transition-all duration-500"
+      style={{ backgroundColor: '#08080f', ...containerExtra }}>
 
       {/* Header */}
       <div className="px-4 py-2 flex items-center justify-between"
         style={{
-          borderBottom: '1px solid rgba(250,204,21,0.12)',
-          backgroundColor: 'rgba(250,204,21,0.03)',
+          borderBottom: `1px solid ${isChampion ? 'rgba(250,204,21,0.25)' : 'rgba(250,204,21,0.12)'}`,
+          backgroundColor: isChampion ? 'rgba(250,204,21,0.06)' : 'rgba(250,204,21,0.03)',
         }}>
         <div className="flex items-center gap-2">
-          <span className="text-xs font-bold tracking-widest" style={{ color: '#facc15' }}>
+          <span className="text-xs font-bold tracking-widest" style={{ color: isChampion ? '#facc15' : 'rgba(250,204,21,0.75)' }}>
             ◈ META COMBINER
           </span>
           <span className="text-xs px-1.5 py-0 rounded-sm"
@@ -594,17 +772,27 @@ function MetaCombinerPanel({ mc }: { mc: MetaCombinerResult }) {
             ONLINE LR
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          {isWarm && acc !== null && (
-            <span className="text-xs tabular-nums"
-              style={{ color: acc >= 0.55 ? '#4ade80' : acc >= 0.48 ? '#facc15' : '#f87171', fontFamily: 'monospace' }}>
-              {Math.round(acc * 100)}% acc
+        {raceActive ? (
+          <RaceAccuracyBadge
+            stats={stats}
+            isChampion={isChampion}
+            isChallenger={isChallenger}
+            championStreak={race?.championStreak ?? 0}
+            allAgree={allAgree}
+          />
+        ) : (
+          <div className="flex items-center gap-2">
+            {isWarm && acc !== null && (
+              <span className="text-xs tabular-nums"
+                style={{ color: acc >= 0.55 ? '#4ade80' : acc >= 0.48 ? '#facc15' : '#f87171', fontFamily: 'monospace' }}>
+                {Math.round(acc * 100)}% acc
+              </span>
+            )}
+            <span className="text-xs" style={{ color: '#3f3f46' }}>
+              {mc.seen} hands
             </span>
-          )}
-          <span className="text-xs" style={{ color: '#3f3f46' }}>
-            {mc.seen} hands
-          </span>
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Warming-up overlay */}
@@ -655,7 +843,7 @@ function MetaCombinerPanel({ mc }: { mc: MetaCombinerResult }) {
             </div>
             {mc.prediction !== 'WAIT' ? (
               <span className="text-xl font-black tracking-wider"
-                style={{ color: predColor, textShadow: `0 0 10px ${predColor}50` }}>
+                style={{ color: predColor, textShadow: isChampion ? `0 0 14px ${predColor}80` : `0 0 10px ${predColor}50` }}>
                 {mc.prediction === 'P' ? 'PLAYER' : 'BANKER'}
               </span>
             ) : (
@@ -1045,7 +1233,7 @@ export default function DashboardPage() {
 
         {/* ── META COMBINER PANEL ───────────────────────────────────── */}
         {snapshot?.metaCombiner && (
-          <MetaCombinerPanel mc={snapshot.metaCombiner} />
+          <MetaCombinerPanel mc={snapshot.metaCombiner} race={snapshot.race} />
         )}
 
         {/* ── DECISION PANEL (ensemble + timeline + lock + main call) ── */}
@@ -1056,58 +1244,12 @@ export default function DashboardPage() {
             {/* ── CRISIS AI PANEL (right above ensemble vote) ─────── */}
             {snapshot?.crisisAI && (
               <div className="mx-4 mt-3">
-                <CrisisAIPanel crisis={snapshot.crisisAI} />
+                <CrisisAIPanel crisis={snapshot.crisisAI} race={snapshot.race} />
               </div>
             )}
 
             {/* Ensemble Voting Block */}
-            <div className="mx-4 mt-3 mb-2 rounded-sm p-3"
-              style={{ backgroundColor: 'rgba(234,179,8,0.05)', border: '1px solid rgba(234,179,8,0.15)' }}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold tracking-wider" style={{ color: '#eab308' }}>
-                  ⚖ ENSEMBLE VOTE
-                </span>
-                <div className="flex items-center gap-1.5">
-                  {regime.agreeCount > 0 && (
-                    <span className="text-xs" style={{ color: '#71717a' }}>
-                      {regime.agreeCount}/{totalExperts} agree
-                    </span>
-                  )}
-                  <span className="text-xs font-bold" style={{
-                    color: regime.ensembleVerdict === 'P' ? '#22d3ee'
-                      : regime.ensembleVerdict === 'B' ? '#f87171'
-                      : '#71717a',
-                  }}>
-                    {regime.ensembleVerdict === 'P' ? `PLAYER ${regime.ensemblePercent}%`
-                      : regime.ensembleVerdict === 'B' ? `BANKER ${regime.ensemblePercent}%`
-                      : 'NO LEAN'}
-                  </span>
-                </div>
-              </div>
-              <div className="h-2 rounded-full overflow-hidden flex" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>
-                {regime.ensembleVerdict === 'P' && (
-                  <>
-                    <div className="h-full rounded-l-full transition-all duration-700"
-                      style={{ width: `${regime.ensemblePercent}%`, backgroundColor: '#22d3ee', opacity: 0.85 }} />
-                    <div className="h-full rounded-r-full flex-1" style={{ backgroundColor: '#f87171', opacity: 0.3 }} />
-                  </>
-                )}
-                {regime.ensembleVerdict === 'B' && (
-                  <>
-                    <div className="h-full rounded-l-full flex-1" style={{ backgroundColor: '#22d3ee', opacity: 0.3 }} />
-                    <div className="h-full rounded-r-full transition-all duration-700"
-                      style={{ width: `${regime.ensemblePercent}%`, backgroundColor: '#f87171', opacity: 0.85 }} />
-                  </>
-                )}
-                {!regime.ensembleVerdict && (
-                  <div className="h-full w-full rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }} />
-                )}
-              </div>
-              <div className="flex justify-between mt-1">
-                <span className="text-xs" style={{ color: 'rgba(34,211,238,0.5)' }}>P</span>
-                <span className="text-xs" style={{ color: 'rgba(248,113,113,0.5)' }}>B</span>
-              </div>
-            </div>
+            <EnsembleVoteBlock regime={regime} race={snapshot?.race} totalExperts={totalExperts} />
 
             {/* Regime Switch Timeline */}
             {(regime.switchTimeline?.length ?? 0) > 0 && (

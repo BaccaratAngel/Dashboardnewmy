@@ -773,7 +773,7 @@ components:
 
     GameSnapshot:
       type: object
-      required: [handCount, history, regime, lookAhead, legacyLookAhead, metaAI, observer, observerMemory, crisisAI, metaCombiner]
+      required: [handCount, history, regime, lookAhead, legacyLookAhead, metaAI, observer, observerMemory, crisisAI, metaCombiner, race]
       properties:
         handCount:
           type: integer
@@ -801,6 +801,55 @@ components:
         metaCombiner:
           $ref: "#/components/schemas/MetaCombinerResult"
           description: Online learned meta-layer that combines all sub-system outputs
+        race:
+          $ref: "#/components/schemas/RaceState"
+          description: Live accuracy race between MetaCombiner, CrisisAI, and Ensemble Vote
+
+    RaceContestantStats:
+      type: object
+      required: [prediction, totalPreds, correctPreds, rollingAccuracy, winStreak]
+      properties:
+        prediction:
+          type: ["string", "null"]
+          description: '"P", "B", or null (abstain)'
+        totalPreds:
+          type: integer
+          description: Total non-abstain predictions since race started
+        correctPreds:
+          type: integer
+          description: Total correct predictions since race started
+        rollingAccuracy:
+          type: ["number", "null"]
+          description: Rolling 10-hand accuracy 0-1, null if fewer than 3 hands
+        winStreak:
+          type: integer
+          description: Current consecutive correct predictions
+
+    RaceState:
+      type: object
+      required: [active, champion, championStreak, allAgree, agreeSide, metaCombiner, crisisAI, ensemble]
+      properties:
+        active:
+          type: boolean
+          description: True once 15 hands have been processed
+        champion:
+          type: ["string", "null"]
+          description: '"metaCombiner", "crisisAI", "ensemble", or null'
+        championStreak:
+          type: integer
+          description: How many consecutive correct predictions the current champion has
+        allAgree:
+          type: boolean
+          description: True when 2 or 3 contestants predict the same non-null side
+        agreeSide:
+          type: ["string", "null"]
+          description: The side all agreeing contestants point to, or null
+        metaCombiner:
+          $ref: "#/components/schemas/RaceContestantStats"
+        crisisAI:
+          $ref: "#/components/schemas/RaceContestantStats"
+        ensemble:
+          $ref: "#/components/schemas/RaceContestantStats"
 
     MetaCombinerResult:
       type: object

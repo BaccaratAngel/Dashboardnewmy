@@ -11,6 +11,7 @@ import type { MetaAIResult } from './metaAIResult';
 import type { MetaCombinerResult } from './metaCombinerResult';
 import type { ObserverMemory } from './observerMemory';
 import type { ObserverResult } from './observerResult';
+import type { RaceState } from './raceState';
 import type { RegimeState } from './regimeState';
 
 export interface GameSnapshot {
@@ -28,4 +29,6 @@ export interface GameSnapshot {
   crisisAI: CrisisAIResult;
   /** Online learned meta-layer that combines all sub-system outputs */
   metaCombiner: MetaCombinerResult;
+  /** Live accuracy race between MetaCombiner, CrisisAI, and Ensemble Vote */
+  race: RaceState;
 }

@@ -496,7 +496,35 @@ export const GetSnapshotResponse = zod.object({
   "topFactors": zod.array(zod.string()).describe('Top contributing sub-systems driving this call'),
   "convergenceCount": zod.number().describe('How many of the 7 core systems agree on the predicted side'),
   "convergenceTotal": zod.number().describe('Total core systems with a non-null prediction this hand')
-}).describe('Online learned meta-layer that combines all sub-system outputs')
+}).describe('Online learned meta-layer that combines all sub-system outputs'),
+  "race": zod.object({
+  "active": zod.boolean().describe('True once 15 hands have been processed'),
+  "champion": zod.string().nullable().describe('\"metaCombiner\", \"crisisAI\", \"ensemble\", or null'),
+  "championStreak": zod.number().describe('How many consecutive correct predictions the current champion has'),
+  "allAgree": zod.boolean().describe('True when 2 or 3 contestants predict the same non-null side'),
+  "agreeSide": zod.string().nullable().describe('The side all agreeing contestants point to, or null'),
+  "metaCombiner": zod.object({
+  "prediction": zod.string().nullable().describe('\"P\", \"B\", or null (abstain)'),
+  "totalPreds": zod.number().describe('Total non-abstain predictions since race started'),
+  "correctPreds": zod.number().describe('Total correct predictions since race started'),
+  "rollingAccuracy": zod.number().nullable().describe('Rolling 10-hand accuracy 0-1, null if fewer than 3 hands'),
+  "winStreak": zod.number().describe('Current consecutive correct predictions')
+}),
+  "crisisAI": zod.object({
+  "prediction": zod.string().nullable().describe('\"P\", \"B\", or null (abstain)'),
+  "totalPreds": zod.number().describe('Total non-abstain predictions since race started'),
+  "correctPreds": zod.number().describe('Total correct predictions since race started'),
+  "rollingAccuracy": zod.number().nullable().describe('Rolling 10-hand accuracy 0-1, null if fewer than 3 hands'),
+  "winStreak": zod.number().describe('Current consecutive correct predictions')
+}),
+  "ensemble": zod.object({
+  "prediction": zod.string().nullable().describe('\"P\", \"B\", or null (abstain)'),
+  "totalPreds": zod.number().describe('Total non-abstain predictions since race started'),
+  "correctPreds": zod.number().describe('Total correct predictions since race started'),
+  "rollingAccuracy": zod.number().nullable().describe('Rolling 10-hand accuracy 0-1, null if fewer than 3 hands'),
+  "winStreak": zod.number().describe('Current consecutive correct predictions')
+})
+}).describe('Live accuracy race between MetaCombiner, CrisisAI, and Ensemble Vote')
 })
 
 
@@ -941,7 +969,35 @@ export const SubmitInputResponse = zod.object({
   "topFactors": zod.array(zod.string()).describe('Top contributing sub-systems driving this call'),
   "convergenceCount": zod.number().describe('How many of the 7 core systems agree on the predicted side'),
   "convergenceTotal": zod.number().describe('Total core systems with a non-null prediction this hand')
-}).describe('Online learned meta-layer that combines all sub-system outputs')
+}).describe('Online learned meta-layer that combines all sub-system outputs'),
+  "race": zod.object({
+  "active": zod.boolean().describe('True once 15 hands have been processed'),
+  "champion": zod.string().nullable().describe('\"metaCombiner\", \"crisisAI\", \"ensemble\", or null'),
+  "championStreak": zod.number().describe('How many consecutive correct predictions the current champion has'),
+  "allAgree": zod.boolean().describe('True when 2 or 3 contestants predict the same non-null side'),
+  "agreeSide": zod.string().nullable().describe('The side all agreeing contestants point to, or null'),
+  "metaCombiner": zod.object({
+  "prediction": zod.string().nullable().describe('\"P\", \"B\", or null (abstain)'),
+  "totalPreds": zod.number().describe('Total non-abstain predictions since race started'),
+  "correctPreds": zod.number().describe('Total correct predictions since race started'),
+  "rollingAccuracy": zod.number().nullable().describe('Rolling 10-hand accuracy 0-1, null if fewer than 3 hands'),
+  "winStreak": zod.number().describe('Current consecutive correct predictions')
+}),
+  "crisisAI": zod.object({
+  "prediction": zod.string().nullable().describe('\"P\", \"B\", or null (abstain)'),
+  "totalPreds": zod.number().describe('Total non-abstain predictions since race started'),
+  "correctPreds": zod.number().describe('Total correct predictions since race started'),
+  "rollingAccuracy": zod.number().nullable().describe('Rolling 10-hand accuracy 0-1, null if fewer than 3 hands'),
+  "winStreak": zod.number().describe('Current consecutive correct predictions')
+}),
+  "ensemble": zod.object({
+  "prediction": zod.string().nullable().describe('\"P\", \"B\", or null (abstain)'),
+  "totalPreds": zod.number().describe('Total non-abstain predictions since race started'),
+  "correctPreds": zod.number().describe('Total correct predictions since race started'),
+  "rollingAccuracy": zod.number().nullable().describe('Rolling 10-hand accuracy 0-1, null if fewer than 3 hands'),
+  "winStreak": zod.number().describe('Current consecutive correct predictions')
+})
+}).describe('Live accuracy race between MetaCombiner, CrisisAI, and Ensemble Vote')
 })
 
 
@@ -1382,7 +1438,35 @@ export const UndoInputResponse = zod.object({
   "topFactors": zod.array(zod.string()).describe('Top contributing sub-systems driving this call'),
   "convergenceCount": zod.number().describe('How many of the 7 core systems agree on the predicted side'),
   "convergenceTotal": zod.number().describe('Total core systems with a non-null prediction this hand')
-}).describe('Online learned meta-layer that combines all sub-system outputs')
+}).describe('Online learned meta-layer that combines all sub-system outputs'),
+  "race": zod.object({
+  "active": zod.boolean().describe('True once 15 hands have been processed'),
+  "champion": zod.string().nullable().describe('\"metaCombiner\", \"crisisAI\", \"ensemble\", or null'),
+  "championStreak": zod.number().describe('How many consecutive correct predictions the current champion has'),
+  "allAgree": zod.boolean().describe('True when 2 or 3 contestants predict the same non-null side'),
+  "agreeSide": zod.string().nullable().describe('The side all agreeing contestants point to, or null'),
+  "metaCombiner": zod.object({
+  "prediction": zod.string().nullable().describe('\"P\", \"B\", or null (abstain)'),
+  "totalPreds": zod.number().describe('Total non-abstain predictions since race started'),
+  "correctPreds": zod.number().describe('Total correct predictions since race started'),
+  "rollingAccuracy": zod.number().nullable().describe('Rolling 10-hand accuracy 0-1, null if fewer than 3 hands'),
+  "winStreak": zod.number().describe('Current consecutive correct predictions')
+}),
+  "crisisAI": zod.object({
+  "prediction": zod.string().nullable().describe('\"P\", \"B\", or null (abstain)'),
+  "totalPreds": zod.number().describe('Total non-abstain predictions since race started'),
+  "correctPreds": zod.number().describe('Total correct predictions since race started'),
+  "rollingAccuracy": zod.number().nullable().describe('Rolling 10-hand accuracy 0-1, null if fewer than 3 hands'),
+  "winStreak": zod.number().describe('Current consecutive correct predictions')
+}),
+  "ensemble": zod.object({
+  "prediction": zod.string().nullable().describe('\"P\", \"B\", or null (abstain)'),
+  "totalPreds": zod.number().describe('Total non-abstain predictions since race started'),
+  "correctPreds": zod.number().describe('Total correct predictions since race started'),
+  "rollingAccuracy": zod.number().nullable().describe('Rolling 10-hand accuracy 0-1, null if fewer than 3 hands'),
+  "winStreak": zod.number().describe('Current consecutive correct predictions')
+})
+}).describe('Live accuracy race between MetaCombiner, CrisisAI, and Ensemble Vote')
 })
 
 
@@ -1823,7 +1907,35 @@ export const ResetGameResponse = zod.object({
   "topFactors": zod.array(zod.string()).describe('Top contributing sub-systems driving this call'),
   "convergenceCount": zod.number().describe('How many of the 7 core systems agree on the predicted side'),
   "convergenceTotal": zod.number().describe('Total core systems with a non-null prediction this hand')
-}).describe('Online learned meta-layer that combines all sub-system outputs')
+}).describe('Online learned meta-layer that combines all sub-system outputs'),
+  "race": zod.object({
+  "active": zod.boolean().describe('True once 15 hands have been processed'),
+  "champion": zod.string().nullable().describe('\"metaCombiner\", \"crisisAI\", \"ensemble\", or null'),
+  "championStreak": zod.number().describe('How many consecutive correct predictions the current champion has'),
+  "allAgree": zod.boolean().describe('True when 2 or 3 contestants predict the same non-null side'),
+  "agreeSide": zod.string().nullable().describe('The side all agreeing contestants point to, or null'),
+  "metaCombiner": zod.object({
+  "prediction": zod.string().nullable().describe('\"P\", \"B\", or null (abstain)'),
+  "totalPreds": zod.number().describe('Total non-abstain predictions since race started'),
+  "correctPreds": zod.number().describe('Total correct predictions since race started'),
+  "rollingAccuracy": zod.number().nullable().describe('Rolling 10-hand accuracy 0-1, null if fewer than 3 hands'),
+  "winStreak": zod.number().describe('Current consecutive correct predictions')
+}),
+  "crisisAI": zod.object({
+  "prediction": zod.string().nullable().describe('\"P\", \"B\", or null (abstain)'),
+  "totalPreds": zod.number().describe('Total non-abstain predictions since race started'),
+  "correctPreds": zod.number().describe('Total correct predictions since race started'),
+  "rollingAccuracy": zod.number().nullable().describe('Rolling 10-hand accuracy 0-1, null if fewer than 3 hands'),
+  "winStreak": zod.number().describe('Current consecutive correct predictions')
+}),
+  "ensemble": zod.object({
+  "prediction": zod.string().nullable().describe('\"P\", \"B\", or null (abstain)'),
+  "totalPreds": zod.number().describe('Total non-abstain predictions since race started'),
+  "correctPreds": zod.number().describe('Total correct predictions since race started'),
+  "rollingAccuracy": zod.number().nullable().describe('Rolling 10-hand accuracy 0-1, null if fewer than 3 hands'),
+  "winStreak": zod.number().describe('Current consecutive correct predictions')
+})
+}).describe('Live accuracy race between MetaCombiner, CrisisAI, and Ensemble Vote')
 })
 
 
@@ -2268,7 +2380,35 @@ export const SetWindowResponse = zod.object({
   "topFactors": zod.array(zod.string()).describe('Top contributing sub-systems driving this call'),
   "convergenceCount": zod.number().describe('How many of the 7 core systems agree on the predicted side'),
   "convergenceTotal": zod.number().describe('Total core systems with a non-null prediction this hand')
-}).describe('Online learned meta-layer that combines all sub-system outputs')
+}).describe('Online learned meta-layer that combines all sub-system outputs'),
+  "race": zod.object({
+  "active": zod.boolean().describe('True once 15 hands have been processed'),
+  "champion": zod.string().nullable().describe('\"metaCombiner\", \"crisisAI\", \"ensemble\", or null'),
+  "championStreak": zod.number().describe('How many consecutive correct predictions the current champion has'),
+  "allAgree": zod.boolean().describe('True when 2 or 3 contestants predict the same non-null side'),
+  "agreeSide": zod.string().nullable().describe('The side all agreeing contestants point to, or null'),
+  "metaCombiner": zod.object({
+  "prediction": zod.string().nullable().describe('\"P\", \"B\", or null (abstain)'),
+  "totalPreds": zod.number().describe('Total non-abstain predictions since race started'),
+  "correctPreds": zod.number().describe('Total correct predictions since race started'),
+  "rollingAccuracy": zod.number().nullable().describe('Rolling 10-hand accuracy 0-1, null if fewer than 3 hands'),
+  "winStreak": zod.number().describe('Current consecutive correct predictions')
+}),
+  "crisisAI": zod.object({
+  "prediction": zod.string().nullable().describe('\"P\", \"B\", or null (abstain)'),
+  "totalPreds": zod.number().describe('Total non-abstain predictions since race started'),
+  "correctPreds": zod.number().describe('Total correct predictions since race started'),
+  "rollingAccuracy": zod.number().nullable().describe('Rolling 10-hand accuracy 0-1, null if fewer than 3 hands'),
+  "winStreak": zod.number().describe('Current consecutive correct predictions')
+}),
+  "ensemble": zod.object({
+  "prediction": zod.string().nullable().describe('\"P\", \"B\", or null (abstain)'),
+  "totalPreds": zod.number().describe('Total non-abstain predictions since race started'),
+  "correctPreds": zod.number().describe('Total correct predictions since race started'),
+  "rollingAccuracy": zod.number().nullable().describe('Rolling 10-hand accuracy 0-1, null if fewer than 3 hands'),
+  "winStreak": zod.number().describe('Current consecutive correct predictions')
+})
+}).describe('Live accuracy race between MetaCombiner, CrisisAI, and Ensemble Vote')
 })
 
 

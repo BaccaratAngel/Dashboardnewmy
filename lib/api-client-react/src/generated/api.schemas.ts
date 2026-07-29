@@ -274,6 +274,47 @@ export interface MetaCombinerResult {
   convergenceTotal: number;
 }
 
+export interface RaceContestantStats {
+  /**
+     * "P", "B", or null (abstain)
+     * @nullable
+     */
+  prediction: string | null;
+  /** Total non-abstain predictions since race started */
+  totalPreds: number;
+  /** Total correct predictions since race started */
+  correctPreds: number;
+  /**
+     * Rolling 10-hand accuracy 0-1, null if fewer than 3 hands
+     * @nullable
+     */
+  rollingAccuracy: number | null;
+  /** Current consecutive correct predictions */
+  winStreak: number;
+}
+
+export interface RaceState {
+  /** True once 15 hands have been processed */
+  active: boolean;
+  /**
+     * "metaCombiner", "crisisAI", "ensemble", or null
+     * @nullable
+     */
+  champion: string | null;
+  /** How many consecutive correct predictions the current champion has */
+  championStreak: number;
+  /** True when 2 or 3 contestants predict the same non-null side */
+  allAgree: boolean;
+  /**
+     * The side all agreeing contestants point to, or null
+     * @nullable
+     */
+  agreeSide: string | null;
+  metaCombiner: RaceContestantStats;
+  crisisAI: RaceContestantStats;
+  ensemble: RaceContestantStats;
+}
+
 export interface GameSnapshot {
   handCount: number;
   /** Array of B, P, T outcomes entered so far */
@@ -289,6 +330,8 @@ export interface GameSnapshot {
   crisisAI: CrisisAIResult;
   /** Online learned meta-layer that combines all sub-system outputs */
   metaCombiner: MetaCombinerResult;
+  /** Live accuracy race between MetaCombiner, CrisisAI, and Ensemble Vote */
+  race: RaceState;
 }
 
 export interface UserAccount {

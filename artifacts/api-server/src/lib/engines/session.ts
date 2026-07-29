@@ -22,6 +22,7 @@ import { MetaAI, buildMetaFeatures } from "./meta-ai.js";
 import { ObserverMasterAI } from "./observer.js";
 import { CrisisAI, type CrisisResult, type ExpertShoeData } from "./crisis-ai.js";
 import { MetaCombiner, type MetaCombinerInput, type MetaCombinerResult } from "./meta-combiner.js";
+import { RaceTracker, type RaceState } from "./race.js";
 
 type Side = "B" | "P";
 type HandValue = "B" | "P" | "T";
@@ -65,6 +66,7 @@ export interface GameSnapshot {
   };
   crisisAI: CrisisResult;
   metaCombiner: MetaCombinerResult;
+  race: RaceState;
 }
 
 // ── Look-ahead v1 (depth=1) — in-process branch simulation ──────────────────
@@ -178,6 +180,7 @@ export class GameSession {
   private observer = new ObserverMasterAI();
   private crisisAI = new CrisisAI();
   private metaCombiner = new MetaCombiner();
+  private race = new RaceTracker();
   private history: HandValue[] = [];
 
   private _pendingFeatureX: number[] | null = null;
@@ -196,8 +199,9 @@ export class GameSession {
 
     const actual = v === "T" ? null : (v as Side);
 
-    // 0. Save undo state for MetaCombiner before mutating anything
+    // 0. Save undo state before mutating anything
     this.metaCombiner.saveState();
+    this.race.saveState();
 
     // 1. Capture what the regime currently predicts (before scoring)
     //    — this is the "main prediction" for the hand being entered
@@ -259,7 +263,10 @@ export class GameSession {
       regimeNow.volatilityIndex,  // v2: volatility-aware scoring
     );
 
-    // 5. Generate new predictions
+    // 5. Score the race tracker against the resolved outcome (uses predictions captured last hand)
+    this.race.scoreHand(actual);
+
+    // 6. Generate new predictions
     this._captureNewPredictions();
     return this.getSnapshot();
   }
@@ -277,6 +284,7 @@ export class GameSession {
     this.observer.undoLast();
     this.crisisAI.undoLast();
     this.metaCombiner.undoLast();
+    this.race.undoLast();
     this._captureNewPredictions();
     return this.getSnapshot();
   }
@@ -293,6 +301,7 @@ export class GameSession {
     this.observer.reset();
     this.crisisAI.reset();
     this.metaCombiner.reset();
+    this.race.reset();
     this._pendingFeatureX = null;
     this._pendingLookAhead = { active: false, verdict: null, bias: 0, strength: 0, recentAcc: null, avgP: 0, avgB: 0 };
     this._pendingLegacyLookAhead = { active: false, verdict: null, bias: 0, strength: 0, recentAcc: null, avgP: 0, avgB: 0 };
@@ -330,6 +339,7 @@ export class GameSession {
       },
       crisisAI: this.crisisAI.getResult(),
       metaCombiner: { ...this._pendingMetaCombiner },
+      race: this.race.getState(),
     };
   }
 
@@ -444,6 +454,14 @@ export class GameSession {
       volatilityIndex: regimeVerdict.volatilityIndex,
     };
     this._pendingMetaCombiner = this.metaCombiner.captureFeatures(metaCombinerInput);
+
+    // ── Race tracker — capture this hand's predictions for all 3 contestants ──
+    const mcRacePred = this._pendingMetaCombiner.prediction === "WAIT"
+      ? null
+      : (this._pendingMetaCombiner.prediction as Side);
+    const crisisRacePred = crisisResult.backgroundPrediction as Side | null;
+    const ensembleRacePred = regimeVerdict.ensembleVerdict as Side | null;
+    this.race.capturePredictions(mcRacePred, crisisRacePred, ensembleRacePred);
   }
 }
 
