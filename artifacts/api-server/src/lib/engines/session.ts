@@ -472,67 +472,28 @@ export class GameSession {
     const ensembleRacePred = regimeVerdict.ensembleVerdict as Side | null;
     this.race.capturePredictions(mcRacePred, crisisRacePred, ensembleRacePred);
 
-    // ── Oracle AI — synthesize all signals into a single final verdict ────────
-    const raceState = this.race.getState();
-    const totalExperts = 21; // 10 core + 11 bots tracked by regime
-
+    // ── Oracle AI — synthesize the 4 key signals into a single final verdict ──
+    // Signal 1: Main Prediction (regime.decision)
+    // Signal 2: Ensemble Vote  (regime.ensembleVerdict)
+    // Signal 3: Crisis AI      (active override or background)
+    // Signal 4: Meta Combiner  (online LR that already fuses sub-engines)
     const oracleInput: OracleInput = {
       handCount: this.history.length,
+      consecutiveLosses: crisisResult.consecutiveLosses,
 
-      mcPrediction: this._pendingMetaCombiner.prediction,
-      mcPPlayer: this._pendingMetaCombiner.pPlayer,
-      mcConfidence: this._pendingMetaCombiner.confidence,
-      mcRecentAccuracy: this._pendingMetaCombiner.recentAccuracy,
-      mcConvergenceCount: this._pendingMetaCombiner.convergenceCount,
-      mcConvergenceTotal: this._pendingMetaCombiner.convergenceTotal,
+      regimeDecision: regimeVerdict.decision,
+
+      ensembleVerdict: regimeVerdict.ensembleVerdict,
+      ensemblePercent: regimeVerdict.ensemblePercent,
 
       crisisActive: crisisResult.active,
       crisisPrediction: crisisResult.prediction,
       crisisBackgroundPrediction: crisisResult.backgroundPrediction,
       crisisConfidence: crisisResult.confidence,
-      crisisConsecutiveLosses: crisisResult.consecutiveLosses,
 
-      ensembleVerdict: regimeVerdict.ensembleVerdict,
-      ensemblePercent: regimeVerdict.ensemblePercent,
-      regimeDecision: regimeVerdict.decision,
-      bothAgree: regimeVerdict.bothAgree,
-      bothAgreeSide: regimeVerdict.bothAgreeSide,
-      agreeCount: regimeVerdict.agreeCount,
-      totalExperts,
-      isLocked: regimeVerdict.isLocked,
-      isSplit: regimeVerdict.isSplit,
-      volatilityIndex: regimeVerdict.volatilityIndex,
-      shadowLeaderPred: regimeVerdict.shadowLeaderPred,
-
-      metaAIDecision: metaPred.pPlayer >= 0.55 ? "P" : metaPred.pPlayer <= 0.45 ? "B" : "WAIT",
-      metaAIPPlayer: metaPred.pPlayer,
-      metaAIAccuracy: this.metaAI.getRecentAccuracy(),
-      metaAISeen: this.metaAI.getStats().seen,
-
-      observerDecision: observerVerdict.decision,
-      observerWR: observerVerdict.wr,
-      observerIsFallback: observerVerdict.isFallback,
-
-      laVerdict: laResult.verdict,
-      laBias: laResult.bias,
-      laStrength: laResult.strength,
-      laRecentAcc: laResult.recentAcc,
-
-      la2Verdict: legacyResult.verdict,
-      la2Bias: legacyResult.bias,
-      la2Strength: legacyResult.strength,
-
-      raceActive: raceState.active,
-      raceChampion: raceState.champion,
-      raceChampionStreak: raceState.championStreak,
-      raceAllAgree: raceState.allAgree,
-      raceAgreeSide: raceState.agreeSide,
-      raceMCAccuracy: raceState.metaCombiner.rollingAccuracy,
-      raceCrisisAccuracy: raceState.crisisAI.rollingAccuracy,
-      raceEnsembleAccuracy: raceState.ensemble.rollingAccuracy,
-      raceMCPrediction: raceState.metaCombiner.prediction,
-      raceCrisisPrediction: raceState.crisisAI.prediction,
-      raceEnsemblePrediction: raceState.ensemble.prediction,
+      mcPrediction: this._pendingMetaCombiner.prediction,
+      mcConfidence: this._pendingMetaCombiner.confidence,
+      mcRecentAccuracy: this._pendingMetaCombiner.recentAccuracy,
     };
 
     this._pendingOracle = computeOracle(oracleInput);

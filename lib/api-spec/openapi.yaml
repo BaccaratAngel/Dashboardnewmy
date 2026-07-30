@@ -829,10 +829,10 @@ components:
           description: Total non-null directional signals considered
         championAligned:
           type: boolean
-          description: True when the current race champion prediction matches the verdict
+          description: True when Meta Combiner (the most reliable of the 4 signals) aligns with the verdict
         consensusPulse:
           type: boolean
-          description: True when the race tracker fires its all-agree pulse
+          description: True when 3 or more of the 4 signals agree on the same side
         waitReason:
           type: ["string", "null"]
           description: If verdict is WAIT, the primary reason why
