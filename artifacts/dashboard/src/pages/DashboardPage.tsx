@@ -10,7 +10,7 @@ import {
   useLogout,
   useHeartbeat,
 } from '@workspace/api-client-react';
-import type { GameSnapshot, ExpertStats, CrisisAIResult, MetaCombinerResult, RaceState, RaceContestantStats, RegimeState } from '@workspace/api-client-react';
+import type { GameSnapshot, ExpertStats, CrisisAIResult, MetaCombinerResult, RaceState, RaceContestantStats, RegimeState, OracleResult } from '@workspace/api-client-react';
 import { cn } from '@/lib/utils';
 
 // ── Color & label helpers ─────────────────────────────────────────────────────
@@ -869,6 +869,144 @@ function MetaCombinerPanel({ mc, race }: { mc: MetaCombinerResult; race?: RaceSt
   );
 }
 
+// ── Oracle AI Panel ───────────────────────────────────────────────────────────
+
+function OracleAIPanel({ oracle }: { oracle: OracleResult }) {
+  const isWait = oracle.verdict === 'WAIT';
+  const isPlayer = oracle.verdict === 'P';
+  const isBanker = oracle.verdict === 'B';
+
+  const verdictColor = isPlayer ? '#22d3ee' : isBanker ? '#f87171' : '#71717a';
+  const verdictGlow  = isPlayer
+    ? '0 0 30px rgba(34,211,238,0.55), 0 0 60px rgba(34,211,238,0.25)'
+    : isBanker
+    ? '0 0 30px rgba(248,113,113,0.55), 0 0 60px rgba(248,113,113,0.25)'
+    : 'none';
+
+  const confColor = oracle.confidence === 'HIGH' ? '#4ade80'
+    : oracle.confidence === 'MED' ? '#facc15' : '#71717a';
+
+  const borderColor = isPlayer ? 'rgba(34,211,238,0.5)'
+    : isBanker ? 'rgba(248,113,113,0.5)'
+    : 'rgba(255,255,255,0.08)';
+
+  const bgColor = isPlayer ? 'rgba(34,211,238,0.04)'
+    : isBanker ? 'rgba(248,113,113,0.04)'
+    : 'rgba(255,255,255,0.01)';
+
+  const pctOfMax = Math.min(Math.abs(oracle.netScore) / 8, 1);
+  const barColor = isPlayer ? '#22d3ee' : isBanker ? '#f87171' : '#3f3f46';
+
+  return (
+    <div className="rounded-sm border flex flex-col overflow-hidden"
+      style={{
+        backgroundColor: bgColor,
+        borderColor,
+        boxShadow: !isWait ? `0 0 20px ${isPlayer ? 'rgba(34,211,238,0.12)' : 'rgba(248,113,113,0.12)'}` : 'none',
+        transition: 'border-color 0.5s, box-shadow 0.5s',
+      }}>
+
+      {/* Header */}
+      <div className="px-4 py-2 flex items-center justify-between"
+        style={{ borderBottom: `1px solid ${borderColor}`, backgroundColor: isWait ? 'rgba(255,255,255,0.02)' : bgColor }}>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold tracking-widest" style={{ color: '#e2e8f0' }}>
+            ◈ ORACLE AI
+          </span>
+          <span className="text-xs px-1.5 py-0 rounded-sm font-bold tracking-wider"
+            style={{ color: confColor, backgroundColor: `${confColor}18`, border: `1px solid ${confColor}35`, fontSize: 9 }}>
+            {oracle.confidence}
+          </span>
+          {oracle.consensusPulse && (
+            <span className="text-xs px-1.5 py-0 rounded-sm font-bold"
+              style={{ color: '#22d3ee', backgroundColor: 'rgba(34,211,238,0.1)', border: '1px solid rgba(34,211,238,0.3)', fontSize: 9, animation: 'pulse 1.5s infinite' }}>
+              CONSENSUS
+            </span>
+          )}
+          {oracle.championAligned && !isWait && (
+            <span className="text-xs font-bold" style={{ color: '#facc15', fontSize: 9 }}>🏆 CHAMP</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {!isWait && (
+            <span className="text-xs tabular-nums font-bold"
+              style={{ color: '#52525b', fontFamily: 'monospace' }}>
+              {oracle.agreementCount}/{oracle.totalSignals} signals
+            </span>
+          )}
+          <span className="text-xs tabular-nums" style={{ color: '#3f3f46', fontFamily: 'monospace' }}>
+            {oracle.netScore > 0 ? '+' : ''}{oracle.netScore.toFixed(2)}
+          </span>
+        </div>
+      </div>
+
+      {/* Verdict */}
+      <div className="flex flex-col items-center gap-3 py-5 px-4">
+        {!isWait ? (
+          <>
+            <div className="text-5xl font-black tracking-wider"
+              style={{ color: verdictColor, textShadow: verdictGlow }}>
+              {isPlayer ? 'PLAYER' : 'BANKER'}
+            </div>
+            <div className="text-xs font-bold tracking-widest" style={{ color: verdictColor, opacity: 0.7 }}>
+              BET {isPlayer ? 'PLAYER' : 'BANKER'} NEXT HAND
+            </div>
+
+            {/* Conviction bar */}
+            <div className="w-full max-w-xs">
+              <div className="flex justify-between mb-1">
+                <span className="text-xs" style={{ color: '#3f3f46' }}>Signal strength</span>
+                <span className="text-xs tabular-nums" style={{ color: confColor, fontFamily: 'monospace' }}>
+                  {Math.round(pctOfMax * 100)}%
+                </span>
+              </div>
+              <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(255,255,255,0.06)' }}>
+                <div className="h-full rounded-full transition-all duration-700"
+                  style={{
+                    width: `${pctOfMax * 100}%`,
+                    backgroundColor: barColor,
+                    boxShadow: `0 0 6px ${barColor}80`,
+                  }} />
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="text-4xl font-black tracking-widest" style={{ color: '#52525b' }}>
+              WAIT
+            </div>
+            <div className="text-xs tracking-wider text-center max-w-xs" style={{ color: '#71717a' }}>
+              {oracle.waitReason ?? 'Skip this hand'}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Top reasons */}
+      {oracle.topReasons.length > 0 && (
+        <div className="px-4 pb-3 flex flex-wrap gap-1.5">
+          {oracle.topReasons.map((r, i) => {
+            const isP = r.endsWith('→P');
+            const isB = r.endsWith('→B');
+            const label = r.replace(/→[PB]$/, '');
+            return (
+              <span key={i} className="text-xs px-1.5 py-0.5 rounded-sm font-mono"
+                style={{
+                  color: isP ? '#22d3ee' : isB ? '#f87171' : '#71717a',
+                  backgroundColor: isP ? 'rgba(34,211,238,0.07)' : isB ? 'rgba(248,113,113,0.07)' : 'rgba(255,255,255,0.04)',
+                  border: `1px solid ${isP ? 'rgba(34,211,238,0.2)' : isB ? 'rgba(248,113,113,0.2)' : 'rgba(255,255,255,0.08)'}`,
+                  fontSize: 9,
+                }}>
+                {label}{isP ? ' ▲P' : isB ? ' ▼B' : ''}
+              </span>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -1013,6 +1151,11 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* ── ORACLE AI PANEL (Final Prediction) ───────────────────── */}
+        {snapshot?.oracleAI && (
+          <OracleAIPanel oracle={snapshot.oracleAI} />
+        )}
 
         {/* ── META REGIME TRACKER PANEL ──────────────────────────────── */}
         {regime && (

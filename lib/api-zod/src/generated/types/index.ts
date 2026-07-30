@@ -22,6 +22,7 @@ export * from './metaCombinerResult';
 export * from './observerMemory';
 export * from './observerResult';
 export * from './observerSubSystem';
+export * from './oracleResult';
 export * from './raceContestantStats';
 export * from './raceState';
 export * from './regimeState';

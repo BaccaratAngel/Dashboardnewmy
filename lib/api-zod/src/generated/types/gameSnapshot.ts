@@ -11,6 +11,7 @@ import type { MetaAIResult } from './metaAIResult';
 import type { MetaCombinerResult } from './metaCombinerResult';
 import type { ObserverMemory } from './observerMemory';
 import type { ObserverResult } from './observerResult';
+import type { OracleResult } from './oracleResult';
 import type { RaceState } from './raceState';
 import type { RegimeState } from './regimeState';
 
@@ -31,4 +32,6 @@ export interface GameSnapshot {
   metaCombiner: MetaCombinerResult;
   /** Live accuracy race between MetaCombiner, CrisisAI, and Ensemble Vote */
   race: RaceState;
+  /** Final Prediction AI — synthesizes all engine signals into a single BET/WAIT verdict */
+  oracleAI: OracleResult;
 }

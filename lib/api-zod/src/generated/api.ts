@@ -524,7 +524,18 @@ export const GetSnapshotResponse = zod.object({
   "rollingAccuracy": zod.number().nullable().describe('Rolling 10-hand accuracy 0-1, null if fewer than 3 hands'),
   "winStreak": zod.number().describe('Current consecutive correct predictions')
 })
-}).describe('Live accuracy race between MetaCombiner, CrisisAI, and Ensemble Vote')
+}).describe('Live accuracy race between MetaCombiner, CrisisAI, and Ensemble Vote'),
+  "oracleAI": zod.object({
+  "verdict": zod.string().describe('\"P\", \"B\", or \"WAIT\" — the final synthesized call'),
+  "confidence": zod.string().describe('\"LOW\", \"MED\", or \"HIGH\"'),
+  "netScore": zod.number().describe('Weighted directional net score. Positive = Player lean, negative = Banker lean.'),
+  "agreementCount": zod.number().describe('How many non-null signals agree with the verdict direction'),
+  "totalSignals": zod.number().describe('Total non-null directional signals considered'),
+  "championAligned": zod.boolean().describe('True when the current race champion prediction matches the verdict'),
+  "consensusPulse": zod.boolean().describe('True when the race tracker fires its all-agree pulse'),
+  "waitReason": zod.string().nullable().describe('If verdict is WAIT, the primary reason why'),
+  "topReasons": zod.array(zod.string()).describe('Up to 4 key contributing factors for the verdict')
+}).describe('Final Prediction AI — synthesizes all engine signals into a single BET\/WAIT verdict')
 })
 
 
@@ -997,7 +1008,18 @@ export const SubmitInputResponse = zod.object({
   "rollingAccuracy": zod.number().nullable().describe('Rolling 10-hand accuracy 0-1, null if fewer than 3 hands'),
   "winStreak": zod.number().describe('Current consecutive correct predictions')
 })
-}).describe('Live accuracy race between MetaCombiner, CrisisAI, and Ensemble Vote')
+}).describe('Live accuracy race between MetaCombiner, CrisisAI, and Ensemble Vote'),
+  "oracleAI": zod.object({
+  "verdict": zod.string().describe('\"P\", \"B\", or \"WAIT\" — the final synthesized call'),
+  "confidence": zod.string().describe('\"LOW\", \"MED\", or \"HIGH\"'),
+  "netScore": zod.number().describe('Weighted directional net score. Positive = Player lean, negative = Banker lean.'),
+  "agreementCount": zod.number().describe('How many non-null signals agree with the verdict direction'),
+  "totalSignals": zod.number().describe('Total non-null directional signals considered'),
+  "championAligned": zod.boolean().describe('True when the current race champion prediction matches the verdict'),
+  "consensusPulse": zod.boolean().describe('True when the race tracker fires its all-agree pulse'),
+  "waitReason": zod.string().nullable().describe('If verdict is WAIT, the primary reason why'),
+  "topReasons": zod.array(zod.string()).describe('Up to 4 key contributing factors for the verdict')
+}).describe('Final Prediction AI — synthesizes all engine signals into a single BET\/WAIT verdict')
 })
 
 
@@ -1466,7 +1488,18 @@ export const UndoInputResponse = zod.object({
   "rollingAccuracy": zod.number().nullable().describe('Rolling 10-hand accuracy 0-1, null if fewer than 3 hands'),
   "winStreak": zod.number().describe('Current consecutive correct predictions')
 })
-}).describe('Live accuracy race between MetaCombiner, CrisisAI, and Ensemble Vote')
+}).describe('Live accuracy race between MetaCombiner, CrisisAI, and Ensemble Vote'),
+  "oracleAI": zod.object({
+  "verdict": zod.string().describe('\"P\", \"B\", or \"WAIT\" — the final synthesized call'),
+  "confidence": zod.string().describe('\"LOW\", \"MED\", or \"HIGH\"'),
+  "netScore": zod.number().describe('Weighted directional net score. Positive = Player lean, negative = Banker lean.'),
+  "agreementCount": zod.number().describe('How many non-null signals agree with the verdict direction'),
+  "totalSignals": zod.number().describe('Total non-null directional signals considered'),
+  "championAligned": zod.boolean().describe('True when the current race champion prediction matches the verdict'),
+  "consensusPulse": zod.boolean().describe('True when the race tracker fires its all-agree pulse'),
+  "waitReason": zod.string().nullable().describe('If verdict is WAIT, the primary reason why'),
+  "topReasons": zod.array(zod.string()).describe('Up to 4 key contributing factors for the verdict')
+}).describe('Final Prediction AI — synthesizes all engine signals into a single BET\/WAIT verdict')
 })
 
 
@@ -1935,7 +1968,18 @@ export const ResetGameResponse = zod.object({
   "rollingAccuracy": zod.number().nullable().describe('Rolling 10-hand accuracy 0-1, null if fewer than 3 hands'),
   "winStreak": zod.number().describe('Current consecutive correct predictions')
 })
-}).describe('Live accuracy race between MetaCombiner, CrisisAI, and Ensemble Vote')
+}).describe('Live accuracy race between MetaCombiner, CrisisAI, and Ensemble Vote'),
+  "oracleAI": zod.object({
+  "verdict": zod.string().describe('\"P\", \"B\", or \"WAIT\" — the final synthesized call'),
+  "confidence": zod.string().describe('\"LOW\", \"MED\", or \"HIGH\"'),
+  "netScore": zod.number().describe('Weighted directional net score. Positive = Player lean, negative = Banker lean.'),
+  "agreementCount": zod.number().describe('How many non-null signals agree with the verdict direction'),
+  "totalSignals": zod.number().describe('Total non-null directional signals considered'),
+  "championAligned": zod.boolean().describe('True when the current race champion prediction matches the verdict'),
+  "consensusPulse": zod.boolean().describe('True when the race tracker fires its all-agree pulse'),
+  "waitReason": zod.string().nullable().describe('If verdict is WAIT, the primary reason why'),
+  "topReasons": zod.array(zod.string()).describe('Up to 4 key contributing factors for the verdict')
+}).describe('Final Prediction AI — synthesizes all engine signals into a single BET\/WAIT verdict')
 })
 
 
@@ -2408,7 +2452,18 @@ export const SetWindowResponse = zod.object({
   "rollingAccuracy": zod.number().nullable().describe('Rolling 10-hand accuracy 0-1, null if fewer than 3 hands'),
   "winStreak": zod.number().describe('Current consecutive correct predictions')
 })
-}).describe('Live accuracy race between MetaCombiner, CrisisAI, and Ensemble Vote')
+}).describe('Live accuracy race between MetaCombiner, CrisisAI, and Ensemble Vote'),
+  "oracleAI": zod.object({
+  "verdict": zod.string().describe('\"P\", \"B\", or \"WAIT\" — the final synthesized call'),
+  "confidence": zod.string().describe('\"LOW\", \"MED\", or \"HIGH\"'),
+  "netScore": zod.number().describe('Weighted directional net score. Positive = Player lean, negative = Banker lean.'),
+  "agreementCount": zod.number().describe('How many non-null signals agree with the verdict direction'),
+  "totalSignals": zod.number().describe('Total non-null directional signals considered'),
+  "championAligned": zod.boolean().describe('True when the current race champion prediction matches the verdict'),
+  "consensusPulse": zod.boolean().describe('True when the race tracker fires its all-agree pulse'),
+  "waitReason": zod.string().nullable().describe('If verdict is WAIT, the primary reason why'),
+  "topReasons": zod.array(zod.string()).describe('Up to 4 key contributing factors for the verdict')
+}).describe('Final Prediction AI — synthesizes all engine signals into a single BET\/WAIT verdict')
 })
 
 

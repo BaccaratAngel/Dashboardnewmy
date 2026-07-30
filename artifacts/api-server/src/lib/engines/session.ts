@@ -23,6 +23,7 @@ import { ObserverMasterAI } from "./observer.js";
 import { CrisisAI, type CrisisResult, type ExpertShoeData } from "./crisis-ai.js";
 import { MetaCombiner, type MetaCombinerInput, type MetaCombinerResult } from "./meta-combiner.js";
 import { RaceTracker, type RaceState } from "./race.js";
+import { computeOracle, type OracleResult, type OracleInput } from "./oracle.js";
 
 type Side = "B" | "P";
 type HandValue = "B" | "P" | "T";
@@ -67,6 +68,7 @@ export interface GameSnapshot {
   crisisAI: CrisisResult;
   metaCombiner: MetaCombinerResult;
   race: RaceState;
+  oracleAI: OracleResult;
 }
 
 // ── Look-ahead v1 (depth=1) — in-process branch simulation ──────────────────
@@ -191,6 +193,12 @@ export class GameSession {
     decision: "WAIT", wr: null, reasoning: "Insufficient Data", isFallback: true
   };
   private _pendingMetaCombiner: MetaCombinerResult = { ..._DEFAULT_META_COMBINER_RESULT };
+  private _pendingOracle: OracleResult = {
+    verdict: "WAIT", confidence: "LOW", netScore: 0,
+    agreementCount: 0, totalSignals: 0,
+    championAligned: false, consensusPulse: false,
+    waitReason: "Collecting data", topReasons: [],
+  };
 
   /** Process a new hand result and update all local engines immediately */
   handleInput(value: string): GameSnapshot {
@@ -340,6 +348,7 @@ export class GameSession {
       crisisAI: this.crisisAI.getResult(),
       metaCombiner: { ...this._pendingMetaCombiner },
       race: this.race.getState(),
+      oracleAI: { ...this._pendingOracle },
     };
   }
 
@@ -462,6 +471,71 @@ export class GameSession {
     const crisisRacePred = crisisResult.backgroundPrediction as Side | null;
     const ensembleRacePred = regimeVerdict.ensembleVerdict as Side | null;
     this.race.capturePredictions(mcRacePred, crisisRacePred, ensembleRacePred);
+
+    // ── Oracle AI — synthesize all signals into a single final verdict ────────
+    const raceState = this.race.getState();
+    const totalExperts = 21; // 10 core + 11 bots tracked by regime
+
+    const oracleInput: OracleInput = {
+      handCount: this.history.length,
+
+      mcPrediction: this._pendingMetaCombiner.prediction,
+      mcPPlayer: this._pendingMetaCombiner.pPlayer,
+      mcConfidence: this._pendingMetaCombiner.confidence,
+      mcRecentAccuracy: this._pendingMetaCombiner.recentAccuracy,
+      mcConvergenceCount: this._pendingMetaCombiner.convergenceCount,
+      mcConvergenceTotal: this._pendingMetaCombiner.convergenceTotal,
+
+      crisisActive: crisisResult.active,
+      crisisPrediction: crisisResult.prediction,
+      crisisBackgroundPrediction: crisisResult.backgroundPrediction,
+      crisisConfidence: crisisResult.confidence,
+      crisisConsecutiveLosses: crisisResult.consecutiveLosses,
+
+      ensembleVerdict: regimeVerdict.ensembleVerdict,
+      ensemblePercent: regimeVerdict.ensemblePercent,
+      regimeDecision: regimeVerdict.decision,
+      bothAgree: regimeVerdict.bothAgree,
+      bothAgreeSide: regimeVerdict.bothAgreeSide,
+      agreeCount: regimeVerdict.agreeCount,
+      totalExperts,
+      isLocked: regimeVerdict.isLocked,
+      isSplit: regimeVerdict.isSplit,
+      volatilityIndex: regimeVerdict.volatilityIndex,
+      shadowLeaderPred: regimeVerdict.shadowLeaderPred,
+
+      metaAIDecision: metaPred.pPlayer >= 0.55 ? "P" : metaPred.pPlayer <= 0.45 ? "B" : "WAIT",
+      metaAIPPlayer: metaPred.pPlayer,
+      metaAIAccuracy: this.metaAI.getRecentAccuracy(),
+      metaAISeen: this.metaAI.getStats().seen,
+
+      observerDecision: observerVerdict.decision,
+      observerWR: observerVerdict.wr,
+      observerIsFallback: observerVerdict.isFallback,
+
+      laVerdict: laResult.verdict,
+      laBias: laResult.bias,
+      laStrength: laResult.strength,
+      laRecentAcc: laResult.recentAcc,
+
+      la2Verdict: legacyResult.verdict,
+      la2Bias: legacyResult.bias,
+      la2Strength: legacyResult.strength,
+
+      raceActive: raceState.active,
+      raceChampion: raceState.champion,
+      raceChampionStreak: raceState.championStreak,
+      raceAllAgree: raceState.allAgree,
+      raceAgreeSide: raceState.agreeSide,
+      raceMCAccuracy: raceState.metaCombiner.rollingAccuracy,
+      raceCrisisAccuracy: raceState.crisisAI.rollingAccuracy,
+      raceEnsembleAccuracy: raceState.ensemble.rollingAccuracy,
+      raceMCPrediction: raceState.metaCombiner.prediction,
+      raceCrisisPrediction: raceState.crisisAI.prediction,
+      raceEnsemblePrediction: raceState.ensemble.prediction,
+    };
+
+    this._pendingOracle = computeOracle(oracleInput);
   }
 }
 

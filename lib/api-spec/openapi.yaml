@@ -773,7 +773,7 @@ components:
 
     GameSnapshot:
       type: object
-      required: [handCount, history, regime, lookAhead, legacyLookAhead, metaAI, observer, observerMemory, crisisAI, metaCombiner, race]
+      required: [handCount, history, regime, lookAhead, legacyLookAhead, metaAI, observer, observerMemory, crisisAI, metaCombiner, race, oracleAI]
       properties:
         handCount:
           type: integer
@@ -804,6 +804,43 @@ components:
         race:
           $ref: "#/components/schemas/RaceState"
           description: Live accuracy race between MetaCombiner, CrisisAI, and Ensemble Vote
+        oracleAI:
+          $ref: "#/components/schemas/OracleResult"
+          description: Final Prediction AI — synthesizes all engine signals into a single BET/WAIT verdict
+
+    OracleResult:
+      type: object
+      required: [verdict, confidence, netScore, agreementCount, totalSignals, championAligned, consensusPulse, waitReason, topReasons]
+      properties:
+        verdict:
+          type: string
+          description: '"P", "B", or "WAIT" — the final synthesized call'
+        confidence:
+          type: string
+          description: '"LOW", "MED", or "HIGH"'
+        netScore:
+          type: number
+          description: Weighted directional net score. Positive = Player lean, negative = Banker lean.
+        agreementCount:
+          type: integer
+          description: How many non-null signals agree with the verdict direction
+        totalSignals:
+          type: integer
+          description: Total non-null directional signals considered
+        championAligned:
+          type: boolean
+          description: True when the current race champion prediction matches the verdict
+        consensusPulse:
+          type: boolean
+          description: True when the race tracker fires its all-agree pulse
+        waitReason:
+          type: ["string", "null"]
+          description: If verdict is WAIT, the primary reason why
+        topReasons:
+          type: array
+          items:
+            type: string
+          description: Up to 4 key contributing factors for the verdict
 
     RaceContestantStats:
       type: object

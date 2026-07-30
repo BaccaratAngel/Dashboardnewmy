@@ -315,6 +315,30 @@ export interface RaceState {
   ensemble: RaceContestantStats;
 }
 
+export interface OracleResult {
+  /** "P", "B", or "WAIT" — the final synthesized call */
+  verdict: string;
+  /** "LOW", "MED", or "HIGH" */
+  confidence: string;
+  /** Weighted directional net score. Positive = Player lean, negative = Banker lean. */
+  netScore: number;
+  /** How many non-null signals agree with the verdict direction */
+  agreementCount: number;
+  /** Total non-null directional signals considered */
+  totalSignals: number;
+  /** True when the current race champion prediction matches the verdict */
+  championAligned: boolean;
+  /** True when the race tracker fires its all-agree pulse */
+  consensusPulse: boolean;
+  /**
+     * If verdict is WAIT, the primary reason why
+     * @nullable
+     */
+  waitReason: string | null;
+  /** Up to 4 key contributing factors for the verdict */
+  topReasons: string[];
+}
+
 export interface GameSnapshot {
   handCount: number;
   /** Array of B, P, T outcomes entered so far */
@@ -332,6 +356,8 @@ export interface GameSnapshot {
   metaCombiner: MetaCombinerResult;
   /** Live accuracy race between MetaCombiner, CrisisAI, and Ensemble Vote */
   race: RaceState;
+  /** Final Prediction AI — synthesizes all engine signals into a single BET/WAIT verdict */
+  oracleAI: OracleResult;
 }
 
 export interface UserAccount {

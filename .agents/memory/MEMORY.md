@@ -6,3 +6,5 @@
 - [Crisis AI & regime upgrades](crisis-ai-upgrade.md) — CrisisAI engine added; handleInput is now async; lock breaks hard at 3 losses; shadow promotion auto-promotes on 3L/2W condition.
 - [MetaCombiner wiring](metacombiner-wiring.md) — engine file complete (22-dim online LR); wired into session.ts with saveState/onLabeled/captureFeatures/undoLast/reset; OpenAPI spec + codegen done; dashboard panel added.
 - [Secret-backed admin runtime](secret-backed-admin-runtime.md) — a stored secret can still arrive empty in a running workflow; restart after setting it and validate presence without logging its value.
+- [RaceTracker & EnsembleVoteBlock](race-ensemble-panel.md) — RaceTracker fully wired; EnsembleVoteBlock extracted as proper React component (hooks-in-IIFE is invalid); race indicators on all 3 panels.
+- [OracleAI engine](oracle-ai.md) — pure compute engine in oracle.ts; wired at end of _captureNewPredictions(); reliability-weighted directional scoring; WAIT overrides for crisis/split/volatility/cold-start.
