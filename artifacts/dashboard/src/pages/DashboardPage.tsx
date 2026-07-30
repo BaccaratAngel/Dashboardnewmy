@@ -1152,11 +1152,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ── ORACLE AI PANEL (Final Prediction) ───────────────────── */}
-        {snapshot?.oracleAI && (
-          <OracleAIPanel oracle={snapshot.oracleAI} />
-        )}
-
         {/* ── META REGIME TRACKER PANEL ──────────────────────────────── */}
         {regime && (
           <div className="rounded-sm border flex flex-col overflow-hidden"
@@ -1393,6 +1388,13 @@ export default function DashboardPage() {
 
             {/* Ensemble Voting Block */}
             <EnsembleVoteBlock regime={regime} race={snapshot?.race} totalExperts={totalExperts} />
+
+            {/* ── ORACLE AI PANEL (Final Prediction) ─────────────────── */}
+            {snapshot?.oracleAI && (
+              <div className="mx-4 mb-2">
+                <OracleAIPanel oracle={snapshot.oracleAI} />
+              </div>
+            )}
 
             {/* Regime Switch Timeline */}
             {(regime.switchTimeline?.length ?? 0) > 0 && (
