@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
+import { AutoScanPanel } from '@/components/AutoScanPanel';
 import {
   useGetMe,
   useGetSnapshot,
@@ -1503,6 +1504,12 @@ export default function DashboardPage() {
 
           </div>
         )}
+
+        {/* ── AUTO SCAN PANEL ───────────────────────────────────────── */}
+        <AutoScanPanel
+          onDetected={(outcome) => handleInput(outcome)}
+          isMutating={isMutating}
+        />
 
         {/* ── INPUT AREA ────────────────────────────────────────────── */}
         <div className="rounded-sm border p-4 flex flex-col gap-3"
