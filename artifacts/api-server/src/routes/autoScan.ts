@@ -130,4 +130,43 @@ function detectOutcome(image: Jimp): "B" | "P" | "T" | null {
   return null;
 }
 
+// ── POST /game/auto-input ─────────────────────────────────────────────────────
+// Accepts:  JSON  { "value": "B" | "P" | "T" }
+// Auth:     Authorization: Bearer <token>
+// Used by MacroDroid accessibility trigger — no screenshot needed at all.
+router.post("/auto-input", async (req, res) => {
+  // Bearer token auth
+  const authHeader = (req.headers["authorization"] ?? "") as string;
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+
+  if (!token) {
+    res.status(401).json({ error: "Missing Authorization: Bearer <token> header" });
+    return;
+  }
+
+  let userId: number | null = null;
+  for (const [uid, tok] of scanTokens) {
+    if (tok === token) { userId = uid; break; }
+  }
+
+  if (userId === null) {
+    res.status(401).json({ error: "Invalid or expired token" });
+    return;
+  }
+
+  const { value } = req.body as { value?: string };
+  const outcome = (value ?? "").toUpperCase() as "B" | "P" | "T";
+
+  if (!["B", "P", "T"].includes(outcome)) {
+    res.status(400).json({ error: "value must be B, P, or T" });
+    return;
+  }
+
+  const session = getOrCreateSession(userId);
+  const snap = session.handleInput(outcome);
+  req.log.info({ userId, outcome }, "auto-input submitted outcome");
+
+  res.json({ submitted: true, outcome, handCount: snap.road?.length ?? 0 });
+});
+
 export default router;
