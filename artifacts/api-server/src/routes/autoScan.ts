@@ -13,10 +13,25 @@ import { getOrCreateSession } from "../lib/engines/session.js";
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
 
-// ── In-memory token store: userId → token ────────────────────────────────────
-// Tokens survive server restarts only within the same process. If the user
-// needs a fresh token they call GET /game/scan-token again.
+// ── In-memory stores ──────────────────────────────────────────────────────────
 const scanTokens = new Map<number, string>();
+
+// Deduplication: track last submitted outcome + time per user.
+// Same outcome within 20 s = duplicate from the same popup → reject.
+// Different outcome → always accept immediately (next hand started).
+// Same outcome after 20 s → accept (new hand with same result).
+const lastSubmit = new Map<number, { outcome: string; time: number }>();
+const DEDUP_MS = 20_000;
+
+function isDuplicate(userId: number, outcome: string): boolean {
+  const prev = lastSubmit.get(userId);
+  if (!prev) return false;
+  return prev.outcome === outcome && Date.now() - prev.time < DEDUP_MS;
+}
+
+function recordSubmit(userId: number, outcome: string) {
+  lastSubmit.set(userId, { outcome, time: Date.now() });
+}
 
 // ── GET /game/scan-token ─────────────────────────────────────────────────────
 // Returns (or generates) the bearer token for this user's auto-scan requests.
@@ -74,7 +89,14 @@ router.post("/auto-scan", upload.single("image"), async (req, res) => {
     return;
   }
 
-  // 4. Auto-submit to game session
+  // 4. Deduplication — same result within 20 s = same popup still showing
+  if (isDuplicate(userId, outcome)) {
+    res.json({ detected: outcome, submitted: false, message: "Duplicate suppressed — same result within 20 s." });
+    return;
+  }
+
+  // 5. Auto-submit to game session
+  recordSubmit(userId, outcome);
   const session = getOrCreateSession(userId);
   const snap = session.handleInput(outcome);
   req.log.info({ userId, outcome }, "auto-scan submitted outcome");
@@ -163,6 +185,13 @@ router.post("/auto-input", async (req, res) => {
     return;
   }
 
+  // Deduplication — same result within 20 s = duplicate popup trigger
+  if (isDuplicate(userId, outcome)) {
+    res.json({ submitted: false, outcome, message: "Duplicate suppressed — same result within 20 s." });
+    return;
+  }
+
+  recordSubmit(userId, outcome);
   const session = getOrCreateSession(userId);
   const snap = session.handleInput(outcome);
   req.log.info({ userId, outcome }, "auto-input submitted outcome");
