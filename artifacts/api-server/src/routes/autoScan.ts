@@ -86,8 +86,9 @@ router.post("/auto-scan", upload.single("image"), async (req, res) => {
 function detectOutcome(image: Jimp): "B" | "P" | "T" | null {
   const { width, height, data } = image.bitmap; // data = raw RGBA Buffer
 
-  // Scan top 55% of image, 5–95% width
-  const scanH  = Math.floor(height * 0.55);
+  // Scan ONLY top 35% of image — result banner is here (over dealer head).
+  // The permanent PLAYER/BANKER betting labels are in the bottom 40% and are ignored.
+  const scanH  = Math.floor(height * 0.35);
   const xFrom  = Math.floor(width  * 0.05);
   const xTo    = Math.floor(width  * 0.95);
 
