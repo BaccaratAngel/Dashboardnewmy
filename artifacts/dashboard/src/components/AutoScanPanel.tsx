@@ -6,6 +6,7 @@ type Outcome = 'P' | 'B' | 'T';
 interface AutoScanPanelProps {
   onDetected: (outcome: Outcome) => void;
   isMutating: boolean;
+  noHeader?: boolean;
 }
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -85,7 +86,7 @@ type PanelState = 'idle' | 'processing' | 'preview' | 'cooldown';
 const OUTCOME_LABEL: Record<Outcome, string> = { P: 'PLAYER', B: 'BANKER', T: 'TIE' };
 const OUTCOME_COLOR: Record<Outcome, string> = { P: '#22d3ee', B: '#f87171', T: '#4ade80' };
 
-export function AutoScanPanel({ onDetected, isMutating }: AutoScanPanelProps) {
+export function AutoScanPanel({ onDetected, isMutating, noHeader }: AutoScanPanelProps) {
   const [tab, setTab]                       = useState<Tab>('auto');
   const [panelState, setPanelState]         = useState<PanelState>('idle');
   const [pendingOutcome, setPendingOutcome] = useState<Outcome | null>(null);
@@ -184,25 +185,31 @@ export function AutoScanPanel({ onDetected, isMutating }: AutoScanPanelProps) {
   const oc           = (o: Outcome) => OUTCOME_COLOR[o];
   const hasClipboard = !!(navigator.clipboard && typeof (navigator.clipboard as { read?: unknown }).read === 'function');
 
-  return (
-    <div className="rounded-sm border flex flex-col overflow-hidden"
-      style={{ backgroundColor: '#09090f', borderColor: isPreview ? 'rgba(34,211,238,0.45)' : isProcessing ? 'rgba(250,204,21,0.3)' : 'rgba(255,255,255,0.1)', transition: 'border-color 0.3s' }}>
+  const tabBar = (
+    <div className="flex rounded-sm overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.1)' }}>
+      {(['auto', 'manual'] as Tab[]).map(t => (
+        <button key={t} onClick={() => { setTab(t); setErrorMsg(''); setNoResultMsg(''); }}
+          disabled={isPreview || isProcessing}
+          className="px-2.5 py-1 text-xs font-bold tracking-wider"
+          style={{ color: tab === t ? '#22d3ee' : '#52525b', backgroundColor: tab === t ? 'rgba(34,211,238,0.1)' : 'transparent', fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer', fontSize: 9 }}>
+          {t === 'auto' ? '🤖 AUTO' : '📸 MANUAL'}
+        </button>
+      ))}
+    </div>
+  );
 
-      {/* Header */}
-      <div className="px-4 py-2.5 flex items-center justify-between"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'rgba(34,211,238,0.025)' }}>
-        <span className="text-xs font-bold tracking-widest" style={{ color: '#22d3ee' }}>📡 AUTO SCAN</span>
-        <div className="flex rounded-sm overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.1)' }}>
-          {(['auto', 'manual'] as Tab[]).map(t => (
-            <button key={t} onClick={() => { setTab(t); setErrorMsg(''); setNoResultMsg(''); }}
-              disabled={isPreview || isProcessing}
-              className="px-2.5 py-1 text-xs font-bold tracking-wider"
-              style={{ color: tab === t ? '#22d3ee' : '#52525b', backgroundColor: tab === t ? 'rgba(34,211,238,0.1)' : 'transparent', fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer', fontSize: 9 }}>
-              {t === 'auto' ? '🤖 AUTO' : '📸 MANUAL'}
-            </button>
-          ))}
+  const innerBody = (
+    <>
+      {!noHeader && (
+        <div className="px-4 py-2.5 flex items-center justify-between"
+          style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'rgba(34,211,238,0.025)' }}>
+          <span className="text-xs font-bold tracking-widest" style={{ color: '#22d3ee' }}>📡 AUTO SCAN</span>
+          {tabBar}
         </div>
-      </div>
+      )}
+      {noHeader && (
+        <div className="px-4 pt-2.5 pb-1 flex justify-end">{tabBar}</div>
+      )}
 
       {/* Preview overlay */}
       {isPreview && pendingOutcome && (
@@ -365,6 +372,14 @@ export function AutoScanPanel({ onDetected, isMutating }: AutoScanPanelProps) {
           )}
         </div>
       )}
+    </>
+  );
+
+  if (noHeader) return innerBody;
+  return (
+    <div className="rounded-sm border flex flex-col overflow-hidden"
+      style={{ backgroundColor: '#09090f', borderColor: isPreview ? 'rgba(34,211,238,0.45)' : isProcessing ? 'rgba(250,204,21,0.3)' : 'rgba(255,255,255,0.1)', transition: 'border-color 0.3s' }}>
+      {innerBody}
     </div>
   );
 }

@@ -731,7 +731,7 @@ function EnsembleVoteBlock({ regime, race, totalExperts }: {
 
 // ── MetaCombiner Panel ────────────────────────────────────────────────────────
 
-function MetaCombinerPanel({ mc, race }: { mc: MetaCombinerResult; race?: RaceState }) {
+function MetaCombinerPanel({ mc, race, noHeader }: { mc: MetaCombinerResult; race?: RaceState; noHeader?: boolean }) {
   const { isChampion, isChallenger, stats, active: raceActive } = useRaceStatus(race, 'metaCombiner');
   const allAgree = race?.allAgree ?? false;
 
@@ -754,48 +754,8 @@ function MetaCombinerPanel({ mc, race }: { mc: MetaCombinerResult; race?: RaceSt
   const baseShadow = mc.prediction !== 'WAIT' ? '0 0 14px rgba(250,204,21,0.08)' : 'none';
   const containerExtra = raceContainerStyle(isChampion, isChallenger, allAgree, baseBorder, baseShadow);
 
-  return (
-    <div className="rounded-sm border flex flex-col overflow-hidden transition-all duration-500"
-      style={{ backgroundColor: '#08080f', ...containerExtra }}>
-
-      {/* Header */}
-      <div className="px-4 py-2 flex items-center justify-between"
-        style={{
-          borderBottom: `1px solid ${isChampion ? 'rgba(250,204,21,0.25)' : 'rgba(250,204,21,0.12)'}`,
-          backgroundColor: isChampion ? 'rgba(250,204,21,0.06)' : 'rgba(250,204,21,0.03)',
-        }}>
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold tracking-widest" style={{ color: isChampion ? '#facc15' : 'rgba(250,204,21,0.75)' }}>
-            ◈ META COMBINER
-          </span>
-          <span className="text-xs px-1.5 py-0 rounded-sm"
-            style={{ color: '#facc15', backgroundColor: 'rgba(250,204,21,0.08)', border: '1px solid rgba(250,204,21,0.2)', fontSize: 9 }}>
-            ONLINE LR
-          </span>
-        </div>
-        {raceActive ? (
-          <RaceAccuracyBadge
-            stats={stats}
-            isChampion={isChampion}
-            isChallenger={isChallenger}
-            championStreak={race?.championStreak ?? 0}
-            allAgree={allAgree}
-          />
-        ) : (
-          <div className="flex items-center gap-2">
-            {isWarm && acc !== null && (
-              <span className="text-xs tabular-nums"
-                style={{ color: acc >= 0.55 ? '#4ade80' : acc >= 0.48 ? '#facc15' : '#f87171', fontFamily: 'monospace' }}>
-                {Math.round(acc * 100)}% acc
-              </span>
-            )}
-            <span className="text-xs" style={{ color: '#3f3f46' }}>
-              {mc.seen} hands
-            </span>
-          </div>
-        )}
-      </div>
-
+  const body = (
+    <>
       {/* Warming-up overlay */}
       {!isWarm ? (
         <div className="px-4 py-4 flex flex-col gap-2">
@@ -866,6 +826,14 @@ function MetaCombinerPanel({ mc, race }: { mc: MetaCombinerResult; race?: RaceSt
           )}
         </div>
       )}
+    </>
+  );
+
+  if (noHeader) return body;
+  return (
+    <div className="rounded-sm border flex flex-col overflow-hidden transition-all duration-500"
+      style={{ backgroundColor: '#08080f', ...containerExtra }}>
+      {body}
     </div>
   );
 }
@@ -1008,11 +976,80 @@ function OracleAIPanel({ oracle }: { oracle: OracleResult }) {
   );
 }
 
+// ── Collapsible panel header ──────────────────────────────────────────────────
+
+function PanelHeader({
+  label,
+  color = '#71717a',
+  right,
+  collapsed,
+  onToggle,
+  bg,
+  borderColor,
+}: {
+  label: React.ReactNode;
+  color?: string;
+  right?: React.ReactNode;
+  collapsed: boolean;
+  onToggle: () => void;
+  bg?: string;
+  borderColor?: string;
+}) {
+  return (
+    <button
+      onClick={onToggle}
+      className="w-full px-4 py-2.5 flex items-center justify-between transition-all active:opacity-75"
+      style={{
+        backgroundColor: bg ?? 'rgba(255,255,255,0.02)',
+        borderBottom: collapsed ? 'none' : `1px solid ${borderColor ?? 'rgba(255,255,255,0.06)'}`,
+        cursor: 'pointer',
+        textAlign: 'left',
+      }}
+    >
+      <div className="flex items-center gap-2 flex-1 min-w-0">{label}</div>
+      <div className="flex items-center gap-2 shrink-0">
+        {right}
+        <span className="text-xs transition-transform duration-200"
+          style={{ color: '#3f3f46', display: 'inline-block', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
+          ▾
+        </span>
+      </div>
+    </button>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
+
+const DEFAULT_COLLAPSED = {
+  regime: false,
+  lookAhead: true,
+  metaAI: true,
+  observer: true,
+  metaCombiner: true,
+  decision: false,
+  autoScan: false,
+  history: true,
+};
+
+function loadCollapsed() {
+  try {
+    const s = localStorage.getItem('panel-collapsed-v1');
+    return s ? { ...DEFAULT_COLLAPSED, ...JSON.parse(s) } : DEFAULT_COLLAPSED;
+  } catch { return DEFAULT_COLLAPSED; }
+}
 
 export default function DashboardPage() {
   const [, setLocation] = useLocation();
   const [snapshot, setSnapshot] = useState<GameSnapshot | null>(null);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(loadCollapsed);
+
+  const togglePanel = (key: string) => {
+    setCollapsed(prev => {
+      const next = { ...prev, [key]: !prev[key] };
+      try { localStorage.setItem('panel-collapsed-v1', JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
 
   const me = useGetMe();
   const initialSnapshot = useGetSnapshot();
@@ -1158,71 +1195,56 @@ export default function DashboardPage() {
           <div className="rounded-sm border flex flex-col overflow-hidden"
             style={{ backgroundColor: '#0d0d14', borderColor: 'rgba(255,255,255,0.08)' }}>
 
-            {/* Panel header */}
-            <div className="px-4 py-2 flex items-center justify-between"
-              style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'rgba(34,211,238,0.02)' }}>
-              <div className="flex items-center gap-2">
-                <StatusBadge status={regime.status} />
-                <ConfidenceBadge confidence={regime.confidence} />
-              </div>
-              <div className="flex items-center gap-2">
+            <PanelHeader
+              collapsed={collapsed.regime}
+              onToggle={() => togglePanel('regime')}
+              bg="rgba(34,211,238,0.02)"
+              borderColor="rgba(255,255,255,0.06)"
+              label={<><StatusBadge status={regime.status} /><ConfidenceBadge confidence={regime.confidence} /></>}
+              right={<>
                 <span className="text-xs" style={{ color: '#3f3f46' }}>Age {regime.regimeAge}h</span>
                 <span className="text-xs" style={{ color: '#3f3f46' }}>Sw {regime.switchCount}</span>
                 <span className="text-xs" style={{ color: '#71717a' }}>{snapshot?.history.length ?? 0}h</span>
+              </>}
+            />
+
+            {!collapsed.regime && <>
+              {/* ── Core 6 experts ── */}
+              <div className="px-4">
+                <ExpertGroupHeader label="CORE ENGINES" color="#22d3ee" />
+                {coreKeys.map((key) => {
+                  const stats = regime[key] as ExpertStats;
+                  return (
+                    <ExpertRow key={key} expertKey={key} stats={stats}
+                      isActive={dominantKey === key} isShadow={shadowKey === key} />
+                  );
+                })}
               </div>
-            </div>
 
-            {/* ── Core 6 experts ── */}
-            <div className="px-4">
-              <ExpertGroupHeader label="CORE ENGINES" color="#22d3ee" />
-              {coreKeys.map((key) => {
-                const stats = regime[key] as ExpertStats;
-                return (
-                  <ExpertRow
-                    key={key}
-                    expertKey={key}
-                    stats={stats}
-                    isActive={dominantKey === key}
-                    isShadow={shadowKey === key}
-                  />
-                );
-              })}
-            </div>
+              {/* ── Road 4 experts ── */}
+              <div className="px-4">
+                <ExpertGroupHeader label="DERIVED ROADS" color="#f43f5e" />
+                {roadKeys.map((key) => {
+                  const stats = regime[key] as ExpertStats;
+                  return (
+                    <ExpertRow key={key} expertKey={key} stats={stats}
+                      isActive={dominantKey === key} isShadow={shadowKey === key} />
+                  );
+                })}
+              </div>
 
-            {/* ── Road 4 experts ── */}
-            <div className="px-4">
-              <ExpertGroupHeader label="DERIVED ROADS" color="#f43f5e" />
-              {roadKeys.map((key) => {
-                const stats = regime[key] as ExpertStats;
-                return (
-                  <ExpertRow
-                    key={key}
-                    expertKey={key}
-                    stats={stats}
-                    isActive={dominantKey === key}
-                    isShadow={shadowKey === key}
-                  />
-                );
-              })}
-            </div>
-
-            {/* ── Strategy Bots 11 ── */}
-            <div className="px-4">
-              <ExpertGroupHeader label="STRATEGY BOTS (appx 11)" color="#64748b" />
-              {botKeys.map((key) => {
-                const stats = regime[key] as ExpertStats;
-                return (
-                  <ExpertRow
-                    key={key}
-                    expertKey={key}
-                    stats={stats}
-                    isActive={dominantKey === key}
-                    isShadow={shadowKey === key}
-                  />
-                );
-              })}
-            </div>
-
+              {/* ── Strategy Bots 11 ── */}
+              <div className="px-4">
+                <ExpertGroupHeader label="STRATEGY BOTS (appx 11)" color="#64748b" />
+                {botKeys.map((key) => {
+                  const stats = regime[key] as ExpertStats;
+                  return (
+                    <ExpertRow key={key} expertKey={key} stats={stats}
+                      isActive={dominantKey === key} isShadow={shadowKey === key} />
+                  );
+                })}
+              </div>
+            </>}
           </div>
         )}
 
@@ -1238,42 +1260,30 @@ export default function DashboardPage() {
         {snapshot && snapshot.legacyLookAhead && (
           <div className="rounded-sm border flex flex-col gap-0 overflow-hidden"
             style={{ backgroundColor: '#0d0d14', borderColor: 'rgba(34,211,238,0.2)' }}>
-            <div className="px-4 py-2 flex items-center justify-between"
-              style={{ borderBottom: '1px solid rgba(34,211,238,0.1)', backgroundColor: 'rgba(34,211,238,0.03)' }}>
-              <span className="text-xs font-bold tracking-widest" style={{ color: '#22d3ee' }}>
-                ◈ LOOK-AHEAD SYSTEMS
-              </span>
-              <span className="text-xs" style={{ color: '#52525b' }}>Branch Simulation</span>
-            </div>
-            <div className="divide-y" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
-              <LookAheadRow
-                label="LOOK-AHEAD v1"
-                la={snapshot.lookAhead}
-                color="#22d3ee"
-                depth="depth-1"
-              />
-              <LookAheadRow
-                label="LOOK-AHEAD v2 (LEGACY)"
-                la={snapshot.legacyLookAhead}
-                color="#fb923c"
-                depth="depth-2"
-              />
-            </div>
-            {snapshot.lookAhead.active && snapshot.legacyLookAhead.active &&
-             snapshot.lookAhead.verdict && snapshot.legacyLookAhead.verdict && (
-              <div className="px-4 py-2"
-                style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-                {snapshot.lookAhead.verdict === snapshot.legacyLookAhead.verdict ? (
-                  <span className="text-xs font-bold" style={{ color: '#4ade80' }}>
-                    ✓ v1 + v2 AGREE → {snapshot.lookAhead.verdict === 'P' ? 'PLAYER' : 'BANKER'}
-                  </span>
-                ) : (
-                  <span className="text-xs font-bold" style={{ color: '#fb923c' }}>
-                    ⚡ v1 vs v2 SPLIT — v1:{snapshot.lookAhead.verdict} v2:{snapshot.legacyLookAhead.verdict}
-                  </span>
-                )}
+            <PanelHeader collapsed={collapsed.lookAhead} onToggle={() => togglePanel('lookAhead')}
+              bg="rgba(34,211,238,0.03)" borderColor="rgba(34,211,238,0.1)"
+              label={<span className="text-xs font-bold tracking-widest" style={{ color: '#22d3ee' }}>◈ LOOK-AHEAD SYSTEMS</span>}
+              right={<span className="text-xs" style={{ color: '#52525b' }}>Branch Simulation</span>} />
+            {!collapsed.lookAhead && <>
+              <div className="divide-y" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
+                <LookAheadRow label="LOOK-AHEAD v1" la={snapshot.lookAhead} color="#22d3ee" depth="depth-1" />
+                <LookAheadRow label="LOOK-AHEAD v2 (LEGACY)" la={snapshot.legacyLookAhead} color="#fb923c" depth="depth-2" />
               </div>
-            )}
+              {snapshot.lookAhead.active && snapshot.legacyLookAhead.active &&
+               snapshot.lookAhead.verdict && snapshot.legacyLookAhead.verdict && (
+                <div className="px-4 py-2" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+                  {snapshot.lookAhead.verdict === snapshot.legacyLookAhead.verdict ? (
+                    <span className="text-xs font-bold" style={{ color: '#4ade80' }}>
+                      ✓ v1 + v2 AGREE → {snapshot.lookAhead.verdict === 'P' ? 'PLAYER' : 'BANKER'}
+                    </span>
+                  ) : (
+                    <span className="text-xs font-bold" style={{ color: '#fb923c' }}>
+                      ⚡ v1 vs v2 SPLIT — v1:{snapshot.lookAhead.verdict} v2:{snapshot.legacyLookAhead.verdict}
+                    </span>
+                  )}
+                </div>
+              )}
+            </>}
           </div>
         )}
 
@@ -1281,37 +1291,36 @@ export default function DashboardPage() {
         {snapshot && (
           <div className="rounded-sm border flex flex-col gap-0 overflow-hidden"
             style={{ backgroundColor: '#0d0d14', borderColor: 'rgba(176,0,255,0.25)' }}>
-            <div className="px-4 py-2 flex items-center justify-between"
-              style={{ borderBottom: '1px solid rgba(176,0,255,0.15)', backgroundColor: 'rgba(176,0,255,0.04)' }}>
-              <span className="text-xs font-bold tracking-widest" style={{ color: '#b000ff' }}>
-                ◈ META AI
-              </span>
-              <span className="text-xs" style={{ color: '#52525b' }}>Online Logistic Regression</span>
-            </div>
-            <div className="px-4 py-3 flex items-center justify-between">
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-3">
-                  <span className="text-xs tracking-widest" style={{ color: '#71717a' }}>DECISION</span>
-                  <SideVerdict verdict={snapshot.metaAI.decision} />
-                </div>
-                <span className="text-xs" style={{ color: '#52525b' }}>
-                  {snapshot.metaAI.seen === 0
-                    ? 'no samples yet'
-                    : `${snapshot.metaAI.seen} samples · acc ${snapshot.metaAI.accuracy !== null ? `${Math.round(snapshot.metaAI.accuracy * 100)}%` : '--'}  ·  P̂ ${(snapshot.metaAI.pPlayer * 100).toFixed(1)}%`}
-                </span>
-              </div>
-              {snapshot.metaAI.seen > 0 && (
-                <div className="flex flex-col items-end gap-1">
-                  <div className="w-20 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(176,0,255,0.15)' }}>
-                    <div className="h-full rounded-full transition-all duration-500"
-                      style={{ width: `${(snapshot.metaAI.pPlayer * 100).toFixed(0)}%`, backgroundColor: '#b000ff', boxShadow: '0 0 4px rgba(176,0,255,0.6)' }} />
+            <PanelHeader collapsed={collapsed.metaAI} onToggle={() => togglePanel('metaAI')}
+              bg="rgba(176,0,255,0.04)" borderColor="rgba(176,0,255,0.15)"
+              label={<span className="text-xs font-bold tracking-widest" style={{ color: '#b000ff' }}>◈ META AI</span>}
+              right={<span className="text-xs" style={{ color: '#52525b' }}>Online Logistic Regression</span>} />
+            {!collapsed.metaAI && (
+              <div className="px-4 py-3 flex items-center justify-between">
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs tracking-widest" style={{ color: '#71717a' }}>DECISION</span>
+                    <SideVerdict verdict={snapshot.metaAI.decision} />
                   </div>
-                  <span className="text-xs tabular-nums" style={{ color: '#b000ff' }}>
-                    {(snapshot.metaAI.pPlayer * 100).toFixed(1)}% P
+                  <span className="text-xs" style={{ color: '#52525b' }}>
+                    {snapshot.metaAI.seen === 0
+                      ? 'no samples yet'
+                      : `${snapshot.metaAI.seen} samples · acc ${snapshot.metaAI.accuracy !== null ? `${Math.round(snapshot.metaAI.accuracy * 100)}%` : '--'}  ·  P̂ ${(snapshot.metaAI.pPlayer * 100).toFixed(1)}%`}
                   </span>
                 </div>
-              )}
-            </div>
+                {snapshot.metaAI.seen > 0 && (
+                  <div className="flex flex-col items-end gap-1">
+                    <div className="w-20 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(176,0,255,0.15)' }}>
+                      <div className="h-full rounded-full transition-all duration-500"
+                        style={{ width: `${(snapshot.metaAI.pPlayer * 100).toFixed(0)}%`, backgroundColor: '#b000ff', boxShadow: '0 0 4px rgba(176,0,255,0.6)' }} />
+                    </div>
+                    <span className="text-xs tabular-nums" style={{ color: '#b000ff' }}>
+                      {(snapshot.metaAI.pPlayer * 100).toFixed(1)}% P
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -1319,60 +1328,46 @@ export default function DashboardPage() {
         {snapshot && (
           <div className="rounded-sm border flex flex-col gap-0 overflow-hidden"
             style={{ backgroundColor: '#0d0d14', borderColor: 'rgba(74,222,128,0.2)' }}>
-            <div className="px-4 py-2 flex items-center justify-between"
-              style={{ borderBottom: '1px solid rgba(74,222,128,0.1)', backgroundColor: 'rgba(74,222,128,0.02)' }}>
-              <span className="text-xs font-bold tracking-widest" style={{ color: '#4ade80' }}>
-                ◈ OBSERVER MASTER AI
-              </span>
-              <span className="text-xs" style={{ color: '#52525b' }}>Meta-learning Layer</span>
-            </div>
-            <div className="px-4 py-3 flex items-center justify-between">
-              <div className="flex flex-col gap-0.5">
-                <span className="text-xs tracking-widest" style={{ color: '#71717a' }}>VERDICT</span>
-                <span className="text-xs" style={{ color: '#52525b' }}>
-                  {snapshot.observer.reasoning}
-                  {snapshot.observer.wr !== null ? ` (${Math.round(snapshot.observer.wr * 100)}% WR)` : ''}
-                </span>
-              </div>
-              <SideVerdict verdict={snapshot.observer.decision} />
-            </div>
-
-            {snapshot.observerMemory && (
-              <div className="border-t" style={{ borderColor: 'rgba(74,222,128,0.08)' }}>
-                <div className="px-4 pt-2 pb-1 text-xs tracking-widest" style={{ color: '#3f3f46' }}>
-                  SUB-SYSTEM TRACKERS
+            <PanelHeader collapsed={collapsed.observer} onToggle={() => togglePanel('observer')}
+              bg="rgba(74,222,128,0.02)" borderColor="rgba(74,222,128,0.1)"
+              label={<span className="text-xs font-bold tracking-widest" style={{ color: '#4ade80' }}>◈ OBSERVER MASTER AI</span>}
+              right={<span className="text-xs" style={{ color: '#52525b' }}>Meta-learning Layer</span>} />
+            {!collapsed.observer && <>
+              <div className="px-4 py-3 flex items-center justify-between">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs tracking-widest" style={{ color: '#71717a' }}>VERDICT</span>
+                  <span className="text-xs" style={{ color: '#52525b' }}>
+                    {snapshot.observer.reasoning}
+                    {snapshot.observer.wr !== null ? ` (${Math.round(snapshot.observer.wr * 100)}% WR)` : ''}
+                  </span>
                 </div>
-                <div className="divide-y" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
-                  <SubSystemRow
-                    label="META AI"
-                    color="#b000ff"
-                    winRate={snapshot.observerMemory.meta.winRate}
-                    total={snapshot.observerMemory.meta.total}
-                    lastPred={snapshot.observerMemory.meta.lastPred}
-                  />
-                  <SubSystemRow
-                    label="LOOK-AHEAD (v1)"
-                    color="#22d3ee"
-                    winRate={snapshot.observerMemory.lookAhead.winRate}
-                    total={snapshot.observerMemory.lookAhead.total}
-                    lastPred={snapshot.observerMemory.lookAhead.lastPred}
-                  />
-                  <SubSystemRow
-                    label="DERIVED ROADS"
-                    color="#fb923c"
-                    winRate={snapshot.observerMemory.derived.winRate}
-                    total={snapshot.observerMemory.derived.total}
-                    lastPred={snapshot.observerMemory.derived.lastPred}
-                  />
-                </div>
+                <SideVerdict verdict={snapshot.observer.decision} />
               </div>
-            )}
+              {snapshot.observerMemory && (
+                <div className="border-t" style={{ borderColor: 'rgba(74,222,128,0.08)' }}>
+                  <div className="px-4 pt-2 pb-1 text-xs tracking-widest" style={{ color: '#3f3f46' }}>SUB-SYSTEM TRACKERS</div>
+                  <div className="divide-y" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
+                    <SubSystemRow label="META AI" color="#b000ff" winRate={snapshot.observerMemory.meta.winRate} total={snapshot.observerMemory.meta.total} lastPred={snapshot.observerMemory.meta.lastPred} />
+                    <SubSystemRow label="LOOK-AHEAD (v1)" color="#22d3ee" winRate={snapshot.observerMemory.lookAhead.winRate} total={snapshot.observerMemory.lookAhead.total} lastPred={snapshot.observerMemory.lookAhead.lastPred} />
+                    <SubSystemRow label="DERIVED ROADS" color="#fb923c" winRate={snapshot.observerMemory.derived.winRate} total={snapshot.observerMemory.derived.total} lastPred={snapshot.observerMemory.derived.lastPred} />
+                  </div>
+                </div>
+              )}
+            </>}
           </div>
         )}
 
         {/* ── META COMBINER PANEL ───────────────────────────────────── */}
         {snapshot?.metaCombiner && (
-          <MetaCombinerPanel mc={snapshot.metaCombiner} race={snapshot.race} />
+          <div className="rounded-sm border flex flex-col overflow-hidden"
+            style={{ backgroundColor: '#08080f', borderColor: 'rgba(250,204,21,0.2)' }}>
+            <PanelHeader collapsed={collapsed.metaCombiner} onToggle={() => togglePanel('metaCombiner')}
+              bg="rgba(250,204,21,0.03)" borderColor="rgba(250,204,21,0.12)"
+              label={<><span className="text-xs font-bold tracking-widest" style={{ color: 'rgba(250,204,21,0.75)' }}>◈ META COMBINER</span>
+                <span className="text-xs px-1.5 rounded-sm" style={{ color: '#facc15', backgroundColor: 'rgba(250,204,21,0.08)', border: '1px solid rgba(250,204,21,0.2)', fontSize: 9 }}>ONLINE LR</span></>}
+            />
+            {!collapsed.metaCombiner && <MetaCombinerPanel mc={snapshot.metaCombiner} race={snapshot.race} noHeader />}
+          </div>
         )}
 
         {/* ── DECISION PANEL (ensemble + timeline + lock + main call) ── */}
@@ -1380,136 +1375,120 @@ export default function DashboardPage() {
           <div className="rounded-sm border flex flex-col overflow-hidden"
             style={{ backgroundColor: '#0d0d14', borderColor: 'rgba(255,255,255,0.08)' }}>
 
-            {/* ── CRISIS AI PANEL (right above ensemble vote) ─────── */}
-            {snapshot?.crisisAI && (
-              <div className="mx-4 mt-3">
-                <CrisisAIPanel crisis={snapshot.crisisAI} race={snapshot.race} />
-              </div>
-            )}
+            <PanelHeader collapsed={collapsed.decision} onToggle={() => togglePanel('decision')}
+              bg="rgba(255,255,255,0.02)" borderColor="rgba(255,255,255,0.06)"
+              label={<span className="text-xs font-bold tracking-widest" style={{ color: '#e2e8f0' }}>⚡ MAIN DECISION</span>}
+              right={regime.decision ? (
+                <span className="text-sm font-black" style={{ color: regime.decision === 'P' ? '#22d3ee' : '#f87171' }}>
+                  {regime.decision === 'P' ? 'PLAYER' : 'BANKER'}
+                </span>
+              ) : <span className="text-xs" style={{ color: '#52525b' }}>WAIT</span>}
+            />
 
-            {/* Ensemble Voting Block */}
-            <EnsembleVoteBlock regime={regime} race={snapshot?.race} totalExperts={totalExperts} />
+            {!collapsed.decision && <>
+              {snapshot?.crisisAI && (
+                <div className="mx-4 mt-3">
+                  <CrisisAIPanel crisis={snapshot.crisisAI} race={snapshot.race} />
+                </div>
+              )}
 
-            {/* ── ORACLE AI PANEL (Final Prediction) ─────────────────── */}
-            {snapshot?.oracleAI && (
-              <div className="mx-4 mb-2">
-                <OracleAIPanel oracle={snapshot.oracleAI} />
-              </div>
-            )}
+              <EnsembleVoteBlock regime={regime} race={snapshot?.race} totalExperts={totalExperts} />
 
-            {/* Regime Switch Timeline */}
-            {(regime.switchTimeline?.length ?? 0) > 0 && (
-              <div className="px-4 pb-2">
-                <div className="text-xs tracking-widest mb-1.5" style={{ color: '#3f3f46' }}>TIMELINE</div>
-                <div className="flex flex-wrap items-center gap-1">
-                  {regime.switchTimeline.map((entry, i) => (
-                    <div key={i} className="flex items-center gap-1">
-                      <span className="text-xs px-1.5 py-0.5 rounded-sm tabular-nums"
-                        style={{
-                          color: expertColor(entry.expert),
-                          backgroundColor: `${expertColor(entry.expert)}12`,
-                          border: `1px solid ${expertColor(entry.expert)}25`,
-                        }}>
-                        {expertLabel(entry.expert)} {entry.hands}h
-                      </span>
-                      <span className="text-xs" style={{ color: '#3f3f46' }}>→</span>
+              {snapshot?.oracleAI && (
+                <div className="mx-4 mb-2">
+                  <OracleAIPanel oracle={snapshot.oracleAI} />
+                </div>
+              )}
+
+              {(regime.switchTimeline?.length ?? 0) > 0 && (
+                <div className="px-4 pb-2">
+                  <div className="text-xs tracking-widest mb-1.5" style={{ color: '#3f3f46' }}>TIMELINE</div>
+                  <div className="flex flex-wrap items-center gap-1">
+                    {regime.switchTimeline.map((entry, i) => (
+                      <div key={i} className="flex items-center gap-1">
+                        <span className="text-xs px-1.5 py-0.5 rounded-sm tabular-nums"
+                          style={{ color: expertColor(entry.expert), backgroundColor: `${expertColor(entry.expert)}12`, border: `1px solid ${expertColor(entry.expert)}25` }}>
+                          {expertLabel(entry.expert)} {entry.hands}h
+                        </span>
+                        <span className="text-xs" style={{ color: '#3f3f46' }}>→</span>
+                      </div>
+                    ))}
+                    <span className="text-xs px-1.5 py-0.5 rounded-sm"
+                      style={{ color: expertColor(regime.expert ?? ''), backgroundColor: `${expertColor(regime.expert ?? '')}18`, border: `1px solid ${expertColor(regime.expert ?? '')}35` }}>
+                      {expertLabel(regime.expert ?? '—')} ★
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {regime.isLocked && (
+                <div className="px-4 pb-2">
+                  <LockBar lockRemain={regime.lockRemain} lockMax={regime.lockMax}
+                    shadowLeader={regime.shadowLeader} shadowLeaderPred={regime.shadowLeaderPred}
+                    shadowLeaderComposite={regime.shadowLeaderComposite} lockAccelerated={regime.lockAccelerated} />
+                </div>
+              )}
+
+              {regime.bothAgree && (
+                <div className="mx-4 mb-2 text-center py-2 px-4 rounded-sm font-bold tracking-wider text-sm"
+                  style={{ color: '#eab308', backgroundColor: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.4)', boxShadow: '0 0 12px rgba(234,179,8,0.15)' }}
+                  data-testid="both-agree-banner">
+                  ⚡ ALL {regime.agreeCount} AGREE — {regime.bothAgreeSide === 'P' ? 'PLAYER' : regime.bothAgreeSide === 'B' ? 'BANKER' : 'BET'}
+                </div>
+              )}
+              {!regime.bothAgree && regime.agreeCount >= 6 && regime.ensembleVerdict && (
+                <div className="mx-4 mb-2 text-center py-2 px-4 rounded-sm font-bold tracking-wider text-sm"
+                  style={{ color: regime.ensembleVerdict === 'P' ? '#22d3ee' : '#f87171', backgroundColor: regime.ensembleVerdict === 'P' ? 'rgba(34,211,238,0.07)' : 'rgba(248,113,113,0.07)', border: `1px solid ${regime.ensembleVerdict === 'P' ? 'rgba(34,211,238,0.3)' : 'rgba(248,113,113,0.3)'}` }}>
+                  ⚡ {regime.agreeCount}/{totalExperts} LEAN — {regime.ensembleVerdict === 'P' ? 'PLAYER' : 'BANKER'}
+                </div>
+              )}
+
+              <div className="flex flex-col items-center gap-2 py-5">
+                {regime.decision === 'P' && (
+                  <>
+                    <div className="text-6xl font-black tracking-wider"
+                      style={{ color: '#22d3ee', textShadow: '0 0 20px rgba(34,211,238,0.7), 0 0 40px rgba(34,211,238,0.4)' }}
+                      data-testid="decision-display">PLAYER</div>
+                    <div className="text-xs tracking-wider" style={{ color: expertColor(regime.expert ?? '') }} data-testid="following-label">
+                      Following {expertLabel(regime.expert ?? '')}{regime.isSplit && ' (split→obs)'}
                     </div>
-                  ))}
-                  <span className="text-xs px-1.5 py-0.5 rounded-sm"
-                    style={{
-                      color: expertColor(regime.expert ?? ''),
-                      backgroundColor: `${expertColor(regime.expert ?? '')}18`,
-                      border: `1px solid ${expertColor(regime.expert ?? '')}35`,
-                    }}>
-                    {expertLabel(regime.expert ?? '—')} ★
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Lock countdown with shadow leader */}
-            {regime.isLocked && (
-              <div className="px-4 pb-2">
-                <LockBar
-                  lockRemain={regime.lockRemain}
-                  lockMax={regime.lockMax}
-                  shadowLeader={regime.shadowLeader}
-                  shadowLeaderPred={regime.shadowLeaderPred}
-                  shadowLeaderComposite={regime.shadowLeaderComposite}
-                  lockAccelerated={regime.lockAccelerated}
-                />
-              </div>
-            )}
-
-            {/* Both / All agree banner */}
-            {regime.bothAgree && (
-              <div className="mx-4 mb-2 text-center py-2 px-4 rounded-sm font-bold tracking-wider text-sm"
-                style={{
-                  color: '#eab308',
-                  backgroundColor: 'rgba(234,179,8,0.1)',
-                  border: '1px solid rgba(234,179,8,0.4)',
-                  boxShadow: '0 0 12px rgba(234,179,8,0.15)',
-                }}
-                data-testid="both-agree-banner">
-                ⚡ ALL {regime.agreeCount} AGREE —{' '}
-                {regime.bothAgreeSide === 'P' ? 'PLAYER' : regime.bothAgreeSide === 'B' ? 'BANKER' : 'BET'}
-              </div>
-            )}
-            {!regime.bothAgree && regime.agreeCount >= 6 && regime.ensembleVerdict && (
-              <div className="mx-4 mb-2 text-center py-2 px-4 rounded-sm font-bold tracking-wider text-sm"
-                style={{
-                  color: regime.ensembleVerdict === 'P' ? '#22d3ee' : '#f87171',
-                  backgroundColor: regime.ensembleVerdict === 'P' ? 'rgba(34,211,238,0.07)' : 'rgba(248,113,113,0.07)',
-                  border: `1px solid ${regime.ensembleVerdict === 'P' ? 'rgba(34,211,238,0.3)' : 'rgba(248,113,113,0.3)'}`,
-                }}>
-                ⚡ {regime.agreeCount}/{totalExperts} LEAN —{' '}
-                {regime.ensembleVerdict === 'P' ? 'PLAYER' : 'BANKER'}
-              </div>
-            )}
-
-            {/* MAIN DECISION */}
-            <div className="flex flex-col items-center gap-2 py-5">
-              {regime.decision === 'P' && (
-                <>
-                  <div className="text-6xl font-black tracking-wider"
-                    style={{ color: '#22d3ee', textShadow: '0 0 20px rgba(34,211,238,0.7), 0 0 40px rgba(34,211,238,0.4)' }}
-                    data-testid="decision-display">
-                    PLAYER
+                  </>
+                )}
+                {regime.decision === 'B' && (
+                  <>
+                    <div className="text-6xl font-black tracking-wider"
+                      style={{ color: '#f87171', textShadow: '0 0 20px rgba(248,113,113,0.7), 0 0 40px rgba(248,113,113,0.4)' }}
+                      data-testid="decision-display">BANKER</div>
+                    <div className="text-xs tracking-wider" style={{ color: expertColor(regime.expert ?? '') }} data-testid="following-label">
+                      Following {expertLabel(regime.expert ?? '')}{regime.isSplit && ' (split→obs)'}
+                    </div>
+                  </>
+                )}
+                {!regime.decision && (
+                  <div className="text-4xl font-black tracking-wider" style={{ color: '#71717a' }} data-testid="decision-display">
+                    — WAIT —
                   </div>
-                  <div className="text-xs tracking-wider" style={{ color: expertColor(regime.expert ?? '') }} data-testid="following-label">
-                    Following {expertLabel(regime.expert ?? '')}
-                    {regime.isSplit && ' (split→obs)'}
-                  </div>
-                </>
-              )}
-              {regime.decision === 'B' && (
-                <>
-                  <div className="text-6xl font-black tracking-wider"
-                    style={{ color: '#f87171', textShadow: '0 0 20px rgba(248,113,113,0.7), 0 0 40px rgba(248,113,113,0.4)' }}
-                    data-testid="decision-display">
-                    BANKER
-                  </div>
-                  <div className="text-xs tracking-wider" style={{ color: expertColor(regime.expert ?? '') }} data-testid="following-label">
-                    Following {expertLabel(regime.expert ?? '')}
-                    {regime.isSplit && ' (split→obs)'}
-                  </div>
-                </>
-              )}
-              {!regime.decision && (
-                <div className="text-4xl font-black tracking-wider" style={{ color: '#71717a' }} data-testid="decision-display">
-                  — WAIT —
-                </div>
-              )}
-            </div>
-
+                )}
+              </div>
+            </>}
           </div>
         )}
 
         {/* ── AUTO SCAN PANEL ───────────────────────────────────────── */}
-        <AutoScanPanel
-          onDetected={(outcome) => handleInput(outcome)}
-          isMutating={isMutating}
-        />
+        <div className="rounded-sm border flex flex-col overflow-hidden"
+          style={{ backgroundColor: '#09090f', borderColor: 'rgba(255,255,255,0.1)' }}>
+          <PanelHeader collapsed={collapsed.autoScan} onToggle={() => togglePanel('autoScan')}
+            bg="rgba(34,211,238,0.025)" borderColor="rgba(255,255,255,0.06)"
+            label={<span className="text-xs font-bold tracking-widest" style={{ color: '#22d3ee' }}>📡 AUTO SCAN</span>}
+            right={<span className="text-xs" style={{ color: '#52525b' }}>MacroDroid / Manual</span>} />
+          {!collapsed.autoScan && (
+            <AutoScanPanel
+              onDetected={(outcome) => handleInput(outcome)}
+              isMutating={isMutating}
+              noHeader
+            />
+          )}
+        </div>
 
         {/* ── INPUT AREA ────────────────────────────────────────────── */}
         <div className="rounded-sm border p-4 flex flex-col gap-3"
@@ -1518,18 +1497,9 @@ export default function DashboardPage() {
           <div className="grid grid-cols-3 gap-3">
             {([['P', '#22d3ee'], ['B', '#f87171'], ['T', '#4ade80']] as const).map(([val, col]) => (
               <button key={val} data-testid={`btn-${val === 'P' ? 'player' : val === 'B' ? 'banker' : 'tie'}`}
-                onClick={() => handleInput(val)}
-                disabled={isMutating}
+                onClick={() => handleInput(val)} disabled={isMutating}
                 className="py-5 font-black text-2xl rounded-sm transition-all active:scale-95"
-                style={{
-                  border: `2px solid ${col}`,
-                  backgroundColor: `${col}0d`,
-                  color: col,
-                  cursor: isMutating ? 'not-allowed' : 'pointer',
-                  opacity: isMutating ? 0.5 : 1,
-                  fontFamily: "'JetBrains Mono', monospace",
-                  boxShadow: isMutating ? 'none' : `0 0 12px ${col}25`,
-                }}>
+                style={{ border: `2px solid ${col}`, backgroundColor: `${col}0d`, color: col, cursor: isMutating ? 'not-allowed' : 'pointer', opacity: isMutating ? 0.5 : 1, fontFamily: "'JetBrains Mono', monospace", boxShadow: isMutating ? 'none' : `0 0 12px ${col}25` }}>
                 {val}
               </button>
             ))}
@@ -1550,20 +1520,24 @@ export default function DashboardPage() {
 
         {/* ── HISTORY STRIP ─────────────────────────────────────────── */}
         {snapshot && snapshot.history.length > 0 && (
-          <div className="rounded-sm border p-3" style={{ backgroundColor: '#0d0d14', borderColor: 'rgba(255,255,255,0.08)' }}>
-            <div className="text-xs tracking-widest mb-2" style={{ color: '#71717a' }}>HISTORY (last 20)</div>
-            <div className="flex flex-wrap gap-1">
-              {snapshot.history.slice(-20).map((h, i) => (
-                <span key={i} className="text-xs font-bold w-6 h-6 flex items-center justify-center rounded-sm"
-                  style={{
-                    color: h === 'P' ? '#22d3ee' : h === 'B' ? '#f87171' : '#4ade80',
-                    backgroundColor: h === 'P' ? 'rgba(34,211,238,0.12)' : h === 'B' ? 'rgba(248,113,113,0.12)' : 'rgba(74,222,128,0.12)',
-                    border: h === 'P' ? '1px solid rgba(34,211,238,0.25)' : h === 'B' ? '1px solid rgba(248,113,113,0.25)' : '1px solid rgba(74,222,128,0.25)',
-                  }}>
-                  {h}
-                </span>
-              ))}
-            </div>
+          <div className="rounded-sm border overflow-hidden" style={{ backgroundColor: '#0d0d14', borderColor: 'rgba(255,255,255,0.08)' }}>
+            <PanelHeader collapsed={collapsed.history} onToggle={() => togglePanel('history')}
+              label={<span className="text-xs tracking-widest" style={{ color: '#71717a' }}>HISTORY (last 20)</span>}
+              right={<span className="text-xs font-bold" style={{ color: '#3f3f46' }}>{snapshot.history.length}</span>} />
+            {!collapsed.history && (
+              <div className="p-3 flex flex-wrap gap-1">
+                {snapshot.history.slice(-20).map((h, i) => (
+                  <span key={i} className="text-xs font-bold w-6 h-6 flex items-center justify-center rounded-sm"
+                    style={{
+                      color: h === 'P' ? '#22d3ee' : h === 'B' ? '#f87171' : '#4ade80',
+                      backgroundColor: h === 'P' ? 'rgba(34,211,238,0.12)' : h === 'B' ? 'rgba(248,113,113,0.12)' : 'rgba(74,222,128,0.12)',
+                      border: h === 'P' ? '1px solid rgba(34,211,238,0.25)' : h === 'B' ? '1px solid rgba(248,113,113,0.25)' : '1px solid rgba(74,222,128,0.25)',
+                    }}>
+                    {h}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
