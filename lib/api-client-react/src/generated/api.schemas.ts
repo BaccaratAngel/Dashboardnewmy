@@ -41,6 +41,11 @@ export interface GameInputData {
   value: string;
 }
 
+export interface OracleModeSetting {
+  /** true to enable adaptive weights, false to revert to fixed weights */
+  adaptive: boolean;
+}
+
 export interface WindowSetting {
   /** Rolling window: 8, 12, or 16 */
   window: number;
@@ -315,6 +320,26 @@ export interface RaceState {
   ensemble: RaceContestantStats;
 }
 
+export interface OracleSignalStats {
+  /** Signal identifier (main, ensemble, crisis, metaCombiner) */
+  key: string;
+  /** Human-readable signal name */
+  label: string;
+  /** Number of hands scored (max 15) */
+  samples: number;
+  /**
+     * Rolling accuracy 0-1, null if fewer than 5 samples
+     * @nullable
+     */
+  accuracy: number | null;
+  /** Adaptive weight multiplier (0.5–1.5). 1.0 when insufficient data. */
+  multiplier: number;
+  /** Base signal weight before adaptive scaling */
+  baseWeight: number;
+  /** Effective weight = base × multiplier */
+  effectiveWeight: number;
+}
+
 export interface OracleResult {
   /** "P", "B", or "WAIT" — the final synthesized call */
   verdict: string;
@@ -326,9 +351,9 @@ export interface OracleResult {
   agreementCount: number;
   /** Total non-null directional signals considered */
   totalSignals: number;
-  /** True when the current race champion prediction matches the verdict */
+  /** True when Meta Combiner (the most reliable of the 4 signals) aligns with the verdict */
   championAligned: boolean;
-  /** True when the race tracker fires its all-agree pulse */
+  /** True when 3 or more of the 4 signals agree on the same side */
   consensusPulse: boolean;
   /**
      * If verdict is WAIT, the primary reason why
@@ -337,6 +362,10 @@ export interface OracleResult {
   waitReason: string | null;
   /** Up to 4 key contributing factors for the verdict */
   topReasons: string[];
+  /** True when adaptive per-signal weight multipliers are active */
+  adaptive: boolean;
+  /** Per-signal rolling accuracy stats (populated when adaptive=true) */
+  signalStats: OracleSignalStats[];
 }
 
 export interface GameSnapshot {
@@ -358,6 +387,8 @@ export interface GameSnapshot {
   race: RaceState;
   /** Final Prediction AI — synthesizes all engine signals into a single BET/WAIT verdict */
   oracleAI: OracleResult;
+  /** True when Oracle is using adaptive per-signal weight multipliers */
+  oracleAdaptiveMode: boolean;
 }
 
 export interface UserAccount {

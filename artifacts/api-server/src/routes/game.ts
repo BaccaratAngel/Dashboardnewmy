@@ -39,6 +39,18 @@ router.post("/reset", (req, res) => {
   res.json(snap);
 });
 
+// POST /game/oracle-mode — toggle adaptive weight system on/off
+router.post("/oracle-mode", (req, res) => {
+  const { adaptive } = req.body as { adaptive?: boolean };
+  if (typeof adaptive !== "boolean") {
+    res.status(400).json({ error: "adaptive must be a boolean" });
+    return;
+  }
+  const session = getOrCreateSession(req.user!.id);
+  const snap = session.setOracleAdaptiveMode(adaptive);
+  res.json(snap);
+});
+
 // POST /game/window
 router.post("/window", (req, res) => {
   const { window: w } = req.body as { window?: number };

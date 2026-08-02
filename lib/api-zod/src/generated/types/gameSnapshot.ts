@@ -34,4 +34,6 @@ export interface GameSnapshot {
   race: RaceState;
   /** Final Prediction AI — synthesizes all engine signals into a single BET/WAIT verdict */
   oracleAI: OracleResult;
+  /** True when Oracle is using adaptive per-signal weight multipliers */
+  oracleAdaptiveMode: boolean;
 }

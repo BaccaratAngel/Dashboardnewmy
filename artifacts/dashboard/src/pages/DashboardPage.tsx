@@ -8,10 +8,11 @@ import {
   useUndoInput,
   useResetGame,
   useSetWindow,
+  useSetOracleMode,
   useLogout,
   useHeartbeat,
 } from '@workspace/api-client-react';
-import type { GameSnapshot, ExpertStats, CrisisAIResult, MetaCombinerResult, RaceState, RaceContestantStats, RegimeState, OracleResult } from '@workspace/api-client-react';
+import type { GameSnapshot, ExpertStats, CrisisAIResult, MetaCombinerResult, RaceState, RaceContestantStats, RegimeState, OracleResult, OracleSignalStats } from '@workspace/api-client-react';
 import { cn } from '@/lib/utils';
 
 // ── Color & label helpers ─────────────────────────────────────────────────────
@@ -840,7 +841,15 @@ function MetaCombinerPanel({ mc, race, noHeader }: { mc: MetaCombinerResult; rac
 
 // ── Oracle AI Panel ───────────────────────────────────────────────────────────
 
-function OracleAIPanel({ oracle }: { oracle: OracleResult }) {
+function OracleAIPanel({
+  oracle,
+  adaptiveMode,
+  onToggleAdaptive,
+}: {
+  oracle: OracleResult;
+  adaptiveMode: boolean;
+  onToggleAdaptive: () => void;
+}) {
   const isWait = oracle.verdict === 'WAIT';
   const isPlayer = oracle.verdict === 'P';
   const isBanker = oracle.verdict === 'B';
@@ -906,6 +915,20 @@ function OracleAIPanel({ oracle }: { oracle: OracleResult }) {
           <span className="text-xs tabular-nums" style={{ color: '#3f3f46', fontFamily: 'monospace' }}>
             {oracle.netScore > 0 ? '+' : ''}{oracle.netScore.toFixed(2)}
           </span>
+          {/* Adaptive mode toggle */}
+          <button
+            onClick={onToggleAdaptive}
+            className="flex items-center gap-1 px-2 py-0.5 rounded-sm transition-all active:scale-95"
+            style={{
+              backgroundColor: adaptiveMode ? 'rgba(168,85,247,0.15)' : 'rgba(255,255,255,0.04)',
+              border: `1px solid ${adaptiveMode ? 'rgba(168,85,247,0.4)' : 'rgba(255,255,255,0.1)'}`,
+            }}
+            title={adaptiveMode ? 'Adaptive weights ON — click to disable' : 'Fixed weights — click to enable adaptive'}
+          >
+            <span style={{ fontSize: 8, color: adaptiveMode ? '#a855f7' : '#52525b', fontWeight: 700, letterSpacing: '0.08em' }}>
+              {adaptiveMode ? '⚡ ADAPTIVE' : '◌ FIXED'}
+            </span>
+          </button>
         </div>
       </div>
 
@@ -968,6 +991,55 @@ function OracleAIPanel({ oracle }: { oracle: OracleResult }) {
                 }}>
                 {label}{isP ? ' ▲P' : isB ? ' ▼B' : ''}
               </span>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Adaptive signal accuracy bars — shown when adaptive mode is ON */}
+      {adaptiveMode && oracle.signalStats && oracle.signalStats.length > 0 && (
+        <div className="px-4 pb-4 pt-1 flex flex-col gap-2"
+          style={{ borderTop: '1px solid rgba(168,85,247,0.15)', backgroundColor: 'rgba(168,85,247,0.03)' }}>
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <span style={{ fontSize: 8, color: '#a855f7', fontWeight: 700, letterSpacing: '0.1em' }}>⚡ ADAPTIVE WEIGHTS</span>
+            <span style={{ fontSize: 8, color: '#52525b', letterSpacing: '0.05em' }}>· last 15 hands · min 5 samples</span>
+          </div>
+          {oracle.signalStats.map((s: OracleSignalStats) => {
+            const hasData = s.accuracy !== null;
+            const accPct = hasData ? Math.round((s.accuracy ?? 0) * 100) : null;
+            const multColor = !hasData ? '#52525b'
+              : s.multiplier >= 1.3 ? '#4ade80'
+              : s.multiplier >= 1.0 ? '#facc15'
+              : '#f87171';
+            return (
+              <div key={s.key} className="flex flex-col gap-0.5">
+                <div className="flex items-center justify-between">
+                  <span style={{ fontSize: 9, color: '#a1a1aa', fontFamily: 'monospace' }}>{s.label}</span>
+                  <div className="flex items-center gap-2">
+                    {hasData ? (
+                      <span style={{ fontSize: 9, color: multColor, fontFamily: 'monospace', fontWeight: 700 }}>
+                        {accPct}% · {s.multiplier.toFixed(2)}×
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: 8, color: '#3f3f46', fontFamily: 'monospace' }}>
+                        {s.samples}/5 samples
+                      </span>
+                    )}
+                    <span style={{ fontSize: 8, color: '#3f3f46', fontFamily: 'monospace' }}>
+                      w={s.effectiveWeight.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+                {/* Accuracy bar */}
+                <div className="h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>
+                  <div className="h-full rounded-full transition-all duration-700"
+                    style={{
+                      width: hasData ? `${accPct}%` : `${(s.samples / 5) * 100}%`,
+                      backgroundColor: hasData ? multColor : '#3f3f46',
+                      opacity: hasData ? 0.8 : 0.4,
+                    }} />
+                </div>
+              </div>
             );
           })}
         </div>
@@ -1057,6 +1129,7 @@ export default function DashboardPage() {
   const undoInput = useUndoInput();
   const resetGame = useResetGame();
   const setWindow = useSetWindow();
+  const setOracleMode = useSetOracleMode();
   const logout = useLogout();
   const heartbeat = useHeartbeat();
 
@@ -1396,7 +1469,16 @@ export default function DashboardPage() {
 
               {snapshot?.oracleAI && (
                 <div className="mx-4 mb-2">
-                  <OracleAIPanel oracle={snapshot.oracleAI} />
+                  <OracleAIPanel
+                    oracle={snapshot.oracleAI}
+                    adaptiveMode={snapshot.oracleAdaptiveMode ?? false}
+                    onToggleAdaptive={() => {
+                      const next = !(snapshot.oracleAdaptiveMode ?? false);
+                      setOracleMode.mutate({ data: { adaptive: next } }, {
+                        onSuccess: (data) => setSnapshot(data),
+                      });
+                    }}
+                  />
                 </div>
               )}
 

@@ -23,7 +23,7 @@ import { ObserverMasterAI } from "./observer.js";
 import { CrisisAI, type CrisisResult, type ExpertShoeData } from "./crisis-ai.js";
 import { MetaCombiner, type MetaCombinerInput, type MetaCombinerResult } from "./meta-combiner.js";
 import { RaceTracker, type RaceState } from "./race.js";
-import { computeOracle, type OracleResult, type OracleInput } from "./oracle.js";
+import { computeOracle, computeOracleAdaptive, OracleSignalTracker, type OracleResult, type OracleInput } from "./oracle.js";
 
 type Side = "B" | "P";
 type HandValue = "B" | "P" | "T";
@@ -69,6 +69,7 @@ export interface GameSnapshot {
   metaCombiner: MetaCombinerResult;
   race: RaceState;
   oracleAI: OracleResult;
+  oracleAdaptiveMode: boolean;
 }
 
 // ── Look-ahead v1 (depth=1) — in-process branch simulation ──────────────────
@@ -198,7 +199,12 @@ export class GameSession {
     agreementCount: 0, totalSignals: 0,
     championAligned: false, consensusPulse: false,
     waitReason: "Collecting data", topReasons: [],
+    adaptive: false, signalStats: [],
   };
+
+  // ── Oracle adaptive-mode state ────────────────────────────────────────────
+  private oracleSignalTracker = new OracleSignalTracker();
+  private _oracleAdaptiveMode = false;
 
   /** Process a new hand result and update all local engines immediately */
   handleInput(value: string): GameSnapshot {
@@ -224,6 +230,8 @@ export class GameSession {
       if (this._pendingFeatureX) this.metaAI.onLabeled(this._pendingFeatureX, actual);
       // Update MetaCombiner weights with the resolved outcome
       this.metaCombiner.onLabeled(actual);
+      // Score Oracle signal tracker against the last-captured predictions
+      this.oracleSignalTracker.scoreOutcome(actual);
     }
 
     // 3. Record the outcome in all engines
@@ -316,11 +324,19 @@ export class GameSession {
     this._pendingMetaDecision = { decision: "WAIT", pPlayer: 0.5 };
     this._pendingObserver = { decision: "WAIT", wr: null, reasoning: "Insufficient Data", isFallback: true };
     this._pendingMetaCombiner = { ..._DEFAULT_META_COMBINER_RESULT };
+    this.oracleSignalTracker.reset();
     return this.getSnapshot();
   }
 
   setWindow(n: number): GameSnapshot {
     this.regime.setWindow(n);
+    return this.getSnapshot();
+  }
+
+  setOracleAdaptiveMode(adaptive: boolean): GameSnapshot {
+    this._oracleAdaptiveMode = adaptive;
+    // Re-compute oracle with current inputs under the new mode
+    this._captureNewPredictions();
     return this.getSnapshot();
   }
 
@@ -349,6 +365,7 @@ export class GameSession {
       metaCombiner: { ...this._pendingMetaCombiner },
       race: this.race.getState(),
       oracleAI: { ...this._pendingOracle },
+      oracleAdaptiveMode: this._oracleAdaptiveMode,
     };
   }
 
@@ -496,7 +513,21 @@ export class GameSession {
       mcRecentAccuracy: this._pendingMetaCombiner.recentAccuracy,
     };
 
-    this._pendingOracle = computeOracle(oracleInput);
+    // Capture signal predictions for next-hand scoring (before compute)
+    const crisisSignal = oracleInput.crisisActive
+      ? oracleInput.crisisPrediction
+      : oracleInput.crisisBackgroundPrediction;
+    this.oracleSignalTracker.captureSignals(
+      oracleInput.regimeDecision,
+      oracleInput.ensembleVerdict,
+      crisisSignal,
+      oracleInput.mcPrediction === "WAIT" ? null : oracleInput.mcPrediction,
+    );
+
+    // Compute oracle — use adaptive weights when mode is on
+    this._pendingOracle = this._oracleAdaptiveMode
+      ? computeOracleAdaptive(oracleInput, this.oracleSignalTracker)
+      : computeOracle(oracleInput);
   }
 }
 

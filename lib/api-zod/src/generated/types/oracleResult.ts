@@ -5,6 +5,7 @@
  * Baccarat prediction dashboard API
  * OpenAPI spec version: 0.1.0
  */
+import type { OracleSignalStats } from './oracleSignalStats';
 
 export interface OracleResult {
   /** "P", "B", or "WAIT" — the final synthesized call */
@@ -17,9 +18,9 @@ export interface OracleResult {
   agreementCount: number;
   /** Total non-null directional signals considered */
   totalSignals: number;
-  /** True when the current race champion prediction matches the verdict */
+  /** True when Meta Combiner (the most reliable of the 4 signals) aligns with the verdict */
   championAligned: boolean;
-  /** True when the race tracker fires its all-agree pulse */
+  /** True when 3 or more of the 4 signals agree on the same side */
   consensusPulse: boolean;
   /**
      * If verdict is WAIT, the primary reason why
@@ -28,4 +29,8 @@ export interface OracleResult {
   waitReason: string | null;
   /** Up to 4 key contributing factors for the verdict */
   topReasons: string[];
+  /** True when adaptive per-signal weight multipliers are active */
+  adaptive: boolean;
+  /** Per-signal rolling accuracy stats (populated when adaptive=true) */
+  signalStats: OracleSignalStats[];
 }

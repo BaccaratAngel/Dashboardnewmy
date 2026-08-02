@@ -28,6 +28,7 @@ import type {
   HealthStatus,
   Heartbeat200,
   LoginCredentials,
+  OracleModeSetting,
   SessionUser,
   UserAccount,
   UserAccountInput,
@@ -717,6 +718,77 @@ export const useResetGame = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getResetGameMutationOptions(options));
+    }
+
+export const getSetOracleModeUrl = () => {
+
+
+
+
+  return `/api/game/oracle-mode`
+}
+
+/**
+ * @summary Toggle Oracle AI adaptive weight mode on or off
+ */
+export const setOracleMode = async (oracleModeSetting: OracleModeSetting, options?: RequestInit): Promise<GameSnapshot> => {
+
+  return customFetch<GameSnapshot>(getSetOracleModeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(oracleModeSetting)
+  }
+);}
+
+
+
+
+
+export const getSetOracleModeMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setOracleMode>>, TError,{data: BodyType<OracleModeSetting>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setOracleMode>>, TError,{data: BodyType<OracleModeSetting>}, TContext> => {
+
+const mutationKey = ['setOracleMode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setOracleMode>>, {data: BodyType<OracleModeSetting>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  setOracleMode(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetOracleModeMutationResult = NonNullable<Awaited<ReturnType<typeof setOracleMode>>>
+    export type SetOracleModeMutationBody = BodyType<OracleModeSetting>
+    export type SetOracleModeMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Toggle Oracle AI adaptive weight mode on or off
+ */
+export const useSetOracleMode = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setOracleMode>>, TError,{data: BodyType<OracleModeSetting>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setOracleMode>>,
+        TError,
+        {data: BodyType<OracleModeSetting>},
+        TContext
+      > => {
+      return useMutation(getSetOracleModeMutationOptions(options));
     }
 
 export const getSetWindowUrl = () => {

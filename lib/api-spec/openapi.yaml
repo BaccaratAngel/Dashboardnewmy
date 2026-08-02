@@ -197,6 +197,37 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /game/oracle-mode:
+    post:
+      operationId: setOracleMode
+      tags: [game]
+      summary: Toggle Oracle AI adaptive weight mode on or off
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OracleModeSetting"
+      responses:
+        "200":
+          description: Updated snapshot with new oracle mode
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameSnapshot"
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /game/window:
     post:
       operationId: setWindow
@@ -494,6 +525,14 @@ components:
           type: string
           description: "B, P, or T"
 
+    OracleModeSetting:
+      type: object
+      required: [adaptive]
+      properties:
+        adaptive:
+          type: boolean
+          description: true to enable adaptive weights, false to revert to fixed weights
+
     WindowSetting:
       type: object
       required: [window]
@@ -773,7 +812,7 @@ components:
 
     GameSnapshot:
       type: object
-      required: [handCount, history, regime, lookAhead, legacyLookAhead, metaAI, observer, observerMemory, crisisAI, metaCombiner, race, oracleAI]
+      required: [handCount, history, regime, lookAhead, legacyLookAhead, metaAI, observer, observerMemory, crisisAI, metaCombiner, race, oracleAI, oracleAdaptiveMode]
       properties:
         handCount:
           type: integer
@@ -807,10 +846,39 @@ components:
         oracleAI:
           $ref: "#/components/schemas/OracleResult"
           description: Final Prediction AI — synthesizes all engine signals into a single BET/WAIT verdict
+        oracleAdaptiveMode:
+          type: boolean
+          description: True when Oracle is using adaptive per-signal weight multipliers
+
+    OracleSignalStats:
+      type: object
+      required: [key, label, samples, accuracy, multiplier, baseWeight, effectiveWeight]
+      properties:
+        key:
+          type: string
+          description: Signal identifier (main, ensemble, crisis, metaCombiner)
+        label:
+          type: string
+          description: Human-readable signal name
+        samples:
+          type: integer
+          description: Number of hands scored (max 15)
+        accuracy:
+          type: ["number", "null"]
+          description: Rolling accuracy 0-1, null if fewer than 5 samples
+        multiplier:
+          type: number
+          description: Adaptive weight multiplier (0.5–1.5). 1.0 when insufficient data.
+        baseWeight:
+          type: number
+          description: Base signal weight before adaptive scaling
+        effectiveWeight:
+          type: number
+          description: Effective weight = base × multiplier
 
     OracleResult:
       type: object
-      required: [verdict, confidence, netScore, agreementCount, totalSignals, championAligned, consensusPulse, waitReason, topReasons]
+      required: [verdict, confidence, netScore, agreementCount, totalSignals, championAligned, consensusPulse, waitReason, topReasons, adaptive, signalStats]
       properties:
         verdict:
           type: string
@@ -841,6 +909,14 @@ components:
           items:
             type: string
           description: Up to 4 key contributing factors for the verdict
+        adaptive:
+          type: boolean
+          description: True when adaptive per-signal weight multipliers are active
+        signalStats:
+          type: array
+          items:
+            $ref: "#/components/schemas/OracleSignalStats"
+          description: Per-signal rolling accuracy stats (populated when adaptive=true)
 
     RaceContestantStats:
       type: object
