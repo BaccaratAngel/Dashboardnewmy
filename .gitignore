@@ -47,12 +47,3 @@ Thumbs.db
 # Replit
 .cache/
 .local/
-
-node_modules/
-venv/
-.cache/
-.npm/
-.upm/
-__pycache__/
-*.zip
-*.tar.gz

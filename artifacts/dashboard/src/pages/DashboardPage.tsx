@@ -1132,11 +1132,6 @@ export default function DashboardPage() {
   const setOracleMode = useSetOracleMode();
   const logout = useLogout();
   const heartbeat = useHeartbeat();
-  const multiverseStats = calculateMultiverseStats(
-  (snapshot || initialSnapshot?.data)?.history || [],
-  (snapshot || initialSnapshot?.data)?.oraclePrediction || 'WAIT'
-);
-
 
   useEffect(() => {
     if (me.isError) setLocation('/login');
@@ -1576,10 +1571,6 @@ export default function DashboardPage() {
             />
           )}
         </div>
-        
-        {/* --- MULTIVERSE PANEL --- */}
-<MultiversePanel stats={multiverseStats} />
-
 
         {/* ── INPUT AREA ────────────────────────────────────────────── */}
         <div className="rounded-sm border p-4 flex flex-col gap-3"
