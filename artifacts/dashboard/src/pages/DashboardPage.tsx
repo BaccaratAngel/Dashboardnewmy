@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'wouter';
 import { AutoScanPanel } from '@/components/AutoScanPanel';
 import {
@@ -15,7 +15,7 @@ import {
 import type { GameSnapshot, ExpertStats, CrisisAIResult, MetaCombinerResult, RaceState, RaceContestantStats, RegimeState, OracleResult, OracleSignalStats } from '@workspace/api-client-react';
 import { cn } from '@/lib/utils';
 
-// ── Color & label helpers ─────────────────────────────────────────────────────
+// â”€â”€ Color & label helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const EXPERT_META: Record<string, { label: string; shortLabel: string; color: string }> = {
   // Core 6
@@ -30,18 +30,18 @@ const EXPERT_META: Record<string, { label: string; shortLabel: string; color: st
   smallRoad:        { label: 'SMALL ROAD',        shortLabel: 'SM ROAD',   color: '#e879f9' },
   cockroachRoad:    { label: 'COCKROACH ROAD',    shortLabel: 'COCKROACH', color: '#f97316' },
   dualAuth:         { label: 'DUAL-AUTH ENGINE',  shortLabel: 'DUAL-AUTH', color: '#facc15' },
-  // Strategy Bots 1–11 (Syndicate individual bots)
-  bot1:  { label: 'BOT 1 — ALWAYS B',       shortLabel: 'BOT 1',  color: '#64748b' },
-  bot2:  { label: 'BOT 2 — ALWAYS P',       shortLabel: 'BOT 2',  color: '#94a3b8' },
-  bot3:  { label: 'BOT 3 — ALT BP (even)',  shortLabel: 'BOT 3',  color: '#7dd3fc' },
-  bot4:  { label: 'BOT 4 — ALT PB (even)',  shortLabel: 'BOT 4',  color: '#93c5fd' },
-  bot5:  { label: 'BOT 5 — BBPP cycle',     shortLabel: 'BOT 5',  color: '#6ee7b7' },
-  bot6:  { label: 'BOT 6 — ANTI-LAST',      shortLabel: 'BOT 6',  color: '#fcd34d' },
-  bot7:  { label: 'BOT 7 — FOLLOW-LAST',    shortLabel: 'BOT 7',  color: '#f9a8d4' },
-  bot8:  { label: 'BOT 8 — BBB/PPP cycle',  shortLabel: 'BOT 8',  color: '#c4b5fd' },
-  bot9:  { label: 'BOT 9 — BPP/PBB cycle',  shortLabel: 'BOT 9',  color: '#fdba74' },
-  bot10: { label: 'BOT 10 — BBPPP cycle',   shortLabel: 'BOT 10', color: '#86efac' },
-  bot11: { label: 'BOT 11 — BPPP cycle',    shortLabel: 'BOT 11', color: '#67e8f9' },
+  // Strategy Bots 1â€“11 (Syndicate individual bots)
+  bot1:  { label: 'BOT 1 â€” ALWAYS B',       shortLabel: 'BOT 1',  color: '#64748b' },
+  bot2:  { label: 'BOT 2 â€” ALWAYS P',       shortLabel: 'BOT 2',  color: '#94a3b8' },
+  bot3:  { label: 'BOT 3 â€” ALT BP (even)',  shortLabel: 'BOT 3',  color: '#7dd3fc' },
+  bot4:  { label: 'BOT 4 â€” ALT PB (even)',  shortLabel: 'BOT 4',  color: '#93c5fd' },
+  bot5:  { label: 'BOT 5 â€” BBPP cycle',     shortLabel: 'BOT 5',  color: '#6ee7b7' },
+  bot6:  { label: 'BOT 6 â€” ANTI-LAST',      shortLabel: 'BOT 6',  color: '#fcd34d' },
+  bot7:  { label: 'BOT 7 â€” FOLLOW-LAST',    shortLabel: 'BOT 7',  color: '#f9a8d4' },
+  bot8:  { label: 'BOT 8 â€” BBB/PPP cycle',  shortLabel: 'BOT 8',  color: '#c4b5fd' },
+  bot9:  { label: 'BOT 9 â€” BPP/PBB cycle',  shortLabel: 'BOT 9',  color: '#fdba74' },
+  bot10: { label: 'BOT 10 â€” BBPPP cycle',   shortLabel: 'BOT 10', color: '#86efac' },
+  bot11: { label: 'BOT 11 â€” BPPP cycle',    shortLabel: 'BOT 11', color: '#67e8f9' },
 };
 
 function expertColor(key: string): string {
@@ -53,7 +53,7 @@ function expertLabel(key: string): string {
   return EXPERT_META[base]?.shortLabel ?? key.toUpperCase();
 }
 
-// ── Small reusable components ─────────────────────────────────────────────────
+// â”€â”€ Small reusable components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { color: string; bg: string }> = {
@@ -102,7 +102,7 @@ function SidePill({ pred }: { pred: string | null }) {
   return (
     <span className="text-xs font-bold px-1.5 py-0.5 rounded-sm"
       style={{ color: '#52525b', border: '1px solid rgba(255,255,255,0.07)' }}>
-      —
+      â€”
     </span>
   );
 }
@@ -111,7 +111,34 @@ function SideVerdict({ verdict }: { verdict: string }) {
   return <SidePill pred={verdict === 'P' || verdict === 'B' ? verdict : null} />;
 }
 
-// ── Expert row (regime tracker) ───────────────────────────────────────────────
+// â”€â”€ Multiverse recency-weighted scoring engine â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Score = Sum(Result_i * (0.85 ^ (Current_Round - Round_i))), Result_i = +1 win / -1 loss.
+// Most-recent record is at the END of the array, so its decay distance is 0.
+
+const RECENCY_DECAY = 0.85;
+
+function recencyWeightedScore(records: boolean[]): number {
+  const n = records.length;
+  let score = 0;
+  for (let i = 0; i < n; i++) {
+    const distanceFromCurrentRound = n - 1 - i;
+    const result = records[i] ? 1 : -1;
+    score += result * Math.pow(RECENCY_DECAY, distanceFromCurrentRound);
+  }
+  return score;
+}
+
+function computeOracleMultiverseShare(oracleRecords: boolean[], multiverseRecords: boolean[]) {
+  const oracleScore = recencyWeightedScore(oracleRecords);
+  const multiverseScore = recencyWeightedScore(multiverseRecords);
+  const denom = oracleScore + multiverseScore;
+  // Multiverse_Share = (Multiverse_Score / (Oracle_Score + Multiverse_Score)) * 100
+  const multiverseShareRaw = Math.abs(denom) < 1e-6 ? 50 : (multiverseScore / denom) * 100;
+  const multiverseShare = Math.max(0, Math.min(100, multiverseShareRaw));
+  return { oracleScore, multiverseScore, multiverseShare };
+}
+
+// â”€â”€ Expert row (regime tracker) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function ExpertRow({
   expertKey,
@@ -129,16 +156,16 @@ function ExpertRow({
   const pct = (stats.compositeScore * 100).toFixed(1);
   const wwrPct = (stats.wwr * 100).toFixed(1);
   const delta = stats.wwrDelta * 100;
-  const deltaStr = delta >= 0.05 ? `+${delta.toFixed(1)}` : delta <= -0.05 ? delta.toFixed(1) : '±0';
+  const deltaStr = delta >= 0.05 ? `+${delta.toFixed(1)}` : delta <= -0.05 ? delta.toFixed(1) : 'Â±0';
   const deltaColor = delta >= 0.05 ? '#4ade80' : delta <= -0.05 ? '#f87171' : '#52525b';
-  const arrowChar = stats.momentum === 'up' ? '↑' : stats.momentum === 'down' ? '↓' : '→';
+  const arrowChar = stats.momentum === 'up' ? 'â†‘' : stats.momentum === 'down' ? 'â†“' : 'â†’';
   const arrowColor = stats.momentum === 'up' ? '#4ade80' : stats.momentum === 'down' ? '#f87171' : '#52525b';
 
   // Streak profile display
-  const runIcon = stats.currentRunIsWin === true ? '▲' : stats.currentRunIsWin === false ? '▼' : '';
+  const runIcon = stats.currentRunIsWin === true ? 'â–²' : stats.currentRunIsWin === false ? 'â–¼' : '';
   const runColor = stats.currentRunIsWin === true ? '#4ade80' : stats.currentRunIsWin === false ? '#f87171' : '#52525b';
 
-  // Shoe W/L record from raw win rate × pred count
+  // Shoe W/L record from raw win rate Ã— pred count
   const shoeW = stats.predCount > 0 ? Math.round(stats.rawWr * stats.predCount) : 0;
   const shoeL = stats.predCount - shoeW;
   const shoeTotal = stats.predCount;
@@ -160,7 +187,7 @@ function ExpertRow({
           {isActive && (
             <span className="text-xs"
               style={{ color: '#eab308', backgroundColor: 'rgba(234,179,8,0.1)', padding: '0 3px', borderRadius: 2, fontSize: 9 }}>
-              ★
+              â˜…
             </span>
           )}
           {isShadow && !isActive && (
@@ -170,7 +197,7 @@ function ExpertRow({
             </span>
           )}
           <span className="text-xs font-bold" style={{ color: arrowColor }}>{arrowChar}</span>
-          {stats.hotStreak && <span style={{ fontSize: 10 }}>🔥</span>}
+          {stats.hotStreak && <span style={{ fontSize: 10 }}>ðŸ”¥</span>}
         </div>
         <div className="flex items-center gap-1.5">
           {/* Streak run indicator */}
@@ -186,7 +213,7 @@ function ExpertRow({
         </div>
       </div>
 
-      {/* Row 2: shoe W/L record — most prominent decision aid */}
+      {/* Row 2: shoe W/L record â€” most prominent decision aid */}
       {shoeTotal > 0 ? (
         <div className="flex items-center gap-2">
           {/* W count */}
@@ -216,7 +243,7 @@ function ExpertRow({
           </span>
         </div>
       ) : (
-        <div className="text-xs" style={{ color: '#3f3f46', fontFamily: 'monospace' }}>— warming up</div>
+        <div className="text-xs" style={{ color: '#3f3f46', fontFamily: 'monospace' }}>â€” warming up</div>
       )}
 
       {/* Row 3: composite score bar */}
@@ -240,14 +267,14 @@ function ExpertRow({
         {(stats.sparkline?.length ?? 0) > 0
           ? stats.sparkline.map((hit, i) => (
               <span key={i} style={{ color: hit ? color : '#3f3f46', fontSize: 10, lineHeight: 1 }}>
-                {hit ? '●' : '○'}
+                {hit ? 'â—' : 'â—‹'}
               </span>
             ))
           : null
         }
         {stats.streak > 1 && (
           <span className="text-xs ml-1.5" style={{ color: '#71717a' }}>
-            {stats.streak}×
+            {stats.streak}Ã—
           </span>
         )}
         {(stats.avgWinRun > 0 || stats.avgLossRun > 0) && (
@@ -260,7 +287,7 @@ function ExpertRow({
   );
 }
 
-// ── Lock countdown bar with shadow leader ─────────────────────────────────────
+// â”€â”€ Lock countdown bar with shadow leader â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function LockBar({
   lockRemain,
@@ -286,20 +313,20 @@ function LockBar({
       {lockAccelerated && !shadowLeader && (
         <div className="text-center py-1 px-3 rounded-sm text-xs font-bold tracking-wider"
           style={{ color: '#fb923c', backgroundColor: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.35)' }}>
-          ⚡ ACCELERATED UNLOCK — Loss run exceeded profile
+          âš¡ ACCELERATED UNLOCK â€” Loss run exceeded profile
         </div>
       )}
       {lockAccelerated && shadowLeader && (
         <div className="text-center py-1 px-3 rounded-sm text-xs font-bold tracking-wider"
           style={{ color: '#4ade80', backgroundColor: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.35)' }}>
-          ⬆ SHADOW PROMOTED — {expertLabel(shadowLeader)} takes command
+          â¬† SHADOW PROMOTED â€” {expertLabel(shadowLeader)} takes command
         </div>
       )}
 
       {/* Lock countdown */}
       <div className="flex justify-between items-center">
         <span className="text-xs font-bold tracking-wider" style={{ color: '#eab308' }}>
-          🔒 LOCKED
+          ðŸ”’ LOCKED
         </span>
         <span className="text-xs tabular-nums" style={{ color: '#eab308' }}>
           {lockRemain}/{lockMax} hands
@@ -330,13 +357,13 @@ function LockBar({
   );
 }
 
-// ── Crisis AI Panel ───────────────────────────────────────────────────────────
+// â”€â”€ Crisis AI Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function CrisisAIPanel({ crisis, race }: { crisis: CrisisAIResult; race?: RaceState }) {
   const { isChampion, isChallenger, stats: raceStats, active: raceActive } = useRaceStatus(race, 'crisisAI');
   const allAgree = race?.allAgree ?? false;
 
-  // Always visible — 4 states: standby (0 losses), monitoring (1 loss), post-crisis (suppressed), active override
+  // Always visible â€” 4 states: standby (0 losses), monitoring (1 loss), post-crisis (suppressed), active override
   const isActive    = crisis.active;
   const isSuppressed = !crisis.active && crisis.consecutiveLosses >= 2;
   const isMonitoring = !crisis.active && crisis.consecutiveLosses === 1;
@@ -346,12 +373,12 @@ function CrisisAIPanel({ crisis, race }: { crisis: CrisisAIResult; race?: RaceSt
   const bgPredColor = crisis.backgroundPrediction === 'P' ? '#22d3ee' : crisis.backgroundPrediction === 'B' ? '#f87171' : '#71717a';
 
   const headerLabel = isActive
-    ? '⚠ CRISIS AI — RECOVERY OVERRIDE'
+    ? 'âš  CRISIS AI â€” RECOVERY OVERRIDE'
     : isMonitoring
-    ? '◈ CRISIS AI MONITOR'
+    ? 'â—ˆ CRISIS AI MONITOR'
     : isSuppressed
-    ? '◈ CRISIS AI — MONITORING'
-    : '◈ CRISIS AI — STANDBY';
+    ? 'â—ˆ CRISIS AI â€” MONITORING'
+    : 'â—ˆ CRISIS AI â€” STANDBY';
 
   const baseBorder = isActive ? 'rgba(251,146,60,0.6)' : 'rgba(251,146,60,0.2)';
   const baseShadow = isActive ? '0 0 16px rgba(251,146,60,0.15)' : 'none';
@@ -383,26 +410,26 @@ function CrisisAIPanel({ crisis, race }: { crisis: CrisisAIResult; race?: RaceSt
           ) : crisis.consecutiveLosses > 0 ? (
             <span className="text-xs font-bold tabular-nums px-2 py-0.5 rounded-sm"
               style={{ color: '#fb923c', backgroundColor: 'rgba(251,146,60,0.12)', border: '1px solid rgba(251,146,60,0.3)' }}>
-              {crisis.consecutiveLosses}× LOSS STREAK
+              {crisis.consecutiveLosses}Ã— LOSS STREAK
             </span>
           ) : null}
           {raceActive && crisis.consecutiveLosses > 0 && (
             <span className="text-xs font-bold tabular-nums px-1.5 py-0.5 rounded-sm"
               style={{ color: '#fb923c', backgroundColor: 'rgba(251,146,60,0.12)', border: '1px solid rgba(251,146,60,0.3)' }}>
-              {crisis.consecutiveLosses}×
+              {crisis.consecutiveLosses}Ã—
             </span>
           )}
         </div>
       </div>
 
       {isActive ? (
-        /* ── Active: full recovery override panel ── */
+        /* â”€â”€ Active: full recovery override panel â”€â”€ */
         <div className="flex flex-col gap-3 px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex flex-col gap-0.5">
               <span className="text-xs tracking-widest" style={{ color: '#71717a' }}>RECOVERY OVERRIDE</span>
               <span className="text-xs" style={{ color: '#52525b' }}>
-                {crisis.reasoning || 'Analysing pattern…'}
+                {crisis.reasoning || 'Analysing patternâ€¦'}
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -424,7 +451,7 @@ function CrisisAIPanel({ crisis, race }: { crisis: CrisisAIResult; race?: RaceSt
           {crisis.bgLearning && (
             <div className="flex items-start gap-2 px-2 py-1.5 rounded-sm"
               style={{ backgroundColor: 'rgba(251,146,60,0.04)', border: '1px solid rgba(251,146,60,0.1)' }}>
-              <span className="text-xs shrink-0" style={{ color: 'rgba(251,146,60,0.4)' }}>◎</span>
+              <span className="text-xs shrink-0" style={{ color: 'rgba(251,146,60,0.4)' }}>â—Ž</span>
               <span className="text-xs leading-relaxed" style={{ color: 'rgba(251,146,60,0.5)' }}>
                 {crisis.bgLearning}
               </span>
@@ -433,19 +460,19 @@ function CrisisAIPanel({ crisis, race }: { crisis: CrisisAIResult; race?: RaceSt
 
           <div className="text-xs text-center py-1 rounded-sm"
             style={{ color: 'rgba(251,146,60,0.4)', backgroundColor: 'rgba(251,146,60,0.03)', border: '1px solid rgba(251,146,60,0.1)' }}>
-            Activates after 2 consecutive losses · closes on correct prediction · re-opens on 2 more losses
+            Activates after 2 consecutive losses Â· closes on correct prediction Â· re-opens on 2 more losses
           </div>
         </div>
       ) : (
-        /* ── Inactive: standby / 1-loss monitor / post-crisis monitor ── */
+        /* â”€â”€ Inactive: standby / 1-loss monitor / post-crisis monitor â”€â”€ */
         <div className="flex flex-col gap-2 px-4 py-3">
           <div className="flex items-center justify-between">
             <span className="text-xs" style={{ color: '#3f3f46' }}>
               {isSuppressed
-                ? 'Streak resolved · watching for renewal · re-opens on 2 more losses'
+                ? 'Streak resolved Â· watching for renewal Â· re-opens on 2 more losses'
                 : isMonitoring
-                ? 'Monitoring · 1 loss · activates on next loss'
-                : 'Standby · no streak · activates at 2 consecutive losses'}
+                ? 'Monitoring Â· 1 loss Â· activates on next loss'
+                : 'Standby Â· no streak Â· activates at 2 consecutive losses'}
             </span>
             {crisis.backgroundPrediction && (
               <div className="flex items-center gap-1.5">
@@ -468,7 +495,7 @@ function CrisisAIPanel({ crisis, race }: { crisis: CrisisAIResult; race?: RaceSt
   );
 }
 
-// ── Look-ahead display row ────────────────────────────────────────────────────
+// â”€â”€ Look-ahead display row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function LookAheadRow({
   label,
@@ -493,20 +520,20 @@ function LookAheadRow({
         </div>
         <span className="text-xs" style={{ color: '#52525b' }}>
           {la.active
-            ? `bias ${la.bias >= 0 ? '+' : ''}${la.bias.toFixed(3)}  ·  P:${la.avgP.toFixed(3)}  B:${la.avgB.toFixed(3)}`
-            : `warming up — need ${depth === 'depth-1' ? '6' : '8'}+ hands`}
+            ? `bias ${la.bias >= 0 ? '+' : ''}${la.bias.toFixed(3)}  Â·  P:${la.avgP.toFixed(3)}  B:${la.avgB.toFixed(3)}`
+            : `warming up â€” need ${depth === 'depth-1' ? '6' : '8'}+ hands`}
         </span>
       </div>
       {la.active && la.verdict ? (
         la.verdict === 'P' ? (
           <span className="text-xs font-bold px-2 py-0.5 rounded-sm tracking-wider"
             style={{ color: '#22d3ee', backgroundColor: 'rgba(34,211,238,0.1)', border: '1px solid rgba(34,211,238,0.3)' }}>
-            PLAYER ▲
+            PLAYER â–²
           </span>
         ) : (
           <span className="text-xs font-bold px-2 py-0.5 rounded-sm tracking-wider"
             style={{ color: '#f87171', backgroundColor: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)' }}>
-            BANKER ▲
+            BANKER â–²
           </span>
         )
       ) : (
@@ -519,7 +546,7 @@ function LookAheadRow({
   );
 }
 
-// ── Observer sub-system row ───────────────────────────────────────────────────
+// â”€â”€ Observer sub-system row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function SubSystemRow({
   label,
@@ -540,7 +567,7 @@ function SubSystemRow({
       <div className="flex flex-col gap-0.5">
         <span className="text-xs tracking-widest" style={{ color: '#71717a' }}>{label}</span>
         <span className="text-xs" style={{ color: '#52525b' }}>
-          {total > 0 ? `${total} tracked · ${pct}% WR` : 'no data yet'}
+          {total > 0 ? `${total} tracked Â· ${pct}% WR` : 'no data yet'}
         </span>
       </div>
       <div className="flex items-center gap-1.5">
@@ -555,7 +582,7 @@ function SubSystemRow({
   );
 }
 
-// ── Expert group section header ───────────────────────────────────────────────
+// â”€â”€ Expert group section header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function ExpertGroupHeader({ label, color }: { label: string; color: string }) {
   return (
@@ -569,7 +596,7 @@ function ExpertGroupHeader({ label, color }: { label: string; color: string }) {
   );
 }
 
-// ── Race helpers ──────────────────────────────────────────────────────────────
+// â”€â”€ Race helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type RaceKey = 'metaCombiner' | 'crisisAI' | 'ensemble';
 
@@ -609,14 +636,14 @@ function RaceAccuracyBadge({ stats, isChampion, isChallenger, championStreak, al
       {isChampion && streak > 0 && (
         <span className="text-xs font-bold tabular-nums"
           style={{ color: '#facc15', fontFamily: 'monospace' }}>
-          🏆 {streak}×
+          ðŸ† {streak}Ã—
         </span>
       )}
       {/* Challenger badge */}
       {isChallenger && (
         <span className="text-xs font-bold px-1.5 py-0 rounded-sm"
           style={{ color: '#fb923c', backgroundColor: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.25)', fontSize: 9 }}>
-          ⚡ CHALL
+          âš¡ CHALL
         </span>
       )}
       {/* Rolling accuracy */}
@@ -626,7 +653,7 @@ function RaceAccuracyBadge({ stats, isChampion, isChallenger, championStreak, al
           {Math.round(acc * 100)}%
         </span>
       ) : (
-        <span className="text-xs" style={{ color: '#3f3f46', fontFamily: 'monospace' }}>—%</span>
+        <span className="text-xs" style={{ color: '#3f3f46', fontFamily: 'monospace' }}>â€”%</span>
       )}
     </div>
   );
@@ -654,7 +681,7 @@ function raceContainerStyle(
   return { borderColor, boxShadow };
 }
 
-// ── Ensemble Vote Block ───────────────────────────────────────────────────────
+// â”€â”€ Ensemble Vote Block â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function EnsembleVoteBlock({ regime, race, totalExperts }: {
   regime: RegimeState;
@@ -675,7 +702,7 @@ function EnsembleVoteBlock({ regime, race, totalExperts }: {
       }}>
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-bold tracking-wider" style={{ color: isChampion ? '#facc15' : '#eab308' }}>
-          ⚖ ENSEMBLE VOTE
+          âš– ENSEMBLE VOTE
         </span>
         <div className="flex items-center gap-1.5">
           {raceActive && (
@@ -730,7 +757,7 @@ function EnsembleVoteBlock({ regime, race, totalExperts }: {
   );
 }
 
-// ── MetaCombiner Panel ────────────────────────────────────────────────────────
+// â”€â”€ MetaCombiner Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function MetaCombinerPanel({ mc, race, noHeader }: { mc: MetaCombinerResult; race?: RaceState; noHeader?: boolean }) {
   const { isChampion, isChallenger, stats, active: raceActive } = useRaceStatus(race, 'metaCombiner');
@@ -761,7 +788,7 @@ function MetaCombinerPanel({ mc, race, noHeader }: { mc: MetaCombinerResult; rac
       {!isWarm ? (
         <div className="px-4 py-4 flex flex-col gap-2">
           <div className="text-xs text-center" style={{ color: '#3f3f46' }}>
-            Warming up — needs {8 - mc.seen} more hand{8 - mc.seen !== 1 ? 's' : ''} before issuing predictions
+            Warming up â€” needs {8 - mc.seen} more hand{8 - mc.seen !== 1 ? 's' : ''} before issuing predictions
           </div>
           <div className="h-0.5 rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(250,204,21,0.08)' }}>
             <div className="h-full rounded-full transition-all duration-700"
@@ -771,7 +798,7 @@ function MetaCombinerPanel({ mc, race, noHeader }: { mc: MetaCombinerResult; rac
       ) : (
         <div className="flex flex-col gap-3 px-4 py-3">
 
-          {/* P̂ probability bar */}
+          {/* PÌ‚ probability bar */}
           <div className="flex flex-col gap-1">
             <div className="flex justify-between text-xs" style={{ color: '#52525b' }}>
               <span>P {pPct.toFixed(1)}%</span>
@@ -809,7 +836,7 @@ function MetaCombinerPanel({ mc, race, noHeader }: { mc: MetaCombinerResult; rac
                 {mc.prediction === 'P' ? 'PLAYER' : 'BANKER'}
               </span>
             ) : (
-              <span className="text-sm font-black" style={{ color: '#3f3f46' }}>— WAIT —</span>
+              <span className="text-sm font-black" style={{ color: '#3f3f46' }}>â€” WAIT â€”</span>
             )}
           </div>
 
@@ -839,7 +866,7 @@ function MetaCombinerPanel({ mc, race, noHeader }: { mc: MetaCombinerResult; rac
   );
 }
 
-// ── Oracle AI Panel ───────────────────────────────────────────────────────────
+// â”€â”€ Oracle AI Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function OracleAIPanel({
   oracle,
@@ -889,7 +916,7 @@ function OracleAIPanel({
         style={{ borderBottom: `1px solid ${borderColor}`, backgroundColor: isWait ? 'rgba(255,255,255,0.02)' : bgColor }}>
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold tracking-widest" style={{ color: '#e2e8f0' }}>
-            ◈ ORACLE AI
+            â—ˆ ORACLE AI
           </span>
           <span className="text-xs px-1.5 py-0 rounded-sm font-bold tracking-wider"
             style={{ color: confColor, backgroundColor: `${confColor}18`, border: `1px solid ${confColor}35`, fontSize: 9 }}>
@@ -902,7 +929,7 @@ function OracleAIPanel({
             </span>
           )}
           {oracle.championAligned && !isWait && (
-            <span className="text-xs font-bold" style={{ color: '#facc15', fontSize: 9 }}>🏆 CHAMP</span>
+            <span className="text-xs font-bold" style={{ color: '#facc15', fontSize: 9 }}>ðŸ† CHAMP</span>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -923,10 +950,10 @@ function OracleAIPanel({
               backgroundColor: adaptiveMode ? 'rgba(168,85,247,0.15)' : 'rgba(255,255,255,0.04)',
               border: `1px solid ${adaptiveMode ? 'rgba(168,85,247,0.4)' : 'rgba(255,255,255,0.1)'}`,
             }}
-            title={adaptiveMode ? 'Adaptive weights ON — click to disable' : 'Fixed weights — click to enable adaptive'}
+            title={adaptiveMode ? 'Adaptive weights ON â€” click to disable' : 'Fixed weights â€” click to enable adaptive'}
           >
             <span style={{ fontSize: 8, color: adaptiveMode ? '#a855f7' : '#52525b', fontWeight: 700, letterSpacing: '0.08em' }}>
-              {adaptiveMode ? '⚡ ADAPTIVE' : '◌ FIXED'}
+              {adaptiveMode ? 'âš¡ ADAPTIVE' : 'â—Œ FIXED'}
             </span>
           </button>
         </div>
@@ -978,9 +1005,9 @@ function OracleAIPanel({
       {oracle.topReasons.length > 0 && (
         <div className="px-4 pb-3 flex flex-wrap gap-1.5">
           {oracle.topReasons.map((r, i) => {
-            const isP = r.endsWith('→P');
-            const isB = r.endsWith('→B');
-            const label = r.replace(/→[PB]$/, '');
+            const isP = r.endsWith('â†’P');
+            const isB = r.endsWith('â†’B');
+            const label = r.replace(/â†’[PB]$/, '');
             return (
               <span key={i} className="text-xs px-1.5 py-0.5 rounded-sm font-mono"
                 style={{
@@ -989,20 +1016,20 @@ function OracleAIPanel({
                   border: `1px solid ${isP ? 'rgba(34,211,238,0.2)' : isB ? 'rgba(248,113,113,0.2)' : 'rgba(255,255,255,0.08)'}`,
                   fontSize: 9,
                 }}>
-                {label}{isP ? ' ▲P' : isB ? ' ▼B' : ''}
+                {label}{isP ? ' â–²P' : isB ? ' â–¼B' : ''}
               </span>
             );
           })}
         </div>
       )}
 
-      {/* Adaptive signal accuracy bars — shown when adaptive mode is ON */}
+      {/* Adaptive signal accuracy bars â€” shown when adaptive mode is ON */}
       {adaptiveMode && oracle.signalStats && oracle.signalStats.length > 0 && (
         <div className="px-4 pb-4 pt-1 flex flex-col gap-2"
           style={{ borderTop: '1px solid rgba(168,85,247,0.15)', backgroundColor: 'rgba(168,85,247,0.03)' }}>
           <div className="flex items-center gap-1.5 mb-0.5">
-            <span style={{ fontSize: 8, color: '#a855f7', fontWeight: 700, letterSpacing: '0.1em' }}>⚡ ADAPTIVE WEIGHTS</span>
-            <span style={{ fontSize: 8, color: '#52525b', letterSpacing: '0.05em' }}>· last 15 hands · min 5 samples</span>
+            <span style={{ fontSize: 8, color: '#a855f7', fontWeight: 700, letterSpacing: '0.1em' }}>âš¡ ADAPTIVE WEIGHTS</span>
+            <span style={{ fontSize: 8, color: '#52525b', letterSpacing: '0.05em' }}>Â· last 15 hands Â· min 5 samples</span>
           </div>
           {oracle.signalStats.map((s: OracleSignalStats) => {
             const hasData = s.accuracy !== null;
@@ -1018,7 +1045,7 @@ function OracleAIPanel({
                   <div className="flex items-center gap-2">
                     {hasData ? (
                       <span style={{ fontSize: 9, color: multColor, fontFamily: 'monospace', fontWeight: 700 }}>
-                        {accPct}% · {s.multiplier.toFixed(2)}×
+                        {accPct}% Â· {s.multiplier.toFixed(2)}Ã—
                       </span>
                     ) : (
                       <span style={{ fontSize: 8, color: '#3f3f46', fontFamily: 'monospace' }}>
@@ -1048,7 +1075,228 @@ function OracleAIPanel({
   );
 }
 
-// ── Collapsible panel header ──────────────────────────────────────────────────
+// â”€â”€ Multiverse tracking record â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// One entry per resolved (P/B) hand for the currently active rolling window.
+interface MultiverseRecord {
+  round: number;         // handCount at the time this hand resolved
+  oracleWin: boolean;    // true if Oracle's verdict matched the actual outcome
+  multiverseWin: boolean; // true if Multiverse's (inverted) verdict matched the actual outcome
+}
+
+// â”€â”€ Oracle vs. Multiverse Heat Gauge (bi-directional %-bar) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+function OraclePowerGauge({
+  oracleScore,
+  multiverseScore,
+  multiverseShare,
+}: {
+  oracleScore: number;
+  multiverseScore: number;
+  multiverseShare: number;
+}) {
+  const oracleShare = 100 - multiverseShare;
+  const hotter: 'oracle' | 'multiverse' | 'even' =
+    Math.abs(multiverseShare - 50) < 2 ? 'even' : multiverseShare > 50 ? 'multiverse' : 'oracle';
+
+  const oracleColor = '#facc15';       // gold â€” Oracle
+  const multiverseColor = '#a855f7';   // violet â€” Multiverse
+
+  return (
+    <div className="flex flex-col gap-1.5" data-testid="oracle-multiverse-gauge">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-bold tracking-wider" style={{ color: oracleColor }}>
+          â—ˆ ORACLE {oracleShare.toFixed(1)}%
+        </span>
+        <span className="text-xs font-bold tracking-widest" style={{ color: '#52525b' }}>
+          {hotter === 'even' ? 'âš– EVEN' : hotter === 'multiverse' ? 'ðŸ”¥ MULTIVERSE HOT' : 'ðŸ”¥ ORACLE HOT'}
+        </span>
+        <span className="text-xs font-bold tracking-wider" style={{ color: multiverseColor }}>
+          MULTIVERSE {multiverseShare.toFixed(1)}% âœ¦
+        </span>
+      </div>
+      <div className="h-2.5 rounded-full overflow-hidden flex" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>
+        <div className="h-full rounded-l-full transition-all duration-700"
+          style={{
+            width: `${oracleShare}%`,
+            backgroundColor: oracleColor,
+            opacity: hotter === 'oracle' ? 0.95 : 0.45,
+            boxShadow: hotter === 'oracle' ? `0 0 8px ${oracleColor}90` : 'none',
+          }} />
+        <div className="h-full rounded-r-full transition-all duration-700"
+          style={{
+            width: `${multiverseShare}%`,
+            backgroundColor: multiverseColor,
+            opacity: hotter === 'multiverse' ? 0.95 : 0.45,
+            boxShadow: hotter === 'multiverse' ? `0 0 8px ${multiverseColor}90` : 'none',
+          }} />
+      </div>
+      <div className="flex items-center justify-between">
+        <span className="text-xs tabular-nums" style={{ color: '#3f3f46', fontFamily: 'monospace' }}>
+          score {oracleScore >= 0 ? '+' : ''}{oracleScore.toFixed(2)}
+        </span>
+        <span className="text-xs tabular-nums" style={{ color: '#3f3f46', fontFamily: 'monospace' }}>
+          score {multiverseScore >= 0 ? '+' : ''}{multiverseScore.toFixed(2)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// â”€â”€ Multiverse AI Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Predicts the exact opposite of Oracle. Tracks its own W/L against the same
+// dynamic rolling window (8/12/16) that the regime engine auto-adjusts, and
+// runs a recency-weighted comparison gauge against Oracle for early trend
+// detection (streak-shift catching before it's obvious in raw win rate).
+
+function MultiverseAIPanel({
+  oracle,
+  records,
+  windowLen,
+}: {
+  oracle: OracleResult;
+  records: MultiverseRecord[];
+  windowLen: number;
+}) {
+  const isWait = oracle.verdict === 'WAIT';
+  // Exact opposite of Oracle's verdict â€” P<->B, WAIT stays WAIT (nothing to invert).
+  const verdict = oracle.verdict === 'P' ? 'B' : oracle.verdict === 'B' ? 'P' : 'WAIT';
+  const isPlayer = verdict === 'P';
+  const isBanker = verdict === 'B';
+
+  const verdictColor = isPlayer ? '#22d3ee' : isBanker ? '#f87171' : '#71717a';
+  const verdictGlow = isPlayer
+    ? '0 0 30px rgba(34,211,238,0.55), 0 0 60px rgba(34,211,238,0.25)'
+    : isBanker
+    ? '0 0 30px rgba(248,113,113,0.55), 0 0 60px rgba(248,113,113,0.25)'
+    : 'none';
+
+  const borderColor = isPlayer ? 'rgba(34,211,238,0.5)'
+    : isBanker ? 'rgba(248,113,113,0.5)'
+    : 'rgba(168,85,247,0.25)';
+
+  const bgColor = isPlayer ? 'rgba(34,211,238,0.04)'
+    : isBanker ? 'rgba(248,113,113,0.04)'
+    : 'rgba(168,85,247,0.03)';
+
+  // Windowed W/L for the active dynamic window (synced with regime.window: 8/12/16)
+  const windowed = records.slice(-windowLen);
+  const multiverseW = windowed.filter((r) => r.multiverseWin).length;
+  const multiverseL = windowed.length - multiverseW;
+  const multiverseWinPct = windowed.length > 0 ? Math.round((multiverseW / windowed.length) * 100) : 0;
+  const multiverseColor = multiverseWinPct >= 60 ? '#4ade80' : multiverseWinPct >= 50 ? '#facc15' : '#f87171';
+
+  const oracleW = windowed.filter((r) => r.oracleWin).length;
+  const oracleL = windowed.length - oracleW;
+  const oracleWinPct = windowed.length > 0 ? Math.round((oracleW / windowed.length) * 100) : 0;
+
+  // Recency-weighted scoring â€” early detection of a performance-trend shift
+  const oracleRecords = windowed.map((r) => r.oracleWin);
+  const multiverseRecords = windowed.map((r) => r.multiverseWin);
+  const { oracleScore, multiverseScore, multiverseShare } = computeOracleMultiverseShare(oracleRecords, multiverseRecords);
+
+  return (
+    <div className="rounded-sm border flex flex-col overflow-hidden"
+      style={{
+        backgroundColor: bgColor,
+        borderColor,
+        boxShadow: !isWait ? `0 0 20px ${isPlayer ? 'rgba(34,211,238,0.12)' : 'rgba(248,113,113,0.12)'}` : 'none',
+        transition: 'border-color 0.5s, box-shadow 0.5s',
+      }}
+      data-testid="multiverse-panel">
+
+      {/* Header */}
+      <div className="px-4 py-2 flex items-center justify-between"
+        style={{ borderBottom: `1px solid ${borderColor}`, backgroundColor: isWait ? 'rgba(168,85,247,0.02)' : bgColor }}>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold tracking-widest" style={{ color: '#e2e8f0' }}>
+            âœ¦ MULTIVERSE AI
+          </span>
+          <span className="text-xs px-1.5 py-0 rounded-sm font-bold tracking-wider"
+            style={{ color: '#a855f7', backgroundColor: 'rgba(168,85,247,0.15)', border: '1px solid rgba(168,85,247,0.35)', fontSize: 9 }}>
+            INVERSE ORACLE
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs tabular-nums font-bold" style={{ color: '#52525b', fontFamily: 'monospace' }}>
+            WIN {windowLen}
+          </span>
+        </div>
+      </div>
+
+      {/* Verdict */}
+      <div className="flex flex-col items-center gap-3 py-5 px-4">
+        {!isWait ? (
+          <>
+            <div className="text-5xl font-black tracking-wider"
+              style={{ color: verdictColor, textShadow: verdictGlow }}>
+              {isPlayer ? 'PLAYER' : 'BANKER'}
+            </div>
+            <div className="text-xs font-bold tracking-widest" style={{ color: verdictColor, opacity: 0.7 }}>
+              OPPOSITE OF ORACLE â€” BET {isPlayer ? 'PLAYER' : 'BANKER'} NEXT HAND
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="text-4xl font-black tracking-widest" style={{ color: '#52525b' }}>
+              WAIT
+            </div>
+            <div className="text-xs tracking-wider text-center max-w-xs" style={{ color: '#71717a' }}>
+              Oracle is waiting â€” Multiverse mirrors and also skips this hand
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Oracle vs Multiverse heat gauge */}
+      <div className="px-4 pb-3">
+        <OraclePowerGauge oracleScore={oracleScore} multiverseScore={multiverseScore} multiverseShare={multiverseShare} />
+      </div>
+
+      {/* Windowed W/L record â€” synced to dynamic window length */}
+      {windowed.length > 0 ? (
+        <div className="px-4 pb-4 flex flex-col gap-2" style={{ borderTop: '1px solid rgba(168,85,247,0.1)', paddingTop: 10 }}>
+          <div className="flex items-center justify-between">
+            <span className="text-xs tracking-widest" style={{ color: '#3f3f46' }}>
+              MULTIVERSE RECORD Â· last {windowed.length}/{windowLen}
+            </span>
+            <span className="text-xs" style={{ color: '#3f3f46' }}>
+              ORACLE {oracleWinPct}% Â· MULTIVERSE {multiverseWinPct}%
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-black tabular-nums" style={{ color: '#4ade80', fontFamily: 'monospace', minWidth: 28 }}>
+              {multiverseW}W
+            </span>
+            <div className="flex-1 h-2 rounded-full overflow-hidden flex" style={{ backgroundColor: '#1c1c1e' }}>
+              <div className="h-full transition-all duration-700"
+                style={{ width: `${multiverseWinPct}%`, backgroundColor: multiverseColor, boxShadow: `0 0 4px ${multiverseColor}80` }} />
+            </div>
+            <span className="text-xs font-black tabular-nums" style={{ color: '#f87171', fontFamily: 'monospace', minWidth: 28, textAlign: 'right' }}>
+              {multiverseL}L
+            </span>
+            <span className="text-xs font-bold tabular-nums px-1.5 py-0.5 rounded-sm"
+              style={{ color: multiverseColor, backgroundColor: `${multiverseColor}14`, border: `1px solid ${multiverseColor}35`, fontFamily: 'monospace', minWidth: 36, textAlign: 'center' }}>
+              {multiverseWinPct}%
+            </span>
+          </div>
+          <div className="flex items-center gap-0.5" style={{ minHeight: 14 }}>
+            {windowed.map((r, i) => (
+              <span key={i} style={{ color: r.multiverseWin ? multiverseColor : '#3f3f46', fontSize: 10, lineHeight: 1 }}>
+                {r.multiverseWin ? 'â—' : 'â—‹'}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="px-4 pb-4 text-xs text-center" style={{ color: '#3f3f46' }}>
+          â€” warming up, waiting for resolved hands â€”
+        </div>
+      )}
+    </div>
+  );
+}
+
+// â”€â”€ Collapsible panel header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function PanelHeader({
   label,
@@ -1083,14 +1331,14 @@ function PanelHeader({
         {right}
         <span className="text-xs transition-transform duration-200"
           style={{ color: '#3f3f46', display: 'inline-block', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
-          ▾
+          â–¾
         </span>
       </div>
     </button>
   );
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
+// â”€â”€ Main page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const DEFAULT_COLLAPSED = {
   regime: false,
@@ -1123,6 +1371,46 @@ export default function DashboardPage() {
     });
   };
 
+  // â”€â”€ Multiverse tracking (opposite-of-Oracle) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // recordsByIndexRef mirrors snapshot.history 1:1 (null = tie or Oracle was
+  // WAIT for that hand, so nothing to score). This keeps Undo/Reset in sync
+  // for free â€” truncating/clearing the ref exactly follows history length.
+  const recordsByIndexRef = useRef<(MultiverseRecord | null)[]>([]);
+  const prevOracleVerdictRef = useRef<string>('WAIT');
+  const [multiverseRecords, setMultiverseRecords] = useState<MultiverseRecord[]>([]);
+
+  useEffect(() => {
+    if (!snapshot) return;
+    const arr = recordsByIndexRef.current;
+    const newLen = snapshot.history.length;
+
+    if (newLen === 0) {
+      arr.length = 0;
+    } else if (newLen === arr.length + 1) {
+      // Common case: exactly one new hand resolved since last snapshot.
+      const actual = snapshot.history[newLen - 1];
+      const priorOracleVerdict = prevOracleVerdictRef.current;
+      let record: MultiverseRecord | null = null;
+      if ((actual === 'P' || actual === 'B') && (priorOracleVerdict === 'P' || priorOracleVerdict === 'B')) {
+        const oracleWin = priorOracleVerdict === actual;
+        // Multiverse always calls the exact opposite side of Oracle.
+        const multiverseVerdict = priorOracleVerdict === 'P' ? 'B' : 'P';
+        const multiverseWin = multiverseVerdict === actual;
+        record = { round: snapshot.handCount, oracleWin, multiverseWin };
+      }
+      arr.push(record);
+    } else if (newLen < arr.length) {
+      // Undo â€” drop back to the restored history length.
+      arr.length = newLen;
+    } else if (newLen > arr.length) {
+      // Unexpected multi-hand jump â€” pad with nulls (no backfill data available).
+      while (arr.length < newLen) arr.push(null);
+    }
+
+    prevOracleVerdictRef.current = snapshot.oracleAI?.verdict ?? 'WAIT';
+    setMultiverseRecords(arr.filter((r): r is MultiverseRecord => r !== null));
+  }, [snapshot]);
+
   const me = useGetMe();
   const initialSnapshot = useGetSnapshot();
   const submitInput = useSubmitInput();
@@ -1137,7 +1425,7 @@ export default function DashboardPage() {
     if (me.isError) setLocation('/login');
   }, [me.isError, setLocation]);
 
-  // ── Heartbeat: probe every 15 s for concurrent-session detection ──────────
+  // â”€â”€ Heartbeat: probe every 15 s for concurrent-session detection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     const id = setInterval(() => {
       heartbeat.mutate(undefined, {
@@ -1199,7 +1487,7 @@ export default function DashboardPage() {
       <header className="flex items-center justify-between px-4 py-3 border-b"
         style={{ backgroundColor: '#0d0d14', borderColor: 'rgba(255,255,255,0.08)' }}>
         <span className="text-sm font-bold tracking-wider" style={{ color: '#22d3ee' }} data-testid="app-title">
-          ⚡ META-EXPERT REGIME TRACKER
+          âš¡ META-EXPERT REGIME TRACKER
         </span>
         <div className="flex items-center gap-3">
           {me.data && (
@@ -1263,7 +1551,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ── META REGIME TRACKER PANEL ──────────────────────────────── */}
+        {/* â”€â”€ META REGIME TRACKER PANEL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {regime && (
           <div className="rounded-sm border flex flex-col overflow-hidden"
             style={{ backgroundColor: '#0d0d14', borderColor: 'rgba(255,255,255,0.08)' }}>
@@ -1282,7 +1570,7 @@ export default function DashboardPage() {
             />
 
             {!collapsed.regime && <>
-              {/* ── Core 6 experts ── */}
+              {/* â”€â”€ Core 6 experts â”€â”€ */}
               <div className="px-4">
                 <ExpertGroupHeader label="CORE ENGINES" color="#22d3ee" />
                 {coreKeys.map((key) => {
@@ -1294,7 +1582,7 @@ export default function DashboardPage() {
                 })}
               </div>
 
-              {/* ── Road 4 experts ── */}
+              {/* â”€â”€ Road 4 experts â”€â”€ */}
               <div className="px-4">
                 <ExpertGroupHeader label="DERIVED ROADS" color="#f43f5e" />
                 {roadKeys.map((key) => {
@@ -1306,7 +1594,7 @@ export default function DashboardPage() {
                 })}
               </div>
 
-              {/* ── Strategy Bots 11 ── */}
+              {/* â”€â”€ Strategy Bots 11 â”€â”€ */}
               <div className="px-4">
                 <ExpertGroupHeader label="STRATEGY BOTS (appx 11)" color="#64748b" />
                 {botKeys.map((key) => {
@@ -1329,13 +1617,13 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── LOOK-AHEAD SYSTEMS PANEL ─────────────────────────────── */}
+        {/* â”€â”€ LOOK-AHEAD SYSTEMS PANEL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {snapshot && snapshot.legacyLookAhead && (
           <div className="rounded-sm border flex flex-col gap-0 overflow-hidden"
             style={{ backgroundColor: '#0d0d14', borderColor: 'rgba(34,211,238,0.2)' }}>
             <PanelHeader collapsed={collapsed.lookAhead} onToggle={() => togglePanel('lookAhead')}
               bg="rgba(34,211,238,0.03)" borderColor="rgba(34,211,238,0.1)"
-              label={<span className="text-xs font-bold tracking-widest" style={{ color: '#22d3ee' }}>◈ LOOK-AHEAD SYSTEMS</span>}
+              label={<span className="text-xs font-bold tracking-widest" style={{ color: '#22d3ee' }}>â—ˆ LOOK-AHEAD SYSTEMS</span>}
               right={<span className="text-xs" style={{ color: '#52525b' }}>Branch Simulation</span>} />
             {!collapsed.lookAhead && <>
               <div className="divide-y" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
@@ -1347,11 +1635,11 @@ export default function DashboardPage() {
                 <div className="px-4 py-2" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
                   {snapshot.lookAhead.verdict === snapshot.legacyLookAhead.verdict ? (
                     <span className="text-xs font-bold" style={{ color: '#4ade80' }}>
-                      ✓ v1 + v2 AGREE → {snapshot.lookAhead.verdict === 'P' ? 'PLAYER' : 'BANKER'}
+                      âœ“ v1 + v2 AGREE â†’ {snapshot.lookAhead.verdict === 'P' ? 'PLAYER' : 'BANKER'}
                     </span>
                   ) : (
                     <span className="text-xs font-bold" style={{ color: '#fb923c' }}>
-                      ⚡ v1 vs v2 SPLIT — v1:{snapshot.lookAhead.verdict} v2:{snapshot.legacyLookAhead.verdict}
+                      âš¡ v1 vs v2 SPLIT â€” v1:{snapshot.lookAhead.verdict} v2:{snapshot.legacyLookAhead.verdict}
                     </span>
                   )}
                 </div>
@@ -1360,13 +1648,13 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── META AI PANEL ─────────────────────────────────────────── */}
+        {/* â”€â”€ META AI PANEL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {snapshot && (
           <div className="rounded-sm border flex flex-col gap-0 overflow-hidden"
             style={{ backgroundColor: '#0d0d14', borderColor: 'rgba(176,0,255,0.25)' }}>
             <PanelHeader collapsed={collapsed.metaAI} onToggle={() => togglePanel('metaAI')}
               bg="rgba(176,0,255,0.04)" borderColor="rgba(176,0,255,0.15)"
-              label={<span className="text-xs font-bold tracking-widest" style={{ color: '#b000ff' }}>◈ META AI</span>}
+              label={<span className="text-xs font-bold tracking-widest" style={{ color: '#b000ff' }}>â—ˆ META AI</span>}
               right={<span className="text-xs" style={{ color: '#52525b' }}>Online Logistic Regression</span>} />
             {!collapsed.metaAI && (
               <div className="px-4 py-3 flex items-center justify-between">
@@ -1378,7 +1666,7 @@ export default function DashboardPage() {
                   <span className="text-xs" style={{ color: '#52525b' }}>
                     {snapshot.metaAI.seen === 0
                       ? 'no samples yet'
-                      : `${snapshot.metaAI.seen} samples · acc ${snapshot.metaAI.accuracy !== null ? `${Math.round(snapshot.metaAI.accuracy * 100)}%` : '--'}  ·  P̂ ${(snapshot.metaAI.pPlayer * 100).toFixed(1)}%`}
+                      : `${snapshot.metaAI.seen} samples Â· acc ${snapshot.metaAI.accuracy !== null ? `${Math.round(snapshot.metaAI.accuracy * 100)}%` : '--'}  Â·  PÌ‚ ${(snapshot.metaAI.pPlayer * 100).toFixed(1)}%`}
                   </span>
                 </div>
                 {snapshot.metaAI.seen > 0 && (
@@ -1397,13 +1685,13 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── OBSERVER MASTER AI PANEL ──────────────────────────────── */}
+        {/* â”€â”€ OBSERVER MASTER AI PANEL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {snapshot && (
           <div className="rounded-sm border flex flex-col gap-0 overflow-hidden"
             style={{ backgroundColor: '#0d0d14', borderColor: 'rgba(74,222,128,0.2)' }}>
             <PanelHeader collapsed={collapsed.observer} onToggle={() => togglePanel('observer')}
               bg="rgba(74,222,128,0.02)" borderColor="rgba(74,222,128,0.1)"
-              label={<span className="text-xs font-bold tracking-widest" style={{ color: '#4ade80' }}>◈ OBSERVER MASTER AI</span>}
+              label={<span className="text-xs font-bold tracking-widest" style={{ color: '#4ade80' }}>â—ˆ OBSERVER MASTER AI</span>}
               right={<span className="text-xs" style={{ color: '#52525b' }}>Meta-learning Layer</span>} />
             {!collapsed.observer && <>
               <div className="px-4 py-3 flex items-center justify-between">
@@ -1430,27 +1718,27 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── META COMBINER PANEL ───────────────────────────────────── */}
+        {/* â”€â”€ META COMBINER PANEL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {snapshot?.metaCombiner && (
           <div className="rounded-sm border flex flex-col overflow-hidden"
             style={{ backgroundColor: '#08080f', borderColor: 'rgba(250,204,21,0.2)' }}>
             <PanelHeader collapsed={collapsed.metaCombiner} onToggle={() => togglePanel('metaCombiner')}
               bg="rgba(250,204,21,0.03)" borderColor="rgba(250,204,21,0.12)"
-              label={<><span className="text-xs font-bold tracking-widest" style={{ color: 'rgba(250,204,21,0.75)' }}>◈ META COMBINER</span>
+              label={<><span className="text-xs font-bold tracking-widest" style={{ color: 'rgba(250,204,21,0.75)' }}>â—ˆ META COMBINER</span>
                 <span className="text-xs px-1.5 rounded-sm" style={{ color: '#facc15', backgroundColor: 'rgba(250,204,21,0.08)', border: '1px solid rgba(250,204,21,0.2)', fontSize: 9 }}>ONLINE LR</span></>}
             />
             {!collapsed.metaCombiner && <MetaCombinerPanel mc={snapshot.metaCombiner} race={snapshot.race} noHeader />}
           </div>
         )}
 
-        {/* ── DECISION PANEL (ensemble + timeline + lock + main call) ── */}
+        {/* â”€â”€ DECISION PANEL (ensemble + timeline + lock + main call) â”€â”€ */}
         {regime && (
           <div className="rounded-sm border flex flex-col overflow-hidden"
             style={{ backgroundColor: '#0d0d14', borderColor: 'rgba(255,255,255,0.08)' }}>
 
             <PanelHeader collapsed={collapsed.decision} onToggle={() => togglePanel('decision')}
               bg="rgba(255,255,255,0.02)" borderColor="rgba(255,255,255,0.06)"
-              label={<span className="text-xs font-bold tracking-widest" style={{ color: '#e2e8f0' }}>⚡ MAIN DECISION</span>}
+              label={<span className="text-xs font-bold tracking-widest" style={{ color: '#e2e8f0' }}>âš¡ MAIN DECISION</span>}
               right={regime.decision ? (
                 <span className="text-sm font-black" style={{ color: regime.decision === 'P' ? '#22d3ee' : '#f87171' }}>
                   {regime.decision === 'P' ? 'PLAYER' : 'BANKER'}
@@ -1482,6 +1770,17 @@ export default function DashboardPage() {
                 </div>
               )}
 
+              {/* â”€â”€ MULTIVERSE AI PANEL â€” exact inverse of Oracle â”€â”€â”€â”€â”€â”€â”€ */}
+              {snapshot?.oracleAI && (
+                <div className="mx-4 mb-2">
+                  <MultiverseAIPanel
+                    oracle={snapshot.oracleAI}
+                    records={multiverseRecords}
+                    windowLen={activeWindow}
+                  />
+                </div>
+              )}
+
               {(regime.switchTimeline?.length ?? 0) > 0 && (
                 <div className="px-4 pb-2">
                   <div className="text-xs tracking-widest mb-1.5" style={{ color: '#3f3f46' }}>TIMELINE</div>
@@ -1492,12 +1791,12 @@ export default function DashboardPage() {
                           style={{ color: expertColor(entry.expert), backgroundColor: `${expertColor(entry.expert)}12`, border: `1px solid ${expertColor(entry.expert)}25` }}>
                           {expertLabel(entry.expert)} {entry.hands}h
                         </span>
-                        <span className="text-xs" style={{ color: '#3f3f46' }}>→</span>
+                        <span className="text-xs" style={{ color: '#3f3f46' }}>â†’</span>
                       </div>
                     ))}
                     <span className="text-xs px-1.5 py-0.5 rounded-sm"
                       style={{ color: expertColor(regime.expert ?? ''), backgroundColor: `${expertColor(regime.expert ?? '')}18`, border: `1px solid ${expertColor(regime.expert ?? '')}35` }}>
-                      {expertLabel(regime.expert ?? '—')} ★
+                      {expertLabel(regime.expert ?? 'â€”')} â˜…
                     </span>
                   </div>
                 </div>
@@ -1515,13 +1814,13 @@ export default function DashboardPage() {
                 <div className="mx-4 mb-2 text-center py-2 px-4 rounded-sm font-bold tracking-wider text-sm"
                   style={{ color: '#eab308', backgroundColor: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.4)', boxShadow: '0 0 12px rgba(234,179,8,0.15)' }}
                   data-testid="both-agree-banner">
-                  ⚡ ALL {regime.agreeCount} AGREE — {regime.bothAgreeSide === 'P' ? 'PLAYER' : regime.bothAgreeSide === 'B' ? 'BANKER' : 'BET'}
+                  âš¡ ALL {regime.agreeCount} AGREE â€” {regime.bothAgreeSide === 'P' ? 'PLAYER' : regime.bothAgreeSide === 'B' ? 'BANKER' : 'BET'}
                 </div>
               )}
               {!regime.bothAgree && regime.agreeCount >= 6 && regime.ensembleVerdict && (
                 <div className="mx-4 mb-2 text-center py-2 px-4 rounded-sm font-bold tracking-wider text-sm"
                   style={{ color: regime.ensembleVerdict === 'P' ? '#22d3ee' : '#f87171', backgroundColor: regime.ensembleVerdict === 'P' ? 'rgba(34,211,238,0.07)' : 'rgba(248,113,113,0.07)', border: `1px solid ${regime.ensembleVerdict === 'P' ? 'rgba(34,211,238,0.3)' : 'rgba(248,113,113,0.3)'}` }}>
-                  ⚡ {regime.agreeCount}/{totalExperts} LEAN — {regime.ensembleVerdict === 'P' ? 'PLAYER' : 'BANKER'}
+                  âš¡ {regime.agreeCount}/{totalExperts} LEAN â€” {regime.ensembleVerdict === 'P' ? 'PLAYER' : 'BANKER'}
                 </div>
               )}
 
@@ -1532,7 +1831,7 @@ export default function DashboardPage() {
                       style={{ color: '#22d3ee', textShadow: '0 0 20px rgba(34,211,238,0.7), 0 0 40px rgba(34,211,238,0.4)' }}
                       data-testid="decision-display">PLAYER</div>
                     <div className="text-xs tracking-wider" style={{ color: expertColor(regime.expert ?? '') }} data-testid="following-label">
-                      Following {expertLabel(regime.expert ?? '')}{regime.isSplit && ' (split→obs)'}
+                      Following {expertLabel(regime.expert ?? '')}{regime.isSplit && ' (splitâ†’obs)'}
                     </div>
                   </>
                 )}
@@ -1542,13 +1841,13 @@ export default function DashboardPage() {
                       style={{ color: '#f87171', textShadow: '0 0 20px rgba(248,113,113,0.7), 0 0 40px rgba(248,113,113,0.4)' }}
                       data-testid="decision-display">BANKER</div>
                     <div className="text-xs tracking-wider" style={{ color: expertColor(regime.expert ?? '') }} data-testid="following-label">
-                      Following {expertLabel(regime.expert ?? '')}{regime.isSplit && ' (split→obs)'}
+                      Following {expertLabel(regime.expert ?? '')}{regime.isSplit && ' (splitâ†’obs)'}
                     </div>
                   </>
                 )}
                 {!regime.decision && (
                   <div className="text-4xl font-black tracking-wider" style={{ color: '#71717a' }} data-testid="decision-display">
-                    — WAIT —
+                    â€” WAIT â€”
                   </div>
                 )}
               </div>
@@ -1556,12 +1855,12 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── AUTO SCAN PANEL ───────────────────────────────────────── */}
+        {/* â”€â”€ AUTO SCAN PANEL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <div className="rounded-sm border flex flex-col overflow-hidden"
           style={{ backgroundColor: '#09090f', borderColor: 'rgba(255,255,255,0.1)' }}>
           <PanelHeader collapsed={collapsed.autoScan} onToggle={() => togglePanel('autoScan')}
             bg="rgba(34,211,238,0.025)" borderColor="rgba(255,255,255,0.06)"
-            label={<span className="text-xs font-bold tracking-widest" style={{ color: '#22d3ee' }}>📡 AUTO SCAN</span>}
+            label={<span className="text-xs font-bold tracking-widest" style={{ color: '#22d3ee' }}>ðŸ“¡ AUTO SCAN</span>}
             right={<span className="text-xs" style={{ color: '#52525b' }}>MacroDroid / Manual</span>} />
           {!collapsed.autoScan && (
             <AutoScanPanel
@@ -1572,7 +1871,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* ── INPUT AREA ────────────────────────────────────────────── */}
+        {/* â”€â”€ INPUT AREA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <div className="rounded-sm border p-4 flex flex-col gap-3"
           style={{ backgroundColor: '#0d0d14', borderColor: 'rgba(255,255,255,0.08)' }}>
           <div className="text-xs tracking-widest mb-1" style={{ color: '#71717a' }}>RECORD OUTCOME</div>
@@ -1600,7 +1899,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ── HISTORY STRIP ─────────────────────────────────────────── */}
+        {/* â”€â”€ HISTORY STRIP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {snapshot && snapshot.history.length > 0 && (
           <div className="rounded-sm border overflow-hidden" style={{ backgroundColor: '#0d0d14', borderColor: 'rgba(255,255,255,0.08)' }}>
             <PanelHeader collapsed={collapsed.history} onToggle={() => togglePanel('history')}
